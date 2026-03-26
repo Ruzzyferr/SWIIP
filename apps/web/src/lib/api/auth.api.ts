@@ -14,8 +14,10 @@ export interface RegisterRequest {
 
 export interface AuthResponse {
   user: UserPayload;
-  accessToken: string;
-  sessionId: string;
+  tokens: {
+    accessToken: string;
+    refreshToken: string;
+  };
 }
 
 export async function login(data: LoginRequest): Promise<AuthResponse> {

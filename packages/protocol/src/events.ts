@@ -46,15 +46,15 @@ export enum OpCode {
 // ---------------------------------------------------------------------------
 
 export enum ChannelType {
-  TEXT = 0,
-  VOICE = 1,
-  CATEGORY = 2,
-  DM = 3,
-  GROUP_DM = 4,
-  ANNOUNCEMENT = 5,
-  STAGE = 6,
-  FORUM = 7,
-  THREAD = 8,
+  TEXT = 'TEXT',
+  VOICE = 'VOICE',
+  CATEGORY = 'CATEGORY',
+  DM = 'DM',
+  GROUP_DM = 'GROUP_DM',
+  ANNOUNCEMENT = 'ANNOUNCEMENT',
+  STAGE = 'STAGE',
+  FORUM = 'FORUM',
+  THREAD = 'THREAD',
 }
 
 export type PresenceStatus = 'online' | 'idle' | 'dnd' | 'offline' | 'invisible';

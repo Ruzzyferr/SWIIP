@@ -35,11 +35,13 @@ function GuildHeaderDropdown({
   guildId,
   onSettings,
   onInvite,
+  onCreateChannel,
 }: {
   guild: GuildPayload;
   guildId: string;
   onSettings: () => void;
   onInvite: () => void;
+  onCreateChannel: () => void;
 }) {
   const [open, setOpen] = useState(false);
 
@@ -75,6 +77,7 @@ function GuildHeaderDropdown({
               }}
             >
               <DropdownItem icon={<UserPlus size={15} />} label="Invite People" onClick={() => { onInvite(); setOpen(false); }} accent />
+              <DropdownItem icon={<Plus size={15} />} label="Create Channel" onClick={() => { onCreateChannel(); setOpen(false); }} />
               <DropdownItem icon={<Settings size={15} />} label="Server Settings" onClick={() => { onSettings(); setOpen(false); }} />
             </motion.div>
           </>
@@ -126,18 +129,22 @@ function DropdownItem({
 
 interface CategorySectionProps {
   name: string;
+  categoryId?: string;
   channels: ChannelPayload[];
   activeChannelId: string | null;
   onChannelClick: (channelId: string) => void;
   guildId?: string;
+  onCreateChannel?: (categoryId?: string) => void;
 }
 
 function CategorySection({
   name,
+  categoryId,
   channels,
   activeChannelId,
   onChannelClick,
   guildId,
+  onCreateChannel,
 }: CategorySectionProps) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -171,7 +178,7 @@ function CategorySection({
             className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity duration-fast p-0.5 rounded"
             onClick={(e) => {
               e.stopPropagation();
-              // TODO: open create channel modal
+              onCreateChannel?.(categoryId);
             }}
           >
             <Plus size={14} />
@@ -313,6 +320,10 @@ export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
 
   const guild = guildId ? guilds[guildId] : null;
 
+  const handleCreateChannel = (categoryId?: string) => {
+    openModal('create-channel', { guildId, categoryId });
+  };
+
   // Get channels for this guild
   const guildChannels = Object.values(channels).filter(
     (ch) => (ch as ChannelPayload & { guildId?: string }).guildId === guildId
@@ -359,6 +370,7 @@ export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
             );
             openModal('invite', { guildId, channelId: firstChannel?.id ?? '' });
           }}
+          onCreateChannel={() => handleCreateChannel()}
         />
       )}
 
@@ -391,10 +403,12 @@ export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
                 <CategorySection
                   key={cat.id}
                   name={cat.name}
+                  categoryId={cat.id}
                   channels={catChannels}
                   activeChannelId={activeChannelId}
                   onChannelClick={handleChannelClick}
                   guildId={guildId}
+                  onCreateChannel={handleCreateChannel}
                 />
               );
             })}

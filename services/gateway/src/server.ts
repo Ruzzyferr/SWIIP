@@ -345,7 +345,7 @@ export class GatewayServer {
         { sessionId: session.id, userId: session.userId },
         'Heartbeat ACK not received; closing zombie connection',
       );
-      ws.end(4009, 'Session timed out');
+      ws.end(4013, 'Heartbeat timeout');
       return;
     }
 
@@ -368,7 +368,7 @@ export class GatewayServer {
           { sessionId: currentSession.id },
           'Heartbeat timeout: no ACK within window; closing',
         );
-        ws.end(4009, 'Session timed out');
+        ws.end(4013, 'Heartbeat timeout');
         return;
       }
       // ACK received — schedule the next full interval

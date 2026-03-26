@@ -233,10 +233,15 @@ async function storeSessionInRedis(
   await pipeline.exec();
 }
 
-function buildResumeUrl(_context: GatewayContext): string {
+function buildResumeUrl(context: GatewayContext): string {
   // In a multi-instance deployment, this would be the specific instance URL.
   // The instance advertises itself via GATEWAY_PUBLIC_URL env var if set.
-  return process.env['GATEWAY_PUBLIC_URL'] ?? 'wss://gateway.constchat.app/gateway';
+  const envUrl = process.env['GATEWAY_PUBLIC_URL'];
+  if (envUrl) return envUrl;
+
+  // Local dev fallback — derive from the listening port
+  const port = context.config.PORT;
+  return `ws://localhost:${port}/gateway`;
 }
 
 function sendError(ws: UWSWebSocket, session: ClientSession, code: number, message: string): void {

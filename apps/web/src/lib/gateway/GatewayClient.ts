@@ -55,11 +55,23 @@ type GatewayEventMap = {
 // ---------------------------------------------------------------------------
 
 export class GatewayClient extends EventEmitter<GatewayEventMap> {
+  // Close codes that are non-recoverable — do not reconnect
+  private static readonly FATAL_CLOSE_CODES = new Set([
+    4004, // Authentication failed
+  ]);
+
+  // Close codes that invalidate the current session — clear state, then reconnect fresh
+  private static readonly SESSION_RESET_CODES = new Set([
+    4007, // Invalid sequence
+    4009, // Session timed out / invalid
+  ]);
+
   private ws: WebSocket | null = null;
   private sessionId: string | null = null;
   private sequence: number = 0;
   private heartbeatInterval: number | null = null;
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
+  private jitterTimeout: ReturnType<typeof setTimeout> | null = null;
   private heartbeatAckPending: boolean = false;
   private reconnectAttempts: number = 0;
   private readonly maxReconnectAttempts = 10;
@@ -72,10 +84,12 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
 
   constructor(gatewayUrl?: string) {
     super();
-    this.gatewayUrl =
+    const base =
       gatewayUrl ??
       process.env.NEXT_PUBLIC_GATEWAY_URL ??
       'ws://localhost:4001';
+    // Ensure the URL ends with /gateway (the uWS route)
+    this.gatewayUrl = base.endsWith('/gateway') ? base : `${base}/gateway`;
   }
 
   // ---------------------------------------------------------------------------
@@ -100,13 +114,23 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
     this.emit('disconnected', 1000, 'Client disconnect');
   }
 
-  send(op: OpCode, data: unknown): void {
+  send(op: OpCode, data: unknown): boolean {
     if (this.ws?.readyState !== WebSocket.OPEN) {
-      console.warn('[Gateway] Cannot send — socket not open');
-      return;
+      console.warn('[Gateway] Cannot send — socket not open, readyState:', this.ws?.readyState);
+      return false;
+    }
+    // For DISPATCH events, the gateway expects { op, t, d } at the envelope level
+    // Callers pass { t: 'EVENT_TYPE', d: { ... } } as data — hoist t to the envelope
+    if (op === OpCode.DISPATCH && data && typeof data === 'object' && 't' in data) {
+      const { t, d } = data as { t: string; d: unknown };
+      const msg = JSON.stringify({ op, t, d });
+      console.debug('[Gateway] Sending dispatch:', t, d);
+      this.ws.send(msg);
+      return true;
     }
     const envelope: GatewayEvent = { op, d: data };
     this.ws.send(JSON.stringify(envelope));
+    return true;
   }
 
   updatePresence(status: string, activities: unknown[] = []): void {
@@ -138,9 +162,23 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
     this.ws.onclose = (event) => {
       this._clearHeartbeat();
       this.emit('disconnected', event.code, event.reason);
-      if (!this.destroyed) {
-        this._scheduleReconnect();
+
+      if (this.destroyed) return;
+
+      // Fatal codes — stop reconnecting entirely
+      if (GatewayClient.FATAL_CLOSE_CODES.has(event.code)) {
+        this.emit('error', event.code, event.reason || 'Connection terminated');
+        return;
       }
+
+      // Session-invalidating codes — clear stale state, reconnect fresh
+      if (GatewayClient.SESSION_RESET_CODES.has(event.code)) {
+        this.sessionId = null;
+        this.sequence = 0;
+        this.resumeUrl = null;
+      }
+
+      this._scheduleReconnect();
     };
 
     this.ws.onerror = () => {
@@ -187,7 +225,8 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
     this.heartbeatInterval = interval;
     // Jitter: start first beat at a random offset ≤ interval
     const jitter = Math.random() * interval;
-    setTimeout(() => {
+    this.jitterTimeout = setTimeout(() => {
+      this.jitterTimeout = null;
       this._sendHeartbeat();
       this.heartbeatTimer = setInterval(() => this._sendHeartbeat(), interval);
     }, jitter);
@@ -197,7 +236,8 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
     if (this.heartbeatAckPending) {
       // Server didn't ack last heartbeat — zombie connection
       console.warn('[Gateway] Heartbeat ACK not received — reconnecting');
-      this._openWebSocket(this.resumeUrl ?? this.gatewayUrl);
+      this._clearHeartbeat();
+      this.ws?.close(4000, 'Zombie connection');
       return;
     }
     this.heartbeatAckPending = true;
@@ -205,6 +245,10 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
   }
 
   private _clearHeartbeat(): void {
+    if (this.jitterTimeout) {
+      clearTimeout(this.jitterTimeout);
+      this.jitterTimeout = null;
+    }
     if (this.heartbeatTimer) {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
@@ -257,12 +301,15 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
 
       case OpCode.RECONNECT: {
         console.info('[Gateway] Server requested reconnect');
-        this._openWebSocket(this.resumeUrl ?? this.gatewayUrl);
+        this._clearHeartbeat();
+        this.ws?.close(4000, 'Server requested reconnect');
         break;
       }
 
       case OpCode.INVALID_SESSION: {
-        const resumable = Boolean(event.d);
+        const resumable = event.d && typeof event.d === 'object'
+          ? Boolean((event.d as { resumable?: boolean }).resumable)
+          : Boolean(event.d);
         this.emit('invalid_session', resumable);
         if (!resumable) {
           this.sessionId = null;
@@ -408,6 +455,7 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
     if (this.destroyed) return;
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('[Gateway] Max reconnect attempts reached');
+      this.emit('error', 4999, 'Max reconnect attempts reached');
       return;
     }
 

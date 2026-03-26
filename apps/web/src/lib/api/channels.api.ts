@@ -6,6 +6,7 @@ export interface CreateChannelRequest {
   name: string;
   type?: ChannelType;
   categoryId?: string;
+  parentId?: string;
   topic?: string;
   position?: number;
 }
@@ -33,9 +34,11 @@ export async function createChannel(
   guildId: string,
   data: CreateChannelRequest
 ): Promise<ChannelPayload> {
+  const { categoryId, ...rest } = data;
+  const body = { ...rest, parentId: categoryId ?? rest.parentId };
   const res = await apiClient.post<ChannelPayload>(
     `/guilds/${guildId}/channels`,
-    data
+    body
   );
   return res.data;
 }

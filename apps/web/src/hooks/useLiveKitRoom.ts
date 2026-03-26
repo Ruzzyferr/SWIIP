@@ -13,6 +13,9 @@ import {
 import { useVoiceStore } from '@/stores/voice.store';
 import { useAuthStore } from '@/stores/auth.store';
 
+/** How long to wait for LiveKit credentials after VOICE_JOIN before giving up */
+const CREDENTIAL_TIMEOUT_MS = 12_000;
+
 /**
  * Manages the LiveKit Room instance lifecycle.
  * Connects/disconnects based on voice store credentials.
@@ -20,10 +23,12 @@ import { useAuthStore } from '@/stores/auth.store';
  */
 export function useLiveKitRoom() {
   const roomRef = useRef<Room | null>(null);
+  const credentialTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const livekitToken = useVoiceStore((s) => s.livekitToken);
   const livekitUrl = useVoiceStore((s) => s.livekitUrl);
   const currentChannelId = useVoiceStore((s) => s.currentChannelId);
+  const connectionState = useVoiceStore((s) => s.connectionState);
   const selfMuted = useVoiceStore((s) => s.selfMuted);
   const selfDeafened = useVoiceStore((s) => s.selfDeafened);
   const setConnectionState = useVoiceStore((s) => s.setConnectionState);
@@ -34,9 +39,39 @@ export function useLiveKitRoom() {
   const disconnect = useVoiceStore((s) => s.disconnect);
   const userId = useAuthStore((s) => s.user?.id);
 
+  // Timeout: if we're in "connecting" state but credentials never arrive, bail out
+  useEffect(() => {
+    if (connectionState === 'connecting' && currentChannelId && !livekitToken) {
+      console.debug('[LiveKit] Waiting for credentials from gateway…');
+      credentialTimeoutRef.current = setTimeout(() => {
+        const state = useVoiceStore.getState();
+        // Only fire if we're still waiting (no credentials arrived)
+        if (state.connectionState === 'connecting' && !state.livekitToken) {
+          console.error('[LiveKit] Credential timeout — gateway never sent VOICE_SERVER_UPDATE');
+          state.setError('Voice server did not respond. Please try again.');
+        }
+      }, CREDENTIAL_TIMEOUT_MS);
+
+      return () => {
+        if (credentialTimeoutRef.current) {
+          clearTimeout(credentialTimeoutRef.current);
+          credentialTimeoutRef.current = null;
+        }
+      };
+    }
+  }, [connectionState, currentChannelId, livekitToken]);
+
   // Connect to LiveKit when credentials are available
   useEffect(() => {
     if (!livekitToken || !livekitUrl || !currentChannelId) return;
+
+    // Clear credential timeout — credentials arrived
+    if (credentialTimeoutRef.current) {
+      clearTimeout(credentialTimeoutRef.current);
+      credentialTimeoutRef.current = null;
+    }
+
+    console.debug('[LiveKit] Credentials received, connecting to', livekitUrl);
 
     const room = new Room({
       adaptiveStream: true,
@@ -52,6 +87,7 @@ export function useLiveKitRoom() {
 
     // --- Event handlers ---
     room.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
+      console.debug('[LiveKit] Connection state:', state);
       switch (state) {
         case ConnectionState.Connecting:
           setConnectionState('connecting');
@@ -69,7 +105,7 @@ export function useLiveKitRoom() {
     });
 
     room.on(RoomEvent.Disconnected, () => {
-      // Room fully disconnected
+      console.debug('[LiveKit] Disconnected from room');
     });
 
     room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
@@ -94,7 +130,6 @@ export function useLiveKitRoom() {
       RoomEvent.ActiveSpeakersChanged,
       (speakers: Participant[]) => {
         if (!currentChannelId) return;
-        // Reset all speaking states for this channel, then set active ones
         const participants = useVoiceStore.getState().getChannelParticipants(currentChannelId);
         for (const p of participants) {
           const isSpeaking = speakers.some((s) => s.identity === p.userId);
@@ -105,24 +140,36 @@ export function useLiveKitRoom() {
       }
     );
 
-    room.on(RoomEvent.ConnectionQualityChanged, () => {
-      // Could surface connection quality indicators in the future
-    });
-
-    // Connect
+    // Connect — use Google STUN for local dev (avoids Twilio DNS errors)
     setConnectionState('connecting');
     room
-      .connect(livekitUrl, livekitToken)
+      .connect(livekitUrl, livekitToken, {
+        rtcConfig: {
+          iceServers: [
+            { urls: 'stun:stun.l.google.com:19302' },
+            { urls: 'stun:stun1.l.google.com:19302' },
+          ],
+        },
+      })
       .then(async () => {
-        // Publish microphone track (unmuted by default)
-        await room.localParticipant.setMicrophoneEnabled(true);
+        console.debug('[LiveKit] Connected successfully');
+
+        // Try to publish microphone — handle permission denial gracefully
+        try {
+          await room.localParticipant.setMicrophoneEnabled(true);
+        } catch (micErr) {
+          console.warn('[LiveKit] Microphone access denied or failed — joining muted', micErr);
+          // Still connected, just muted
+          useVoiceStore.getState().setSelfMuted(true);
+        }
 
         // Register self as participant
         if (currentChannelId && userId) {
+          const isMuted = useVoiceStore.getState().selfMuted;
           setParticipant({
             userId,
             channelId: currentChannelId,
-            selfMute: false,
+            selfMute: isMuted,
             selfDeaf: false,
             serverMute: false,
             serverDeaf: false,
@@ -147,10 +194,11 @@ export function useLiveKitRoom() {
       })
       .catch((err) => {
         console.error('[LiveKit] Failed to connect:', err);
-        setError(err instanceof Error ? err.message : 'Failed to connect to voice');
+        setError(err instanceof Error ? err.message : 'Failed to connect to voice server');
       });
 
     return () => {
+      console.debug('[LiveKit] Cleaning up room');
       room.disconnect();
       room.removeAllListeners();
       roomRef.current = null;
@@ -179,6 +227,10 @@ export function useLiveKitRoom() {
   }, [selfDeafened]);
 
   const disconnectRoom = useCallback(() => {
+    if (credentialTimeoutRef.current) {
+      clearTimeout(credentialTimeoutRef.current);
+      credentialTimeoutRef.current = null;
+    }
     const room = roomRef.current;
     if (room) {
       room.disconnect();

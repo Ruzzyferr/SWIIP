@@ -10,6 +10,7 @@ import { motion } from 'framer-motion';
 import { Eye, EyeOff, Loader2, AtSign, Check, X } from 'lucide-react';
 import { register as registerUser } from '@/lib/api/auth.api';
 import { useAuthStore } from '@/stores/auth.store';
+import { setAccessToken } from '@/lib/api/client';
 
 const registerSchema = z
   .object({
@@ -107,7 +108,8 @@ export default function RegisterPage() {
         password: data.password,
       });
       setUser(res.user);
-      setTokens(res.accessToken);
+      setTokens(res.tokens.accessToken);
+      setAccessToken(res.tokens.accessToken);
       router.push('/channels/@me');
     } catch (err: unknown) {
       const message =

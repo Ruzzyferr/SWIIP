@@ -33,16 +33,27 @@
     "win": {
       "target": [
         {
-          "target": "portable",
+          "target": "nsis",
           "arch": ["x64"]
         },
         {
-          "target": "dir",
+          "target": "portable",
           "arch": ["x64"]
         }
       ],
       "icon": "build/icon.ico",
       "signAndEditExecutable": false
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "installerIcon": "build/icon.ico",
+      "uninstallerIcon": "build/icon.ico",
+      "installerHeaderIcon": "build/icon.ico",
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "ConstChat",
+      "artifactName": "ConstChat-Setup-${version}.${ext}"
     },
     "portable": {
       "artifactName": "ConstChat-Portable-${version}.${ext}"

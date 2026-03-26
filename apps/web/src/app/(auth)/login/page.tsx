@@ -10,6 +10,7 @@ import { motion } from 'framer-motion';
 import { Eye, EyeOff, Loader2, Github, Chrome } from 'lucide-react';
 import { login } from '@/lib/api/auth.api';
 import { useAuthStore } from '@/stores/auth.store';
+import { setAccessToken } from '@/lib/api/client';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -56,7 +57,8 @@ export default function LoginPage() {
     try {
       const res = await login({ email: data.email, password: data.password });
       setUser(res.user);
-      setTokens(res.accessToken);
+      setTokens(res.tokens.accessToken);
+      setAccessToken(res.tokens.accessToken);
       router.push('/channels/@me');
     } catch (err: unknown) {
       const message =

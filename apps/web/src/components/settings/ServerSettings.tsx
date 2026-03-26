@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -242,7 +243,7 @@ function PlaceholderPage({ title }: { title: string }) {
 // Danger zone
 // ---------------------------------------------------------------------------
 
-function DangerZone({ guildId }: { guildId: string }) {
+function DangerZone({ guildId, onDeleted }: { guildId: string; onDeleted: () => void }) {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const removeGuild = useGuildsStore((s) => s.removeGuild);
@@ -253,7 +254,7 @@ function DangerZone({ guildId }: { guildId: string }) {
       await deleteGuild(guildId);
       removeGuild(guildId);
       toastSuccess('Server deleted');
-      // Close will be handled by parent
+      onDeleted();
     } catch (err: any) {
       toastError(err?.message ?? 'Failed to delete server');
     } finally {
@@ -301,6 +302,12 @@ interface ServerSettingsProps {
 export function ServerSettings({ guildId, onClose }: ServerSettingsProps) {
   const [activePage, setActivePage] = useState('overview');
   const guild = useGuildsStore((s) => s.guilds[guildId]);
+  const router = useRouter();
+
+  const handleServerDeleted = () => {
+    onClose();
+    router.push('/channels/@me');
+  };
 
   // Group nav items by section
   const sections = NAV_ITEMS.reduce<Record<string, typeof NAV_ITEMS>>((acc, item) => {
@@ -315,7 +322,7 @@ export function ServerSettings({ guildId, onClose }: ServerSettingsProps) {
         return (
           <>
             <OverviewPage guildId={guildId} />
-            <DangerZone guildId={guildId} />
+            <DangerZone guildId={guildId} onDeleted={handleServerDeleted} />
           </>
         );
       case 'members':
@@ -382,11 +389,12 @@ export function ServerSettings({ guildId, onClose }: ServerSettingsProps) {
           </div>
         </div>
 
-        {/* Close button */}
+        {/* Close button — pushed below Electron titlebar overlay (32px) */}
         <button
           onClick={onClose}
-          className="absolute top-4 right-4 p-2 rounded-full transition-colors"
+          className="absolute right-4 p-2 rounded-full transition-colors"
           style={{
+            top: 'calc(env(titlebar-area-height, 32px) + 8px)',
             color: 'var(--color-text-tertiary)',
             border: '2px solid var(--color-border-default)',
           }}

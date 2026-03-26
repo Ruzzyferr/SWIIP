@@ -12,7 +12,7 @@ interface GatewayState {
 
   // Actions
   setStatus: (status: GatewayStatus) => void;
-  setSessionId: (id: string) => void;
+  setSessionId: (id: string | null) => void;
   setSequence: (seq: number) => void;
   setLatency: (ms: number) => void;
   incrementReconnectAttempts: () => void;

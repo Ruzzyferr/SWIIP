@@ -1,0 +1,150 @@
+# DigitalOcean App Platform Spec for ConstChat
+# Deploy: doctl apps create --spec infra/digitalocean/app-spec.yaml
+# Update: doctl apps update <app-id> --spec infra/digitalocean/app-spec.yaml
+#
+# BEFORE DEPLOYING:
+# 1. Create a managed PostgreSQL cluster in fra1
+# 2. Create a managed Redis cluster in fra1
+# 3. Create a Spaces bucket "constchat" in fra1
+# 4. Replace all placeholder values marked with <...>
+
+name: constchat
+region: fra
+
+# ─────────────────────────────────────────────
+# Services (long-running containers)
+# ─────────────────────────────────────────────
+
+services:
+  # ── Web (Next.js frontend) ──────────────────
+  - name: web
+    dockerfile_path: apps/web/Dockerfile
+    source_dir: /
+    http_port: 3000
+    instance_count: 1
+    instance_size_slug: basic-xs
+    build_command: ""
+    routes:
+      - path: /
+    health_check:
+      http_path: /
+      initial_delay_seconds: 15
+      period_seconds: 30
+    envs:
+      - key: NEXT_PUBLIC_API_URL
+        value: ${api.PUBLIC_URL}
+      - key: NEXT_PUBLIC_GATEWAY_URL
+        value: ${gateway.PUBLIC_URL}
+      - key: NEXT_PUBLIC_CDN_URL
+        value: <SPACES_CDN_URL>
+
+  # ── API (NestJS backend) ────────────────────
+  - name: api
+    dockerfile_path: services/api/Dockerfile
+    source_dir: /
+    http_port: 4000
+    instance_count: 1
+    instance_size_slug: basic-s
+    routes:
+      - path: /api
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 20
+      period_seconds: 30
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "4000"
+      - key: DATABASE_URL
+        value: <MANAGED_PG_CONNECTION_STRING>
+        type: SECRET
+      - key: REDIS_URL
+        value: <MANAGED_REDIS_CONNECTION_STRING>
+        type: SECRET
+      - key: JWT_SECRET
+        value: <GENERATE_64_CHAR_SECRET>
+        type: SECRET
+      - key: JWT_REFRESH_SECRET
+        value: <GENERATE_64_CHAR_SECRET>
+        type: SECRET
+      - key: CORS_ORIGIN
+        value: ${web.PUBLIC_URL}
+      - key: S3_ENDPOINT
+        value: https://fra1.digitaloceanspaces.com
+      - key: S3_BUCKET
+        value: constchat
+      - key: S3_ACCESS_KEY
+        value: <SPACES_ACCESS_KEY>
+        type: SECRET
+      - key: S3_SECRET_KEY
+        value: <SPACES_SECRET_KEY>
+        type: SECRET
+      - key: S3_REGION
+        value: fra1
+      - key: S3_CDN_URL
+        value: <SPACES_CDN_URL>
+      - key: LOG_LEVEL
+        value: info
+
+  # ── Gateway (uWebSockets.js WebSocket) ──────
+  - name: gateway
+    dockerfile_path: services/gateway/Dockerfile
+    source_dir: /
+    http_port: 4001
+    instance_count: 1
+    instance_size_slug: basic-s
+    routes:
+      - path: /ws
+        preserve_path_prefix: false
+    health_check:
+      http_path: /health
+      initial_delay_seconds: 10
+      period_seconds: 30
+    envs:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: "4001"
+      - key: REDIS_URL
+        value: <MANAGED_REDIS_CONNECTION_STRING>
+        type: SECRET
+      - key: JWT_SECRET
+        value: <MUST_MATCH_API_JWT_SECRET>
+        type: SECRET
+      - key: API_INTERNAL_URL
+        value: ${api.PRIVATE_URL}:4000
+      - key: GATEWAY_PUBLIC_URL
+        value: ${gateway.PUBLIC_URL}
+      - key: MAX_CONNECTIONS
+        value: "10000"
+      - key: HEARTBEAT_INTERVAL
+        value: "41250"
+      - key: HEARTBEAT_TIMEOUT
+        value: "20000"
+      - key: LOG_LEVEL
+        value: info
+
+# ─────────────────────────────────────────────
+# Jobs (one-off tasks)
+# ─────────────────────────────────────────────
+
+jobs:
+  # ── Database migration job ──────────────────
+  - name: db-migrate
+    kind: PRE_DEPLOY
+    dockerfile_path: services/api/Dockerfile
+    source_dir: /
+    instance_size_slug: basic-xxs
+    run_command: npx prisma migrate deploy --schema ./prisma/schema.prisma
+    envs:
+      - key: DATABASE_URL
+        value: <MANAGED_PG_CONNECTION_STRING>
+        type: SECRET
+
+# ─────────────────────────────────────────────
+# Databases (managed add-ons)
+# ─────────────────────────────────────────────
+# NOTE: Managed PostgreSQL and Redis should be created separately
+# via DigitalOcean dashboard for better control over sizing/backups.
+# Then reference their connection strings in the env vars above.

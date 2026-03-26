@@ -3,6 +3,7 @@
 import { Modal } from '@/components/ui/Modal';
 import { useUIStore } from '@/stores/ui.store';
 import { CreateGuildModal } from './CreateGuildModal';
+import { CreateChannelModal } from './CreateChannelModal';
 import { InviteModal } from './InviteModal';
 import { JoinGuildModal } from './JoinGuildModal';
 
@@ -19,6 +20,8 @@ export function ModalRoot() {
     switch (activeModal?.type) {
       case 'create-guild':
         return <CreateGuildModal />;
+      case 'create-channel':
+        return <CreateChannelModal />;
       case 'invite':
         return <InviteModal />;
       case 'join-guild':
@@ -41,7 +44,7 @@ export function ModalRoot() {
       open={isOpen}
       onClose={closeModal}
       title={getTitle()}
-      showClose={activeModal?.type !== 'create-guild' && activeModal?.type !== 'join-guild'}
+      showClose={activeModal?.type !== 'create-guild' && activeModal?.type !== 'join-guild' && activeModal?.type !== 'create-channel'}
       size={activeModal?.type === 'invite' ? 'md' : 'sm'}
     >
       {renderContent()}

@@ -106,7 +106,8 @@ export async function handleResume(
       'RESUME denied: session not found or userId mismatch',
     );
     sendInvalidSession(ws, false);
-    ws.end(4009, 'Invalid session');
+    // Delay close to ensure INVALID_SESSION reaches the client before the close frame
+    setTimeout(() => { try { ws.end(4009, 'Invalid session'); } catch { /* already closed */ } }, 500);
     return;
   }
 
@@ -168,7 +169,8 @@ export async function handleResume(
   if (missedEvents === null) {
     log.warn({ userId }, 'Too many missed events; session not resumable');
     sendInvalidSession(ws, false);
-    ws.end(4009, 'Session expired');
+    // Delay close to ensure INVALID_SESSION reaches the client before the close frame
+    setTimeout(() => { try { ws.end(4009, 'Session expired'); } catch { /* already closed */ } }, 500);
     return;
   }
 

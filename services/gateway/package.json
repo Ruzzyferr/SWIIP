@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "build": "tsc",
-    "dev": "ts-node-dev --respawn src/index.ts",
+    "dev": "ts-node-dev -r dotenv/config --respawn src/index.ts",
     "start": "node dist/index.js",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts"
@@ -15,6 +15,7 @@
     "jsonwebtoken": "^9.0",
     "@constchat/protocol": "workspace:*",
     "@constchat/config": "workspace:*",
+    "dotenv": "^16.4",
     "pino": "^9.2",
     "pino-pretty": "^11.2",
     "nanoid": "^3.3",

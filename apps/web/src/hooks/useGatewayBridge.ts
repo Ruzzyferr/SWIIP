@@ -61,8 +61,21 @@ export function useGatewayBridge() {
       setGatewayStatus('connected');
     });
 
-    gw.on('disconnected', () => {
+    gw.on('disconnected', (code, _reason) => {
       setGatewayStatus('disconnected');
+
+      // Session invalidated — gateway store should reflect the reset
+      if (code === 4009 || code === 4007) {
+        setGatewaySessionId(null);
+      }
+
+      // Auth failure — force logout and redirect to login
+      if (code === 4004) {
+        toastError('Session expired. Please log in again.');
+        setAccessToken(null);
+        logout();
+        window.location.href = '/login';
+      }
     });
 
     gw.on('reconnecting', () => {
@@ -182,6 +195,7 @@ export function useGatewayBridge() {
     });
 
     gw.on('voice_server_update', (data) => {
+      console.debug('[Gateway] voice_server_update received', { endpoint: data.endpoint, hasToken: !!data.token });
       const voiceStore = useVoiceStore.getState();
       voiceStore.setLivekitCredentials(data.token, data.endpoint);
     });
@@ -189,11 +203,17 @@ export function useGatewayBridge() {
     // --- Error ---
     gw.on('error', (code, message) => {
       console.error(`[Gateway] Error ${code}: ${message}`);
-      if (code === 4004) {
-        toastError('Session expired. Please log in again.');
-        logout();
-      } else {
+      if (code === 4999) {
+        toastError('Unable to connect to server. Please refresh the page.');
+      } else if (code !== 4004) {
+        // 4004 is handled in the disconnected event
         toastError(`Connection error: ${message}`);
+      }
+
+      // If voice is in connecting state, reset it so the UI doesn't stay stuck
+      const voiceState = useVoiceStore.getState();
+      if (voiceState.connectionState === 'connecting') {
+        voiceState.setError(message);
       }
     });
 

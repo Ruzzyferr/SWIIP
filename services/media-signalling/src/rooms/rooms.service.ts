@@ -40,12 +40,14 @@ export interface RoomParticipant {
 export class RoomsService {
   private readonly logger = new Logger(RoomsService.name);
   private readonly livekitUrl: string;
+  private readonly livekitWsUrl: string;
   private readonly livekitApiKey: string;
   private readonly livekitApiSecret: string;
   private readonly roomServiceClient: RoomServiceClient;
 
   constructor(private readonly config: ConfigService) {
     this.livekitUrl = this.config.getOrThrow('LIVEKIT_URL');
+    this.livekitWsUrl = this.config.get('LIVEKIT_WS_URL') ?? this.livekitUrl.replace(/^http/, 'ws');
     this.livekitApiKey = this.config.getOrThrow('LIVEKIT_API_KEY');
     this.livekitApiSecret = this.config.getOrThrow('LIVEKIT_API_SECRET');
 
@@ -108,7 +110,7 @@ export class RoomsService {
 
     return {
       token: jwt,
-      endpoint: this.livekitUrl,
+      endpoint: this.livekitWsUrl,
     };
   }
 

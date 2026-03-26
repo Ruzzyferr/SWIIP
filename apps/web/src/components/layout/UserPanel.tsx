@@ -16,6 +16,7 @@ export function UserPanel() {
   const selfMuted = useVoiceStore((s) => s.selfMuted);
   const selfDeafened = useVoiceStore((s) => s.selfDeafened);
   const connectionState = useVoiceStore((s) => s.connectionState);
+  const currentChannelId = useVoiceStore((s) => s.currentChannelId);
   const { toggleMute, toggleDeafen } = useVoiceActions();
 
   if (!user) return null;
@@ -23,6 +24,13 @@ export function UserPanel() {
   const status = user.id ? getPresence(user.id) : 'offline';
   const displayName = user.globalName ?? user.username;
   const isInVoice = connectionState === 'connected' || connectionState === 'connecting' || connectionState === 'reconnecting';
+
+  // Check if user is currently speaking in a voice channel
+  const isSpeaking = useVoiceStore((s) => {
+    if (!currentChannelId || !user?.id) return false;
+    const key = `${currentChannelId}:${user.id}`;
+    return s.participants[key]?.speaking === true && !s.selfMuted;
+  });
 
   const iconButtonStyle = (active: boolean) => ({
     color: active ? 'var(--color-danger-default)' : 'var(--color-text-secondary)',
@@ -50,13 +58,21 @@ export function UserPanel() {
         onClick={() => openSettings('account')}
         aria-label="Open account settings"
       >
-        <Avatar
-          src={user.avatar}
-          userId={user.id}
-          displayName={displayName}
-          size="sm"
-          status={status}
-        />
+        <div
+          className="rounded-full transition-shadow duration-200"
+          style={{
+            boxShadow: isSpeaking ? '0 0 0 2px var(--color-voice-speaking, #43b581)' : 'none',
+            borderRadius: '50%',
+          }}
+        >
+          <Avatar
+            src={user.avatar}
+            userId={user.id}
+            displayName={displayName}
+            size="sm"
+            status={status}
+          />
+        </div>
         <div className="flex-1 min-w-0 text-left">
           <p
             className="text-sm font-semibold truncate leading-tight"

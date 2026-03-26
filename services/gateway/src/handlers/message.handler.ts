@@ -163,10 +163,14 @@ export async function handleMessage(
       default: {
         // Handle typed client events that arrive as op DISPATCH
         if (envelope.op === OpCode.DISPATCH && envelope.t) {
+          log.info(
+            { sessionId: session.id, eventType: envelope.t, authenticated: session.authenticated },
+            'Client dispatch received',
+          );
           await handleClientDispatch(ws, envelope.t as ClientEventType, envelope.d, context);
         } else {
           log.debug(
-            { sessionId: session.id, op: envelope.op },
+            { sessionId: session.id, op: envelope.op, t: envelope.t },
             'Unknown opcode received; ignoring',
           );
         }
@@ -318,6 +322,15 @@ async function handleClientDispatch(
 
   if (!session.authenticated || !session.userId) {
     log.warn({ sessionId: session.id, eventType }, 'Dispatch from unauthenticated session');
+    // Send error back so client doesn't hang forever
+    ws.send(
+      JSON.stringify({
+        op: OpCode.DISPATCH,
+        t: ServerEventType.ERROR,
+        d: { code: 4003, message: 'Not authenticated' },
+        s: ++session.sequence,
+      }),
+    );
     return;
   }
 
@@ -351,47 +364,79 @@ async function handleClientDispatch(
 
     case ClientEventType.VOICE_JOIN: {
       const d = data as { channelId: string };
-      if (!d.channelId) return;
-      // Forward to media-signalling service to get a LiveKit token
-      // The media-signalling service handles room creation and token issuance
+      log.info(
+        { userId: session.userId, channelId: d?.channelId },
+        'VOICE_JOIN: handler entered',
+      );
+      if (!d.channelId) {
+        log.warn({ userId: session.userId }, 'VOICE_JOIN: missing channelId');
+        return;
+      }
       const mediaBaseUrl = process.env['MEDIA_SIGNALLING_URL'] ?? 'http://localhost:4002';
-      try {
-        // Determine guildId from subscribed guilds (the channel must be in a guild)
-        // For now, forward to the API to resolve the channel's guild
-        const channelResponse = await fetch(
-          `${context.apiBaseUrl}/internal/channels/${d.channelId}`,
-          {
-            headers: { 'X-Internal-Token': context.config.JWT_SECRET },
-            signal: AbortSignal.timeout(3_000),
-          },
-        );
-        if (!channelResponse.ok) return;
-        const channelData = (await channelResponse.json()) as { guildId: string };
+      const apiBase = context.apiBaseUrl;
 
-        const joinResponse = await fetch(
-          `${mediaBaseUrl}/rooms/${channelData.guildId}/${d.channelId}/join`,
-          {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              'X-Internal-Token': context.config.JWT_SECRET,
-            },
-            body: JSON.stringify({
-              userId: session.userId,
-              username: session.userId, // Resolved by media service
-            }),
-            signal: AbortSignal.timeout(5_000),
-          },
+      const sendVoiceError = (message: string) => {
+        log.warn({ userId: session.userId, channelId: d.channelId }, `VOICE_JOIN: sending error → ${message}`);
+        ws.send(
+          JSON.stringify({
+            op: OpCode.DISPATCH,
+            t: ServerEventType.ERROR,
+            d: { code: 4010, message: `Voice join failed: ${message}` },
+            s: ++session.sequence,
+          }),
         );
-        if (!joinResponse.ok) return;
+      };
+
+      try {
+        // 1. Resolve channel's guild
+        const channelUrl = `${apiBase}/internal/channels/${d.channelId}`;
+        log.info({ url: channelUrl }, 'VOICE_JOIN: fetching channel');
+        const channelResponse = await fetch(channelUrl, {
+          headers: { 'X-Internal-Token': context.config.JWT_SECRET },
+          signal: AbortSignal.timeout(3_000),
+        });
+        if (!channelResponse.ok) {
+          const errBody = await channelResponse.text().catch(() => '');
+          log.warn({ channelId: d.channelId, status: channelResponse.status, body: errBody }, 'VOICE_JOIN: channel lookup failed');
+          sendVoiceError('Channel not found');
+          return;
+        }
+        const channelData = (await channelResponse.json()) as { guildId: string };
+        log.info({ channelId: d.channelId, guildId: channelData.guildId }, 'VOICE_JOIN: channel resolved');
+
+        // 2. Get LiveKit token from media-signalling
+        const joinUrl = `${mediaBaseUrl}/rooms/${channelData.guildId}/${d.channelId}/join`;
+        log.info({ url: joinUrl }, 'VOICE_JOIN: requesting LiveKit token');
+        const joinResponse = await fetch(joinUrl, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'X-Internal-Token': context.config.JWT_SECRET,
+          },
+          body: JSON.stringify({
+            userId: session.userId,
+            username: session.userId,
+          }),
+          signal: AbortSignal.timeout(5_000),
+        });
+        if (!joinResponse.ok) {
+          const body = await joinResponse.text().catch(() => '');
+          log.warn({ channelId: d.channelId, status: joinResponse.status, body }, 'VOICE_JOIN: media-signalling join failed');
+          sendVoiceError('Media service unavailable');
+          return;
+        }
 
         const joinResult = (await joinResponse.json()) as {
           token: string;
-          livekitUrl: string;
-          roomName: string;
+          endpoint: string;
         };
 
-        // Send VOICE_SERVER_UPDATE with the token and endpoint
+        log.info(
+          { userId: session.userId, channelId: d.channelId, guildId: channelData.guildId, endpoint: joinResult.endpoint },
+          'VOICE_JOIN: token issued, sending VOICE_SERVER_UPDATE',
+        );
+
+        // 3. Send VOICE_SERVER_UPDATE with LiveKit credentials
         ws.send(
           JSON.stringify({
             op: OpCode.DISPATCH,
@@ -399,13 +444,15 @@ async function handleClientDispatch(
             d: {
               guildId: channelData.guildId,
               token: joinResult.token,
-              endpoint: joinResult.livekitUrl,
+              endpoint: joinResult.endpoint,
             },
             s: ++session.sequence,
           }),
         );
+        log.info({ userId: session.userId, channelId: d.channelId }, 'VOICE_JOIN: VOICE_SERVER_UPDATE sent');
       } catch (err) {
-        log.warn({ err, channelId: d.channelId }, 'Failed to handle VOICE_JOIN');
+        log.error({ err, channelId: d.channelId }, 'VOICE_JOIN: unexpected error');
+        sendVoiceError('Unexpected error');
       }
       break;
     }

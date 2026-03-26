@@ -32,14 +32,22 @@ export function useVoiceActions() {
 
       // If in another channel, leave first
       if (currentChannelId) {
+        console.debug('[Voice] Leaving current channel before joining new one');
         gw.send(OpCode.DISPATCH, { t: 'VOICE_LEAVE', d: {} });
       }
 
+      console.debug('[Voice] Joining voice channel', { channelId, guildId });
       setCurrentChannel(channelId, guildId);
       setConnectionState('connecting');
 
       // Send VOICE_JOIN — the gateway will respond with VOICE_SERVER_UPDATE
-      gw.send(OpCode.DISPATCH, { t: 'VOICE_JOIN', d: { channelId } });
+      const sent = gw.send(OpCode.DISPATCH, { t: 'VOICE_JOIN', d: { channelId } });
+      if (!sent) {
+        console.error('[Voice] Failed to send VOICE_JOIN — gateway not connected');
+        useVoiceStore.getState().setError('Not connected to server. Please try again.');
+        return;
+      }
+      console.debug('[Voice] VOICE_JOIN sent to gateway');
     },
     [currentChannelId, setCurrentChannel, setConnectionState]
   );

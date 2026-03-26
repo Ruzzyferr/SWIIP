@@ -1,5 +1,9 @@
 const { app, BrowserWindow, shell, Menu, Tray, nativeImage, ipcMain, session } = require('electron');
 const path = require('path');
+
+// Move userData out of OneDrive to avoid cache permission errors on Windows
+app.setPath('userData', path.join(process.env.LOCALAPPDATA || app.getPath('appData'), 'ConstChat'));
+
 const Store = require('electron-store');
 
 const store = new Store({
@@ -8,11 +12,15 @@ const store = new Store({
     maximized: false,
     minimizeToTray: true,
     startMinimized: false,
+    serverUrl: '',
   },
 });
 
 const isDev = process.argv.includes('--dev');
-const WEB_URL = isDev ? 'http://localhost:3000' : 'https://oyster-app-o26sl.ondigitalocean.app';
+const DEFAULT_PROD_URL = 'https://constchat-CHANGE_ME.ondigitalocean.app';
+const WEB_URL = isDev
+  ? 'http://localhost:3000'
+  : (store.get('serverUrl') || process.env.CONSTCHAT_WEB_URL || DEFAULT_PROD_URL);
 
 let mainWindow = null;
 let tray = null;
