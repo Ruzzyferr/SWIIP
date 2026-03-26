@@ -42,6 +42,7 @@ RUN cp -r /app/node_modules/.prisma /app/deploy/node_modules/.prisma 2>/dev/null
 FROM node:20-alpine AS runner
 WORKDIR /app
 
+RUN apk add --no-cache openssl
 RUN addgroup --system --gid 1001 constchat
 RUN adduser --system --uid 1001 constchat
 
