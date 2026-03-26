@@ -56,29 +56,29 @@ const apiConfigSchema = z.object({
   /** Refresh token expiry string, e.g. "30d". */
   JWT_REFRESH_EXPIRY: z.string().default('30d'),
 
-  /** NATS server URL for inter-service messaging. */
-  NATS_URL: z.string().url(),
+  /** NATS server URL for inter-service messaging. Optional if NATS is not deployed. */
+  NATS_URL: z.string().url().optional(),
 
-  /** S3-compatible endpoint URL (MinIO, Cloudflare R2, etc.). */
-  S3_ENDPOINT: z.string().url(),
+  /** S3-compatible endpoint URL (MinIO, Cloudflare R2, etc.). Optional if uploads are disabled. */
+  S3_ENDPOINT: z.string().url().optional(),
 
   /** S3 bucket name for media and attachments. */
-  S3_BUCKET: z.string().min(1),
+  S3_BUCKET: z.string().min(1).optional(),
 
   /** S3 access key ID. */
-  S3_ACCESS_KEY: z.string().min(1),
+  S3_ACCESS_KEY: z.string().min(1).optional(),
 
   /** S3 secret access key. */
-  S3_SECRET_KEY: z.string().min(1),
+  S3_SECRET_KEY: z.string().min(1).optional(),
 
   /** S3 region (some providers require a specific value, e.g. "auto"). */
   S3_REGION: z.string().default('us-east-1'),
 
-  /** Meilisearch HTTP endpoint for full-text message search. */
-  MEILISEARCH_HOST: z.string().url(),
+  /** Meilisearch HTTP endpoint for full-text message search. Optional if search is disabled. */
+  MEILISEARCH_HOST: z.string().url().optional(),
 
   /** Meilisearch API key. */
-  MEILISEARCH_KEY: z.string().min(1),
+  MEILISEARCH_KEY: z.string().min(1).optional(),
 
   /** Sentry DSN for error tracking. Optional in non-production. */
   SENTRY_DSN: z.string().url().optional(),
@@ -131,8 +131,8 @@ const gatewayConfigSchema = z.object({
   /** Secret for verifying access JWTs issued by the API. Must match API JWT_SECRET. */
   JWT_SECRET: z.string().min(32),
 
-  /** NATS server URL for broadcasting gateway events to other services. */
-  NATS_URL: z.string().url(),
+  /** NATS server URL for broadcasting gateway events to other services. Optional if NATS is not deployed. */
+  NATS_URL: z.string().url().optional(),
 
   /**
    * Maximum number of simultaneous WebSocket connections this instance will
@@ -190,7 +190,7 @@ const mediaSignallingConfigSchema = z.object({
     .pipe(z.number().int().min(1).max(65535)),
 
   REDIS_URL: z.string().url(),
-  NATS_URL: z.string().url(),
+  NATS_URL: z.string().url().optional(),
 
   /** JWT secret shared with the API to validate media session tokens. */
   JWT_SECRET: z.string().min(32),
