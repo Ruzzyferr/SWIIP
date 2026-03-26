@@ -33,6 +33,8 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN pnpm --filter @constchat/design-tokens build
 RUN pnpm --filter @constchat/web build
+# Ensure public dir exists for COPY
+RUN mkdir -p /app/apps/web/public
 
 # ── Stage 3: runner ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
