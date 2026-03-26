@@ -1,0 +1,398 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ============================================================
+   ConstChat Design System — CSS Custom Properties
+   Generated from @constchat/design-tokens
+   ============================================================ */
+
+:root {
+  /* Surface scale */
+  --color-surface-base: #0e0f11;
+  --color-surface-elevated: #141518;
+  --color-surface-raised: #1a1c20;
+  --color-surface-overlay: #1f2126;
+  --color-surface-floating: #252830;
+
+  /* Accent */
+  --color-accent-primary: #6366f1;
+  --color-accent-hover: #4f52d9;
+  --color-accent-active: #4346c4;
+  --color-accent-muted: rgba(99, 102, 241, 0.15);
+  --color-accent-subtle: rgba(99, 102, 241, 0.08);
+  --color-accent-strong: rgba(99, 102, 241, 0.30);
+
+  /* Text */
+  --color-text-primary: #f0f1f3;
+  --color-text-secondary: #9ca3af;
+  --color-text-tertiary: #6b7280;
+  --color-text-disabled: #4b5563;
+  --color-text-inverse: #111318;
+  --color-text-accent: #818cf8;
+
+  /* Borders */
+  --color-border-subtle: rgba(255, 255, 255, 0.06);
+  --color-border-default: rgba(255, 255, 255, 0.10);
+  --color-border-strong: rgba(255, 255, 255, 0.16);
+  --color-border-focus: rgba(99, 102, 241, 0.60);
+
+  /* Status */
+  --color-status-online: #22c55e;
+  --color-status-idle: #f59e0b;
+  --color-status-dnd: #ef4444;
+  --color-status-offline: #6b7280;
+
+  /* Danger */
+  --color-danger-default: #ef4444;
+  --color-danger-hover: #dc2626;
+  --color-danger-active: #b91c1c;
+  --color-danger-muted: rgba(239, 68, 68, 0.15);
+  --color-danger-subtle: rgba(239, 68, 68, 0.08);
+
+  /* Success */
+  --color-success-default: #22c55e;
+  --color-success-hover: #16a34a;
+  --color-success-muted: rgba(34, 197, 94, 0.15);
+  --color-success-subtle: rgba(34, 197, 94, 0.08);
+
+  /* Warning */
+  --color-warning-default: #f59e0b;
+  --color-warning-hover: #d97706;
+  --color-warning-muted: rgba(245, 158, 11, 0.15);
+  --color-warning-subtle: rgba(245, 158, 11, 0.08);
+
+  /* Mention */
+  --color-mention-bg: rgba(99, 102, 241, 0.12);
+  --color-mention-border: rgba(99, 102, 241, 0.40);
+  --color-mention-hover: rgba(99, 102, 241, 0.18);
+  --color-mention-text: #a5b4fc;
+
+  /* Voice */
+  --color-voice-speaking: #22c55e;
+  --color-voice-muted-speaking: #f59e0b;
+  --color-voice-deafened: #ef4444;
+  --color-voice-disconnected: #6b7280;
+
+  /* Typography */
+  --font-sans: 'Inter';
+  --font-mono: 'JetBrains Mono';
+
+  --text-xs: 11px;
+  --text-sm: 13px;
+  --text-base: 15px;
+  --text-md: 16px;
+  --text-lg: 18px;
+  --text-xl: 20px;
+  --text-2xl: 24px;
+  --text-3xl: 30px;
+  --text-4xl: 36px;
+
+  --font-weight-normal: 400;
+  --font-weight-medium: 500;
+  --font-weight-semibold: 600;
+  --font-weight-bold: 700;
+  --font-weight-extrabold: 800;
+
+  --leading-none: 1;
+  --leading-tight: 1.2;
+  --leading-snug: 1.375;
+  --leading-normal: 1.5;
+  --leading-relaxed: 1.625;
+  --leading-loose: 2;
+
+  --tracking-tighter: -0.04em;
+  --tracking-tight: -0.02em;
+  --tracking-normal: 0em;
+  --tracking-wide: 0.04em;
+  --tracking-wider: 0.08em;
+  --tracking-widest: 0.16em;
+
+  /* Border radius */
+  --radius-none: 0px;
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 24px;
+  --radius-full: 9999px;
+
+  /* Shadows */
+  --shadow-none: none;
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.40);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.50);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.60);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.70);
+  --shadow-2xl: 0 24px 64px rgba(0, 0, 0, 0.80);
+  --shadow-glow: 0 0 20px rgba(99, 102, 241, 0.30);
+  --shadow-glow-strong: 0 0 32px rgba(99, 102, 241, 0.50);
+  --shadow-inset: inset 0 1px 3px rgba(0, 0, 0, 0.40);
+
+  /* Motion */
+  --duration-instant: 80ms;
+  --duration-fast: 140ms;
+  --duration-normal: 200ms;
+  --duration-slow: 300ms;
+  --duration-slower: 400ms;
+  --duration-slowest: 600ms;
+
+  --easing-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --easing-decelerate: cubic-bezier(0, 0, 0.2, 1);
+  --easing-accelerate: cubic-bezier(0.4, 0, 1, 1);
+  --easing-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --easing-linear: linear;
+
+  /* Z-index */
+  --z-base: 0;
+  --z-raised: 10;
+  --z-dropdown: 100;
+  --z-sticky: 200;
+  --z-overlay: 300;
+  --z-modal: 400;
+  --z-popover: 500;
+  --z-toast: 600;
+  --z-tooltip: 700;
+
+  /* Layout */
+  --layout-server-rail-width: 72px;
+  --layout-channel-sidebar-width: 240px;
+  --layout-member-sidebar-width: 240px;
+  --layout-bottom-bar-height: 52px;
+  --layout-title-bar-height: 48px;
+  --layout-message-input-min-height: 44px;
+  --layout-message-input-max-height: 50vh;
+  --layout-thread-panel-width: 400px;
+}
+
+/* ============================================================
+   Base Layer
+   ============================================================ */
+
+@layer base {
+  *, *::before, *::after {
+    box-sizing: border-box;
+  }
+
+  html {
+    font-size: 16px;
+    text-size-adjust: 100%;
+    -webkit-text-size-adjust: 100%;
+    scroll-behavior: smooth;
+  }
+
+  body {
+    background-color: var(--color-surface-base);
+    color: var(--color-text-primary);
+    font-family: var(--font-sans), system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+    font-size: var(--text-base);
+    line-height: var(--leading-normal);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    overflow: hidden;
+  }
+
+  /* Focus visible — accent ring */
+  :focus-visible {
+    outline: 2px solid var(--color-border-focus);
+    outline-offset: 2px;
+    border-radius: var(--radius-sm);
+  }
+
+  /* Text selection */
+  ::selection {
+    background-color: var(--color-accent-muted);
+    color: var(--color-text-primary);
+  }
+
+  /* Input autofill override */
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus,
+  input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px var(--color-surface-raised) inset !important;
+    -webkit-text-fill-color: var(--color-text-primary) !important;
+    caret-color: var(--color-text-primary);
+    transition: background-color 5000s ease-in-out 0s;
+  }
+}
+
+/* ============================================================
+   Scrollbar styling
+   ============================================================ */
+
+/* Firefox */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(255, 255, 255, 0.12) transparent;
+}
+
+/* Chrome / Safari / Edge */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.12);
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
+  background-clip: content-box;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background-color: rgba(255, 255, 255, 0.22);
+}
+
+/* Thin scrollbar variant */
+.scroll-thin::-webkit-scrollbar {
+  width: 4px;
+}
+
+.scroll-thin {
+  scrollbar-width: thin;
+}
+
+/* Hide scrollbar but keep functional */
+.scroll-hidden {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+
+.scroll-hidden::-webkit-scrollbar {
+  display: none;
+}
+
+/* ============================================================
+   Custom Components
+   ============================================================ */
+
+@layer components {
+  /* Server icon squircle hover */
+  .server-icon {
+    border-radius: var(--radius-full);
+    transition:
+      border-radius var(--duration-normal) var(--easing-standard),
+      transform var(--duration-fast) var(--easing-standard),
+      background-color var(--duration-fast) var(--easing-standard);
+  }
+
+  .server-icon:hover,
+  .server-icon.active {
+    border-radius: var(--radius-xl);
+  }
+
+  /* Active server pill indicator */
+  .server-pill {
+    position: absolute;
+    left: -4px;
+    top: 50%;
+    transform: translateY(-50%) scaleY(0);
+    width: 4px;
+    background-color: var(--color-text-primary);
+    border-radius: 0 var(--radius-sm) var(--radius-sm) 0;
+    transition:
+      height var(--duration-normal) var(--easing-spring),
+      transform var(--duration-normal) var(--easing-spring);
+  }
+
+  .server-pill.hover {
+    height: 8px;
+    transform: translateY(-50%) scaleY(1);
+  }
+
+  .server-pill.active {
+    height: 20px;
+    transform: translateY(-50%) scaleY(1);
+    background-color: var(--color-text-primary);
+  }
+
+  /* Channel item */
+  .channel-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 8px;
+    border-radius: var(--radius-md);
+    color: var(--color-text-secondary);
+    font-size: var(--text-sm);
+    font-weight: var(--font-weight-medium);
+    cursor: pointer;
+    transition:
+      background-color var(--duration-fast) var(--easing-standard),
+      color var(--duration-fast) var(--easing-standard);
+    user-select: none;
+  }
+
+  .channel-item:hover {
+    background-color: var(--color-surface-raised);
+    color: var(--color-text-primary);
+  }
+
+  .channel-item.active {
+    background-color: var(--color-accent-subtle);
+    color: var(--color-text-primary);
+  }
+
+  /* Message hover reveal */
+  .message-actions {
+    opacity: 0;
+    transform: translateY(2px);
+    transition:
+      opacity var(--duration-fast) var(--easing-standard),
+      transform var(--duration-fast) var(--easing-standard);
+    pointer-events: none;
+  }
+
+  .message-row:hover .message-actions {
+    opacity: 1;
+    transform: translateY(0);
+    pointer-events: auto;
+  }
+
+  /* Reaction pill */
+  .reaction-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 2px 8px;
+    border-radius: var(--radius-full);
+    background-color: var(--color-surface-raised);
+    border: 1px solid var(--color-border-subtle);
+    font-size: var(--text-sm);
+    cursor: pointer;
+    transition:
+      background-color var(--duration-fast) var(--easing-standard),
+      border-color var(--duration-fast) var(--easing-standard);
+  }
+
+  .reaction-pill:hover {
+    background-color: var(--color-surface-overlay);
+    border-color: var(--color-border-default);
+  }
+
+  .reaction-pill.active {
+    background-color: var(--color-accent-muted);
+    border-color: var(--color-accent-strong);
+  }
+}
+
+/* ============================================================
+   Utility Animations
+   ============================================================ */
+
+@keyframes typing-bounce {
+  0%, 60%, 100% {
+    transform: translateY(0);
+    opacity: 0.4;
+  }
+  30% {
+    transform: translateY(-4px);
+    opacity: 1;
+  }
+}

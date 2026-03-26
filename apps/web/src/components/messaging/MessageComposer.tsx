@@ -1,0 +1,627 @@
+'use client';
+
+import {
+  useState,
+  useRef,
+  useCallback,
+  useEffect,
+  type KeyboardEvent,
+  type DragEvent,
+  type ChangeEvent,
+} from 'react';
+import { useDropzone } from 'react-dropzone';
+import { motion, AnimatePresence } from 'framer-motion';
+import {
+  Paperclip,
+  Smile,
+  Plus,
+  Send,
+  X,
+  Reply,
+  Pencil,
+  Bold,
+  Italic,
+  Code,
+} from 'lucide-react';
+import { Tooltip } from '@/components/ui/Tooltip';
+import { Spinner } from '@/components/ui/Spinner';
+import { EmojiPicker } from '@/components/ui/EmojiPicker';
+import { sendMessage } from '@/lib/api/messages.api';
+import { triggerTyping } from '@/lib/api/channels.api';
+import { useMessagesStore } from '@/stores/messages.store';
+import { formatFileSize, debounce } from '@/lib/utils';
+import type { MessagePayload, AttachmentRef } from '@constchat/protocol';
+
+// ---------------------------------------------------------------------------
+// Attachment preview item
+// ---------------------------------------------------------------------------
+
+function AttachmentPreview({
+  file,
+  onRemove,
+}: {
+  file: File;
+  onRemove: () => void;
+}) {
+  const isImage = file.type.startsWith('image/');
+  const previewUrl = isImage ? URL.createObjectURL(file) : null;
+
+  useEffect(() => {
+    return () => {
+      if (previewUrl) URL.revokeObjectURL(previewUrl);
+    };
+  }, [previewUrl]);
+
+  return (
+    <div
+      className="relative flex-shrink-0 rounded-lg overflow-hidden group"
+      style={{
+        background: 'var(--color-surface-raised)',
+        border: '1px solid var(--color-border-default)',
+      }}
+    >
+      {isImage && previewUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={previewUrl}
+          alt={file.name}
+          className="h-20 w-20 object-cover rounded-lg"
+        />
+      ) : (
+        <div className="w-32 h-16 flex items-center justify-center gap-2 p-2">
+          <div
+            className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0"
+            style={{ background: 'var(--color-accent-muted)' }}
+          >
+            <Paperclip size={14} style={{ color: 'var(--color-accent-primary)' }} />
+          </div>
+          <div className="flex-1 min-w-0">
+            <p
+              className="text-xs font-medium truncate"
+              style={{ color: 'var(--color-text-primary)' }}
+            >
+              {file.name}
+            </p>
+            <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+              {formatFileSize(file.size)}
+            </p>
+          </div>
+        </div>
+      )}
+
+      {/* Remove button */}
+      <button
+        onClick={onRemove}
+        className="absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity duration-fast"
+        style={{
+          background: 'var(--color-surface-floating)',
+          border: '1px solid var(--color-border-strong)',
+          color: 'var(--color-text-primary)',
+        }}
+        aria-label={`Remove ${file.name}`}
+      >
+        <X size={10} />
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Reply / Edit indicator
+// ---------------------------------------------------------------------------
+
+function ComposerHeader({
+  type,
+  label,
+  onClose,
+}: {
+  type: 'reply' | 'edit';
+  label: string;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      className="flex items-center justify-between px-3 py-1.5 rounded-t-lg"
+      style={{
+        background: 'var(--color-surface-raised)',
+        borderBottom: '1px solid var(--color-border-subtle)',
+      }}
+    >
+      <div className="flex items-center gap-1.5" style={{ color: 'var(--color-text-secondary)' }}>
+        {type === 'reply' ? <Reply size={13} /> : <Pencil size={13} />}
+        <span className="text-xs font-medium">{label}</span>
+      </div>
+      <button
+        onClick={onClose}
+        className="w-5 h-5 rounded flex items-center justify-center transition-colors duration-fast"
+        style={{ color: 'var(--color-text-tertiary)' }}
+        onMouseEnter={(e) => {
+          e.currentTarget.style.color = 'var(--color-text-primary)';
+          e.currentTarget.style.background = 'var(--color-surface-overlay)';
+        }}
+        onMouseLeave={(e) => {
+          e.currentTarget.style.color = 'var(--color-text-tertiary)';
+          e.currentTarget.style.background = 'transparent';
+        }}
+        aria-label="Close"
+      >
+        <X size={13} />
+      </button>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Main MessageComposer
+// ---------------------------------------------------------------------------
+
+const MAX_CHARS = 4000;
+const TYPING_DEBOUNCE_MS = 2000;
+const DRAFT_KEY = (channelId: string) => `constchat-draft-${channelId}`;
+
+interface MessageComposerProps {
+  channelId: string;
+  channelName: string;
+  replyTo?: MessagePayload | null;
+  editingMessage?: MessagePayload | null;
+  onClearReply: () => void;
+  onClearEdit: () => void;
+  onEditSubmit: (messageId: string, content: string) => Promise<void>;
+}
+
+export function MessageComposer({
+  channelId,
+  channelName,
+  replyTo,
+  editingMessage,
+  onClearReply,
+  onClearEdit,
+  onEditSubmit,
+}: MessageComposerProps) {
+  const [content, setContent] = useState('');
+  const [files, setFiles] = useState<File[]>([]);
+  const [sending, setSending] = useState(false);
+  const [isDragOver, setIsDragOver] = useState(false);
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const emojiButtonRef = useRef<HTMLButtonElement>(null);
+  const addMessage = useMessagesStore((s) => s.addMessage);
+
+  // Restore draft
+  useEffect(() => {
+    if (!editingMessage) {
+      const draft = typeof window !== 'undefined'
+        ? localStorage.getItem(DRAFT_KEY(channelId))
+        : null;
+      if (draft) setContent(draft);
+    }
+  }, [channelId, editingMessage]);
+
+  // Pre-fill editing content
+  useEffect(() => {
+    if (editingMessage) {
+      setContent(editingMessage.content ?? '');
+      textareaRef.current?.focus();
+    }
+  }, [editingMessage]);
+
+  // Save draft on content change
+  useEffect(() => {
+    if (editingMessage) return;
+    if (typeof window !== 'undefined') {
+      if (content) {
+        localStorage.setItem(DRAFT_KEY(channelId), content);
+      } else {
+        localStorage.removeItem(DRAFT_KEY(channelId));
+      }
+    }
+  }, [content, channelId, editingMessage]);
+
+  // Auto-resize textarea
+  useEffect(() => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    ta.style.height = 'auto';
+    ta.style.height = `${Math.min(ta.scrollHeight, window.innerHeight * 0.5)}px`;
+  }, [content]);
+
+  // Debounced typing indicator
+  const emitTyping = useCallback(
+    debounce(async () => {
+      try {
+        await triggerTyping(channelId);
+      } catch {}
+    }, TYPING_DEBOUNCE_MS),
+    [channelId]
+  );
+
+  const handleContentChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+    const val = e.target.value;
+    if (val.length <= MAX_CHARS) {
+      setContent(val);
+      if (val) emitTyping();
+    }
+  };
+
+  const handleSend = useCallback(async () => {
+    const trimmed = content.trim();
+    if ((!trimmed && files.length === 0) || sending) return;
+
+    if (editingMessage) {
+      await onEditSubmit(editingMessage.id, trimmed);
+      setContent('');
+      onClearEdit();
+      return;
+    }
+
+    setSending(true);
+    try {
+      const msg = await sendMessage(channelId, {
+        content: trimmed || undefined,
+        replyToId: replyTo?.id,
+      });
+      addMessage(channelId, msg);
+      setContent('');
+      setFiles([]);
+      onClearReply();
+      localStorage.removeItem(DRAFT_KEY(channelId));
+    } catch {
+      // show toast
+    } finally {
+      setSending(false);
+    }
+  }, [
+    content,
+    files,
+    sending,
+    channelId,
+    replyTo,
+    editingMessage,
+    onClearReply,
+    onClearEdit,
+    onEditSubmit,
+    addMessage,
+  ]);
+
+  const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+    if (e.key === 'Escape') {
+      if (editingMessage) onClearEdit();
+      if (replyTo) onClearReply();
+    }
+  };
+
+  // Dropzone
+  const { getRootProps, getInputProps, isDragActive } = useDropzone({
+    onDrop: (acceptedFiles) => {
+      setFiles((prev) => [...prev, ...acceptedFiles].slice(0, 10));
+      setIsDragOver(false);
+    },
+    noClick: true,
+    noKeyboard: true,
+    maxSize: 25 * 1024 * 1024, // 25MB
+  });
+
+  const removeFile = (index: number) => {
+    setFiles((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleEmojiSelect = useCallback((emoji: string) => {
+    const ta = textareaRef.current;
+    if (ta) {
+      const start = ta.selectionStart;
+      const end = ta.selectionEnd;
+      const newContent = content.slice(0, start) + emoji + content.slice(end);
+      if (newContent.length <= MAX_CHARS) {
+        setContent(newContent);
+        // Restore cursor after emoji
+        requestAnimationFrame(() => {
+          const newPos = start + emoji.length;
+          ta.selectionStart = newPos;
+          ta.selectionEnd = newPos;
+          ta.focus();
+        });
+      }
+    } else {
+      const newContent = content + emoji;
+      if (newContent.length <= MAX_CHARS) setContent(newContent);
+    }
+    setShowEmojiPicker(false);
+  }, [content]);
+
+  const remaining = MAX_CHARS - content.length;
+  const isNearLimit = remaining <= 200;
+  const canSend = (content.trim().length > 0 || files.length > 0) && !sending;
+
+  return (
+    <div
+      className="px-4 pb-4 pt-2 flex-shrink-0"
+      {...getRootProps()}
+    >
+      <input {...getInputProps()} />
+
+      <div
+        className="rounded-xl overflow-hidden"
+        style={{
+          background: 'var(--color-surface-raised)',
+          border: isDragActive || isDragOver
+            ? '2px solid var(--color-accent-primary)'
+            : '1px solid var(--color-border-default)',
+          transition: 'border-color 140ms ease',
+        }}
+      >
+        {/* Reply / Edit header */}
+        <AnimatePresence>
+          {replyTo && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+            >
+              <ComposerHeader
+                type="reply"
+                label={`Replying to @${replyTo.author.id}`}
+                onClose={onClearReply}
+              />
+            </motion.div>
+          )}
+          {editingMessage && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+            >
+              <ComposerHeader
+                type="edit"
+                label="Editing message"
+                onClose={() => {
+                  onClearEdit();
+                  setContent('');
+                }}
+              />
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* File previews */}
+        <AnimatePresence>
+          {files.length > 0 && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.15 }}
+              className="flex flex-wrap gap-2 p-3 pb-0"
+            >
+              {files.map((file, i) => (
+                <AttachmentPreview
+                  key={`${file.name}-${i}`}
+                  file={file}
+                  onRemove={() => removeFile(i)}
+                />
+              ))}
+            </motion.div>
+          )}
+        </AnimatePresence>
+
+        {/* Drop overlay */}
+        {isDragActive && (
+          <div className="absolute inset-0 flex items-center justify-center rounded-xl"
+            style={{
+              background: 'var(--color-accent-muted)',
+              zIndex: 10,
+            }}
+          >
+            <p className="text-sm font-medium" style={{ color: 'var(--color-accent-primary)' }}>
+              Drop files to upload
+            </p>
+          </div>
+        )}
+
+        {/* Input area */}
+        <div className="flex items-end gap-1 px-2 py-2">
+          {/* Attach button */}
+          <Tooltip content="Upload a File" placement="top">
+            <button
+              onClick={() => {
+                const input = document.createElement('input');
+                input.type = 'file';
+                input.multiple = true;
+                input.onchange = (e) => {
+                  const f = (e.target as HTMLInputElement).files;
+                  if (f) setFiles((prev) => [...prev, ...Array.from(f)].slice(0, 10));
+                };
+                input.click();
+              }}
+              className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0 transition-all duration-fast"
+              style={{ color: 'var(--color-text-tertiary)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--color-surface-overlay)';
+                e.currentTarget.style.color = 'var(--color-text-primary)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.color = 'var(--color-text-tertiary)';
+              }}
+              aria-label="Upload a file"
+            >
+              <Plus size={18} />
+            </button>
+          </Tooltip>
+
+          {/* Textarea */}
+          <div className="flex-1 min-w-0">
+            <textarea
+              ref={textareaRef}
+              value={content}
+              onChange={handleContentChange}
+              onKeyDown={handleKeyDown}
+              placeholder={`Message #${channelName}`}
+              rows={1}
+              className="w-full bg-transparent resize-none outline-none text-sm py-2 px-1"
+              style={{
+                color: 'var(--color-text-primary)',
+                maxHeight: 'var(--layout-message-input-max-height)',
+                minHeight: 'var(--layout-message-input-min-height)',
+                lineHeight: '1.5',
+                overflow: 'auto',
+              }}
+              aria-label={`Message #${channelName}`}
+              aria-multiline
+            />
+          </div>
+
+          {/* Right-side controls */}
+          <div className="flex items-center gap-0.5 flex-shrink-0 pb-1">
+            {/* Char counter (near limit) */}
+            {isNearLimit && (
+              <span
+                className="text-xs font-medium mr-1"
+                style={{
+                  color: remaining < 0
+                    ? 'var(--color-danger-default)'
+                    : remaining < 100
+                    ? 'var(--color-warning-default)'
+                    : 'var(--color-text-tertiary)',
+                }}
+              >
+                {remaining}
+              </span>
+            )}
+
+            {/* Emoji */}
+            <Tooltip content="Emoji" placement="top" disabled={showEmojiPicker}>
+              <button
+                ref={emojiButtonRef}
+                onClick={() => setShowEmojiPicker((v) => !v)}
+                className="w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-fast"
+                style={{
+                  color: showEmojiPicker
+                    ? 'var(--color-text-primary)'
+                    : 'var(--color-text-tertiary)',
+                  background: showEmojiPicker
+                    ? 'var(--color-surface-overlay)'
+                    : 'transparent',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--color-surface-overlay)';
+                  e.currentTarget.style.color = 'var(--color-text-primary)';
+                }}
+                onMouseLeave={(e) => {
+                  if (!showEmojiPicker) {
+                    e.currentTarget.style.background = 'transparent';
+                    e.currentTarget.style.color = 'var(--color-text-tertiary)';
+                  }
+                }}
+                aria-label="Open emoji picker"
+                aria-expanded={showEmojiPicker}
+              >
+                <Smile size={18} />
+              </button>
+            </Tooltip>
+            {showEmojiPicker && (
+              <EmojiPicker
+                triggerRef={emojiButtonRef}
+                onSelect={handleEmojiSelect}
+                onClose={() => setShowEmojiPicker(false)}
+              />
+            )}
+
+            {/* Send button */}
+            <Tooltip content={editingMessage ? 'Save Edit' : 'Send Message'} placement="top">
+              <button
+                onClick={handleSend}
+                disabled={!canSend}
+                className="w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-fast"
+                style={{
+                  background: canSend
+                    ? 'var(--color-accent-primary)'
+                    : 'transparent',
+                  color: canSend ? '#ffffff' : 'var(--color-text-disabled)',
+                }}
+                onMouseEnter={(e) => {
+                  if (canSend) e.currentTarget.style.background = 'var(--color-accent-hover)';
+                }}
+                onMouseLeave={(e) => {
+                  if (canSend) e.currentTarget.style.background = 'var(--color-accent-primary)';
+                }}
+                aria-label={editingMessage ? 'Save edit' : 'Send message'}
+              >
+                {sending ? <Spinner size={15} /> : <Send size={15} />}
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+
+        {/* Formatting hints */}
+        <div
+          className="flex items-center gap-3 px-3 pb-1.5"
+          style={{ color: 'var(--color-text-disabled)' }}
+        >
+          <span className="text-xs">
+            <kbd className="font-mono">Enter</kbd> to send ·{' '}
+            <kbd className="font-mono">Shift+Enter</kbd> for new line
+          </span>
+          <div className="flex items-center gap-1 ml-auto">
+            <Tooltip content="Bold (Ctrl+B)" placement="top">
+              <button
+                className="p-1 rounded transition-colors duration-fast text-xs font-bold"
+                style={{ color: 'var(--color-text-disabled)' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'var(--color-text-secondary)';
+                  e.currentTarget.style.background = 'var(--color-surface-overlay)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'var(--color-text-disabled)';
+                  e.currentTarget.style.background = 'transparent';
+                }}
+                aria-label="Bold"
+              >
+                <Bold size={12} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Italic (Ctrl+I)" placement="top">
+              <button
+                className="p-1 rounded transition-colors duration-fast"
+                style={{ color: 'var(--color-text-disabled)' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'var(--color-text-secondary)';
+                  e.currentTarget.style.background = 'var(--color-surface-overlay)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'var(--color-text-disabled)';
+                  e.currentTarget.style.background = 'transparent';
+                }}
+                aria-label="Italic"
+              >
+                <Italic size={12} />
+              </button>
+            </Tooltip>
+            <Tooltip content="Code (Ctrl+`)" placement="top">
+              <button
+                className="p-1 rounded transition-colors duration-fast"
+                style={{ color: 'var(--color-text-disabled)' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.color = 'var(--color-text-secondary)';
+                  e.currentTarget.style.background = 'var(--color-surface-overlay)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.color = 'var(--color-text-disabled)';
+                  e.currentTarget.style.background = 'transparent';
+                }}
+                aria-label="Inline code"
+              >
+                <Code size={12} />
+              </button>
+            </Tooltip>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}

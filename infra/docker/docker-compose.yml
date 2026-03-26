@@ -1,0 +1,192 @@
+version: '3.9'
+
+# ConstChat — Local Development Docker Compose
+# Starts all infrastructure services needed for local development.
+# Application services (api, gateway, web) are run via pnpm dev outside Docker.
+#
+# Usage:
+#   docker compose -f infra/docker/docker-compose.yml up -d
+#   docker compose -f infra/docker/docker-compose.yml down
+
+services:
+  # ─── PostgreSQL ────────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    container_name: constchat-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: constchat
+      POSTGRES_PASSWORD: constchat
+      POSTGRES_DB: constchat
+    ports:
+      - '5432:5432'
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./init/postgres:/docker-entrypoint-initdb.d
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U constchat -d constchat']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Redis ────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    container_name: constchat-redis
+    restart: unless-stopped
+    command: >
+      redis-server
+      --maxmemory 512mb
+      --maxmemory-policy allkeys-lru
+      --save 60 1
+      --loglevel warning
+    ports:
+      - '6379:6379'
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ['CMD', 'redis-cli', 'ping']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── NATS (Event Bus) ─────────────────────────────────────────────────────
+  nats:
+    image: nats:2.10-alpine
+    container_name: constchat-nats
+    restart: unless-stopped
+    command: >
+      -js
+      -m 8222
+      --max_payload 8MB
+    ports:
+      - '4222:4222'   # client
+      - '8222:8222'   # monitoring
+    volumes:
+      - nats_data:/data
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:8222/healthz']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── MinIO (S3-compatible Object Storage) ────────────────────────────────
+  minio:
+    image: minio/minio:latest
+    container_name: constchat-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - '9000:9000'   # API
+      - '9001:9001'   # Console
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ['CMD', 'mc', 'ready', 'local']
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  # MinIO bucket init
+  minio-init:
+    image: minio/mc:latest
+    container_name: constchat-minio-init
+    depends_on:
+      minio:
+        condition: service_healthy
+    entrypoint: >
+      /bin/sh -c "
+        mc alias set local http://minio:9000 minioadmin minioadmin;
+        mc mb --ignore-existing local/constchat;
+        mc anonymous set download local/constchat/public;
+        echo 'MinIO initialized';
+      "
+    restart: 'no'
+
+  # ─── Meilisearch (Search) ────────────────────────────────────────────────
+  meilisearch:
+    image: getmeili/meilisearch:v1.8
+    container_name: constchat-meilisearch
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: masterKey
+      MEILI_ENV: development
+      MEILI_NO_ANALYTICS: 'true'
+    ports:
+      - '7700:7700'
+    volumes:
+      - meilisearch_data:/meili_data
+    healthcheck:
+      test: ['CMD', 'wget', '-qO-', 'http://localhost:7700/health']
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # ─── Observability Stack ─────────────────────────────────────────────────
+  # Prometheus
+  prometheus:
+    image: prom/prometheus:v2.52.0
+    container_name: constchat-prometheus
+    restart: unless-stopped
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--storage.tsdb.retention.time=30d'
+      - '--web.enable-lifecycle'
+    ports:
+      - '9090:9090'
+    volumes:
+      - ./observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus_data:/prometheus
+    profiles:
+      - observability
+
+  # Grafana
+  grafana:
+    image: grafana/grafana:10.4.0
+    container_name: constchat-grafana
+    restart: unless-stopped
+    environment:
+      GF_SECURITY_ADMIN_PASSWORD: admin
+      GF_USERS_ALLOW_SIGN_UP: 'false'
+      GF_ANALYTICS_REPORTING_ENABLED: 'false'
+    ports:
+      - '3001:3000'
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./observability/grafana/dashboards:/etc/grafana/provisioning/dashboards
+      - ./observability/grafana/datasources:/etc/grafana/provisioning/datasources
+    depends_on:
+      - prometheus
+    profiles:
+      - observability
+
+  # Loki (log aggregation)
+  loki:
+    image: grafana/loki:3.0.0
+    container_name: constchat-loki
+    restart: unless-stopped
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - '3100:3100'
+    volumes:
+      - loki_data:/loki
+    profiles:
+      - observability
+
+volumes:
+  postgres_data:
+  redis_data:
+  nats_data:
+  minio_data:
+  meilisearch_data:
+  prometheus_data:
+  grafana_data:
+  loki_data:
+
+networks:
+  default:
+    name: constchat-network

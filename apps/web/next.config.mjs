@@ -1,0 +1,52 @@
+import { fileURLToPath } from 'node:url';
+import { dirname, resolve } from 'node:path';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = dirname(__filename);
+
+/** @type {import('next').NextConfig} */
+const nextConfig = {
+  reactStrictMode: true,
+
+  images: {
+    remotePatterns: [
+      {
+        protocol: 'http',
+        hostname: 'localhost',
+        port: '9000',
+        pathname: '/constchat/**',
+      },
+      {
+        protocol: 'https',
+        hostname: '*.constchat.io',
+        pathname: '/**',
+      },
+      {
+        protocol: 'https',
+        hostname: 'cdn.discordapp.com',
+        pathname: '/**',
+      },
+    ],
+  },
+
+  experimental: {
+    optimizePackageImports: ['lucide-react', 'framer-motion'],
+  },
+
+  webpack(config) {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      '@constchat/design-tokens': resolve(
+        __dirname,
+        '../../packages/design-tokens/src/index.ts'
+      ),
+      '@constchat/protocol': resolve(
+        __dirname,
+        '../../packages/protocol/src/index.ts'
+      ),
+    };
+    return config;
+  },
+};
+
+export default nextConfig;

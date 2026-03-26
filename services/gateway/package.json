@@ -1,0 +1,29 @@
+{
+  "name": "@constchat/gateway",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "build": "tsc",
+    "dev": "ts-node-dev --respawn src/index.ts",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts"
+  },
+  "dependencies": {
+    "uWebSockets.js": "github:uNetworking/uWebSockets.js#v20.54.0",
+    "ioredis": "^5.4",
+    "jsonwebtoken": "^9.0",
+    "@constchat/protocol": "workspace:*",
+    "@constchat/config": "workspace:*",
+    "pino": "^9.2",
+    "pino-pretty": "^11.2",
+    "nanoid": "^3.3",
+    "zod": "^3.23"
+  },
+  "devDependencies": {
+    "@types/jsonwebtoken": "^9.0",
+    "@types/node": "^20",
+    "ts-node-dev": "^2.0",
+    "typescript": "^5.4"
+  }
+}

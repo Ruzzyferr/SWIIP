@@ -1,0 +1,47 @@
+{
+  "name": "@constchat/web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3000",
+    "build": "next build",
+    "start": "next start",
+    "typecheck": "tsc --noEmit",
+    "lint": "next lint"
+  },
+  "dependencies": {
+    "@constchat/design-tokens": "workspace:*",
+    "@constchat/protocol": "workspace:*",
+    "@hookform/resolvers": "^3.6",
+    "axios": "^1.7",
+    "clsx": "^2.1",
+    "date-fns": "^3.6",
+    "framer-motion": "^11.2",
+    "immer": "^10.1",
+    "lucide-react": "^0.400.0",
+    "next": "14.2.14",
+    "next-themes": "^0.3",
+    "react": "^18.3",
+    "react-dom": "^18.3",
+    "react-dropzone": "^14.2",
+    "react-hook-form": "^7.52",
+    "react-hotkeys-hook": "^4.5",
+    "react-virtuoso": "^4.7",
+    "sonner": "^1.5",
+    "swr": "^2.2",
+    "tailwind-merge": "^2.3",
+    "zod": "^3.23",
+    "livekit-client": "^2.1",
+    "zustand": "^4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20",
+    "@types/react": "^18",
+    "@types/react-dom": "^18",
+    "autoprefixer": "^10.4",
+    "eslint-config-next": "14.2.14",
+    "postcss": "^8.4",
+    "tailwindcss": "^3.4",
+    "typescript": "^5.4"
+  }
+}

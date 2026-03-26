@@ -1,0 +1,129 @@
+import type { Config } from 'tailwindcss';
+
+const config: Config = {
+  content: ['./src/**/*.{js,ts,jsx,tsx,mdx}'],
+  theme: {
+    extend: {
+      colors: {
+        surface: {
+          base: 'var(--color-surface-base)',
+          elevated: 'var(--color-surface-elevated)',
+          raised: 'var(--color-surface-raised)',
+          overlay: 'var(--color-surface-overlay)',
+          floating: 'var(--color-surface-floating)',
+        },
+        accent: {
+          DEFAULT: 'var(--color-accent-primary)',
+          hover: 'var(--color-accent-hover)',
+          active: 'var(--color-accent-active)',
+          muted: 'var(--color-accent-muted)',
+          subtle: 'var(--color-accent-subtle)',
+          strong: 'var(--color-accent-strong)',
+        },
+        text: {
+          primary: 'var(--color-text-primary)',
+          secondary: 'var(--color-text-secondary)',
+          tertiary: 'var(--color-text-tertiary)',
+          disabled: 'var(--color-text-disabled)',
+          inverse: 'var(--color-text-inverse)',
+          accent: 'var(--color-text-accent)',
+        },
+        border: {
+          subtle: 'var(--color-border-subtle)',
+          DEFAULT: 'var(--color-border-default)',
+          strong: 'var(--color-border-strong)',
+          focus: 'var(--color-border-focus)',
+        },
+        status: {
+          online: 'var(--color-status-online)',
+          idle: 'var(--color-status-idle)',
+          dnd: 'var(--color-status-dnd)',
+          offline: 'var(--color-status-offline)',
+        },
+        danger: {
+          DEFAULT: 'var(--color-danger-default)',
+          hover: 'var(--color-danger-hover)',
+          active: 'var(--color-danger-active)',
+          muted: 'var(--color-danger-muted)',
+          subtle: 'var(--color-danger-subtle)',
+        },
+        success: {
+          DEFAULT: 'var(--color-success-default)',
+          hover: 'var(--color-success-hover)',
+          muted: 'var(--color-success-muted)',
+        },
+        warning: {
+          DEFAULT: 'var(--color-warning-default)',
+          hover: 'var(--color-warning-hover)',
+          muted: 'var(--color-warning-muted)',
+        },
+        mention: {
+          bg: 'var(--color-mention-bg)',
+          border: 'var(--color-mention-border)',
+          hover: 'var(--color-mention-hover)',
+          text: 'var(--color-mention-text)',
+        },
+      },
+      fontFamily: {
+        sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
+        mono: ['var(--font-mono)', 'monospace'],
+      },
+      fontSize: {
+        xs: 'var(--text-xs)',
+        sm: 'var(--text-sm)',
+        base: 'var(--text-base)',
+        md: 'var(--text-md)',
+        lg: 'var(--text-lg)',
+        xl: 'var(--text-xl)',
+        '2xl': 'var(--text-2xl)',
+        '3xl': 'var(--text-3xl)',
+        '4xl': 'var(--text-4xl)',
+      },
+      borderRadius: {
+        sm: 'var(--radius-sm)',
+        DEFAULT: 'var(--radius-md)',
+        md: 'var(--radius-md)',
+        lg: 'var(--radius-lg)',
+        xl: 'var(--radius-xl)',
+        '2xl': 'var(--radius-2xl)',
+        '3xl': 'var(--radius-3xl)',
+        full: 'var(--radius-full)',
+      },
+      boxShadow: {
+        sm: 'var(--shadow-sm)',
+        DEFAULT: 'var(--shadow-md)',
+        md: 'var(--shadow-md)',
+        lg: 'var(--shadow-lg)',
+        xl: 'var(--shadow-xl)',
+        '2xl': 'var(--shadow-2xl)',
+        glow: 'var(--shadow-glow)',
+        'glow-strong': 'var(--shadow-glow-strong)',
+      },
+      transitionDuration: {
+        instant: '80ms',
+        fast: '140ms',
+        normal: '200ms',
+        slow: '300ms',
+        slower: '400ms',
+      },
+      transitionTimingFunction: {
+        standard: 'cubic-bezier(0.4, 0, 0.2, 1)',
+        decelerate: 'cubic-bezier(0, 0, 0.2, 1)',
+        accelerate: 'cubic-bezier(0.4, 0, 1, 1)',
+        spring: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+      },
+      zIndex: {
+        dropdown: '100',
+        sticky: '200',
+        overlay: '300',
+        modal: '400',
+        popover: '500',
+        toast: '600',
+        tooltip: '700',
+      },
+    },
+  },
+  plugins: [],
+};
+
+export default config;

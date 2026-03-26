@@ -1,0 +1,255 @@
+'use client';
+
+import {
+  useState,
+  useCallback,
+  useEffect,
+  useRef,
+  type ReactNode,
+  type MouseEvent as ReactMouseEvent,
+} from 'react';
+import { createPortal } from 'react-dom';
+import { motion, AnimatePresence } from 'framer-motion';
+import { cn } from '@/lib/utils';
+
+export interface ContextMenuItem {
+  type?: 'item' | 'separator' | 'label';
+  label?: string;
+  icon?: ReactNode;
+  shortcut?: string;
+  danger?: boolean;
+  disabled?: boolean;
+  onClick?: () => void;
+  children?: ContextMenuItem[];
+}
+
+interface ContextMenuProps {
+  items: ContextMenuItem[];
+  children: ReactNode;
+}
+
+interface MenuPosition {
+  x: number;
+  y: number;
+}
+
+const menuVariants = {
+  hidden: { opacity: 0, scale: 0.96, y: -4 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    y: 0,
+    transition: { duration: 0.1, ease: [0, 0, 0.2, 1] },
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.96,
+    transition: { duration: 0.07 },
+  },
+};
+
+function ContextMenuContent({
+  items,
+  position,
+  onClose,
+}: {
+  items: ContextMenuItem[];
+  position: MenuPosition;
+  onClose: () => void;
+}) {
+  const menuRef = useRef<HTMLDivElement>(null);
+  const [adjustedPos, setAdjustedPos] = useState(position);
+  const [focusedIndex, setFocusedIndex] = useState(-1);
+
+  const actionItems = items.filter((i) => i.type !== 'separator' && i.type !== 'label');
+
+  // Adjust position to keep in viewport
+  useEffect(() => {
+    if (!menuRef.current) return;
+    const rect = menuRef.current.getBoundingClientRect();
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+
+    setAdjustedPos({
+      x: position.x + rect.width > vw ? position.x - rect.width : position.x,
+      y: position.y + rect.height > vh ? position.y - rect.height : position.y,
+    });
+  }, [position]);
+
+  // Keyboard navigation
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        onClose();
+      } else if (e.key === 'ArrowDown') {
+        e.preventDefault();
+        setFocusedIndex((prev) => Math.min(prev + 1, actionItems.length - 1));
+      } else if (e.key === 'ArrowUp') {
+        e.preventDefault();
+        setFocusedIndex((prev) => Math.max(prev - 1, 0));
+      } else if (e.key === 'Enter') {
+        const item = actionItems[focusedIndex];
+        if (item?.onClick && !item.disabled) {
+          item.onClick();
+          onClose();
+        }
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [focusedIndex, actionItems, onClose]);
+
+  let actionIdx = 0;
+
+  return (
+    <motion.div
+      ref={menuRef}
+      variants={menuVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      style={{
+        position: 'fixed',
+        top: adjustedPos.y,
+        left: adjustedPos.x,
+        zIndex: 'var(--z-popover)',
+        minWidth: '180px',
+        maxWidth: '260px',
+        background: 'var(--color-surface-floating)',
+        border: '1px solid var(--color-border-subtle)',
+        borderRadius: 'var(--radius-xl)',
+        boxShadow: 'var(--shadow-xl)',
+        padding: '4px',
+        outline: 'none',
+      }}
+      tabIndex={-1}
+      role="menu"
+    >
+      {items.map((item, i) => {
+        if (item.type === 'separator') {
+          return (
+            <div
+              key={i}
+              style={{
+                height: '1px',
+                margin: '4px 0',
+                background: 'var(--color-border-subtle)',
+              }}
+              role="separator"
+            />
+          );
+        }
+
+        if (item.type === 'label') {
+          return (
+            <div
+              key={i}
+              className="px-2.5 py-1.5 text-xs font-semibold uppercase tracking-wider"
+              style={{ color: 'var(--color-text-disabled)' }}
+            >
+              {item.label}
+            </div>
+          );
+        }
+
+        const currentIdx = actionIdx++;
+        const isFocused = currentIdx === focusedIndex;
+
+        return (
+          <button
+            key={i}
+            role="menuitem"
+            disabled={item.disabled}
+            onClick={() => {
+              if (!item.disabled) {
+                item.onClick?.();
+                onClose();
+              }
+            }}
+            onMouseEnter={() => setFocusedIndex(currentIdx)}
+            className={cn(
+              'w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-sm',
+              'transition-all duration-fast text-left',
+              'disabled:opacity-40 disabled:cursor-not-allowed'
+            )}
+            style={{
+              color: item.danger
+                ? 'var(--color-danger-default)'
+                : 'var(--color-text-primary)',
+              background: isFocused
+                ? item.danger
+                  ? 'var(--color-danger-muted)'
+                  : 'var(--color-surface-raised)'
+                : 'transparent',
+              fontWeight: 500,
+            }}
+          >
+            {item.icon && (
+              <span
+                className="w-4 h-4 flex-shrink-0 flex items-center justify-center"
+                style={{ opacity: 0.8 }}
+              >
+                {item.icon}
+              </span>
+            )}
+            <span className="flex-1 truncate">{item.label}</span>
+            {item.shortcut && (
+              <span
+                className="text-xs ml-auto pl-3"
+                style={{ color: 'var(--color-text-disabled)' }}
+              >
+                {item.shortcut}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </motion.div>
+  );
+}
+
+export function ContextMenu({ items, children }: ContextMenuProps) {
+  const [menuPos, setMenuPos] = useState<MenuPosition | null>(null);
+
+  const handleContextMenu = useCallback((e: ReactMouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setMenuPos({ x: e.clientX, y: e.clientY });
+  }, []);
+
+  const handleClose = useCallback(() => setMenuPos(null), []);
+
+  useEffect(() => {
+    if (!menuPos) return;
+    const handler = (e: MouseEvent) => {
+      setMenuPos(null);
+    };
+    window.addEventListener('mousedown', handler);
+    return () => window.removeEventListener('mousedown', handler);
+  }, [menuPos]);
+
+  if (typeof window === 'undefined') {
+    return <>{children}</>;
+  }
+
+  return (
+    <>
+      <div onContextMenu={handleContextMenu} style={{ display: 'contents' }}>
+        {children}
+      </div>
+
+      {createPortal(
+        <AnimatePresence>
+          {menuPos && (
+            <ContextMenuContent
+              items={items}
+              position={menuPos}
+              onClose={handleClose}
+            />
+          )}
+        </AnimatePresence>,
+        document.body
+      )}
+    </>
+  );
+}
