@@ -16,9 +16,9 @@ export type TopicHandler = (message: PubSubMessage) => void;
  * one for publishing (read/write) and one exclusively for subscribing.
  *
  * All gateway events are published on channels prefixed with:
- *   constchat:events:{topic}
+ *   swiip:events:{topic}
  *
- * The subscriber listens with psubscribe on "constchat:events:*".
+ * The subscriber listens with psubscribe on "swiip:events:*".
  */
 export class RedisPubSub {
   private readonly publisher: RedisClient;
@@ -60,7 +60,7 @@ export class RedisPubSub {
       this.reconnectAttempts = 0;
       if (this.isSubscribed) {
         // Re-subscribe after reconnect
-        void this.subscriber.psubscribe('constchat:events:*');
+        void this.subscriber.psubscribe('swiip:events:*');
       }
     });
 
@@ -71,9 +71,9 @@ export class RedisPubSub {
 
   async connect(): Promise<void> {
     await Promise.all([this.publisher.connect(), this.subscriber.connect()]);
-    await this.subscriber.psubscribe('constchat:events:*');
+    await this.subscriber.psubscribe('swiip:events:*');
     this.isSubscribed = true;
-    log.info('Redis PubSub connected and subscribed to constchat:events:*');
+    log.info('Redis PubSub connected and subscribed to swiip:events:*');
   }
 
   /**
@@ -81,7 +81,7 @@ export class RedisPubSub {
    * Topic examples: "guild:123", "user:456", "channel:789", "broadcast"
    */
   async publish(topic: string, event: GatewayEvent): Promise<void> {
-    const channel = `constchat:events:${topic}`;
+    const channel = `swiip:events:${topic}`;
     const message = JSON.stringify({ topic, event } satisfies PubSubMessage);
     try {
       await this.publisher.publish(channel, message);
@@ -139,8 +139,8 @@ export class RedisPubSub {
   }
 
   private onPMessage(_pattern: string, channel: string, rawMessage: string): void {
-    // channel = "constchat:events:{topic}"
-    const topic = channel.replace('constchat:events:', '');
+    // channel = "swiip:events:{topic}"
+    const topic = channel.replace('swiip:events:', '');
     let parsed: PubSubMessage;
     try {
       parsed = JSON.parse(rawMessage) as PubSubMessage;
@@ -181,7 +181,7 @@ export class RedisPubSub {
   async disconnect(): Promise<void> {
     this.isSubscribed = false;
     try {
-      await this.subscriber.punsubscribe('constchat:events:*');
+      await this.subscriber.punsubscribe('swiip:events:*');
     } catch {
       // ignore
     }

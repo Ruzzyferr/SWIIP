@@ -160,7 +160,7 @@ export class SubscriptionManager {
    * Returns all active sessionIds for a user from Redis.
    */
   async getSessionsForUser(userId: string): Promise<string[]> {
-    const key = `constchat:user_sessions:${userId}`;
+    const key = `swiip:user_sessions:${userId}`;
     return this.redis.smembers(key);
   }
 

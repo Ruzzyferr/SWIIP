@@ -33,8 +33,8 @@ async function bootstrap() {
   });
 
   const config = new DocumentBuilder()
-    .setTitle('ConstChat API')
-    .setDescription('ConstChat REST API')
+    .setTitle('Swiip API')
+    .setDescription('Swiip REST API')
     .setVersion('1.0')
     .addBearerAuth()
     .build();

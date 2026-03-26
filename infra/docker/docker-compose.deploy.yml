@@ -1,11 +1,8 @@
 version: '3.9'
 
-# Swiip — Production Docker Compose
-# Includes all application services + infrastructure.
-# Use with environment-specific .env files.
-#
+# Swiip — Simplified Droplet Deploy
 # Usage:
-#   docker compose -f infra/docker/docker-compose.prod.yml --env-file .env.production up -d
+#   docker compose -f infra/docker/docker-compose.deploy.yml --env-file .env.production up -d --build
 
 services:
   # ─── Application Services ────────────────────────────────────────────────
@@ -22,24 +19,24 @@ services:
       REDIS_URL: ${REDIS_URL}
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
-      NATS_URL: ${NATS_URL}
-      S3_ENDPOINT: ${S3_ENDPOINT}
-      S3_BUCKET: ${S3_BUCKET}
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
-      S3_SECRET_KEY: ${S3_SECRET_KEY}
       CORS_ORIGIN: ${CORS_ORIGIN}
+      SMTP_HOST: ${SMTP_HOST:-mail.swiip.com}
+      SMTP_PORT: ${SMTP_PORT:-587}
+      SMTP_USER: ${SMTP_USER:-info@swiip.com}
+      SMTP_PASS: ${SMTP_PASS}
+      SMTP_FROM: ${SMTP_FROM:-Swiip <info@swiip.com>}
       PORT: 4000
-    ports:
-      - '4000:4000'
     depends_on:
-      - postgres
-      - redis
-      - nats
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:4000/health']
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 30s
 
   gateway:
     build:
@@ -51,55 +48,37 @@ services:
       NODE_ENV: production
       REDIS_URL: ${REDIS_URL}
       JWT_SECRET: ${JWT_SECRET}
+      API_INTERNAL_URL: http://api:4000
       PORT: 4001
-      MAX_CONNECTIONS: ${MAX_CONNECTIONS:-10000}
-    ports:
-      - '4001:4001'
+      MAX_CONNECTIONS: 10000
+      HEARTBEAT_INTERVAL: 41250
+      HEARTBEAT_TIMEOUT: 20000
     depends_on:
-      - redis
+      redis:
+        condition: service_healthy
     healthcheck:
       test: ['CMD', 'wget', '-qO-', 'http://localhost:4001/health']
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 15s
 
   web:
     build:
       context: ../..
       dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL}
+        NEXT_PUBLIC_GATEWAY_URL: ${PUBLIC_GATEWAY_URL}
+        NEXT_PUBLIC_CDN_URL: ${PUBLIC_CDN_URL:-}
     container_name: swiip-web
     restart: unless-stopped
-    environment:
-      NEXT_PUBLIC_API_URL: ${PUBLIC_API_URL}
-      NEXT_PUBLIC_GATEWAY_URL: ${PUBLIC_GATEWAY_URL}
-      NEXT_PUBLIC_CDN_URL: ${PUBLIC_CDN_URL}
-    ports:
-      - '3000:3000'
     depends_on:
       - api
       - gateway
 
-  workers:
-    build:
-      context: ../..
-      dockerfile: services/workers/Dockerfile
-    container_name: swiip-workers
-    restart: unless-stopped
-    environment:
-      NODE_ENV: production
-      DATABASE_URL: ${DATABASE_URL}
-      REDIS_URL: ${REDIS_URL}
-      NATS_URL: ${NATS_URL}
-      S3_ENDPOINT: ${S3_ENDPOINT}
-      S3_BUCKET: ${S3_BUCKET}
-      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
-      S3_SECRET_KEY: ${S3_SECRET_KEY}
-    depends_on:
-      - postgres
-      - redis
-      - nats
-
   # ─── Infrastructure ───────────────────────────────────────────────────────
+
   postgres:
     image: postgres:16-alpine
     restart: unless-stopped
@@ -121,7 +100,7 @@ services:
     command: >
       redis-server
       --requirepass ${REDIS_PASSWORD}
-      --maxmemory 1gb
+      --maxmemory 512mb
       --maxmemory-policy allkeys-lru
     volumes:
       - redis_data:/data
@@ -131,22 +110,19 @@ services:
       timeout: 5s
       retries: 5
 
-  nats:
-    image: nats:2.10-alpine
-    restart: unless-stopped
-    command: -js -m 8222 --max_payload 8MB
-    volumes:
-      - nats_data:/data
+  # ─── Reverse Proxy ──────────────────────────────────────────────────────
 
-  nginx:
-    image: nginx:1.26-alpine
+  caddy:
+    image: caddy:2-alpine
     restart: unless-stopped
     ports:
       - '80:80'
       - '443:443'
     volumes:
-      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
-      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+      - ./downloads:/srv/downloads:ro
     depends_on:
       - web
       - api
@@ -155,8 +131,9 @@ services:
 volumes:
   postgres_data:
   redis_data:
-  nats_data:
+  caddy_data:
+  caddy_config:
 
 networks:
   default:
-    name: swiip-prod-network
+    name: swiip-network

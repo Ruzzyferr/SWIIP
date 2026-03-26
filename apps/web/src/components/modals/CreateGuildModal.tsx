@@ -120,7 +120,7 @@ export function CreateGuildModal() {
         className="text-xs"
         style={{ color: 'var(--color-text-disabled)' }}
       >
-        By creating a server, you agree to ConstChat&apos;s Community Guidelines.
+        By creating a server, you agree to Swiip&apos;s Community Guidelines.
       </p>
 
       {/* Actions */}

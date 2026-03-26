@@ -1,5 +1,5 @@
 /**
- * ConstChat Media Signalling Service
+ * Swiip Media Signalling Service
  *
  * Responsibilities:
  * - Voice/video room lifecycle management (via LiveKit)
@@ -38,7 +38,7 @@ async function bootstrap() {
   });
 
   const config = new DocumentBuilder()
-    .setTitle('ConstChat Media Signalling')
+    .setTitle('Swiip Media Signalling')
     .setVersion('1.0')
     .addBearerAuth()
     .build();

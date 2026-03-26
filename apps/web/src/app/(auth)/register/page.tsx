@@ -7,8 +7,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, Loader2, AtSign, Check, X } from 'lucide-react';
-import { register as registerUser } from '@/lib/api/auth.api';
+import { Eye, EyeOff, Loader2, AtSign, Check, X, Mail, ArrowLeft } from 'lucide-react';
+import { register as registerUser, verifyEmailCode, resendVerificationCode } from '@/lib/api/auth.api';
 import { useAuthStore } from '@/stores/auth.store';
 import { setAccessToken } from '@/lib/api/client';
 
@@ -82,10 +82,19 @@ export default function RegisterPage() {
   const router = useRouter();
   const setUser = useAuthStore((s) => s.setUser);
   const setTokens = useAuthStore((s) => s.setTokens);
+  const updateUser = useAuthStore((s) => s.updateUser);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
   const [passwordValue, setPasswordValue] = useState('');
+
+  // Verification step state
+  const [step, setStep] = useState<'form' | 'verify'>('form');
+  const [registeredEmail, setRegisteredEmail] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
+  const [verifyError, setVerifyError] = useState<string | null>(null);
+  const [isVerifying, setIsVerifying] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   const {
     register,
@@ -99,6 +108,13 @@ export default function RegisterPage() {
   const usernameValue = watch('username', '');
   const passwordStrength = getPasswordStrength(passwordValue);
 
+  // Resend cooldown timer
+  useEffect(() => {
+    if (resendCooldown <= 0) return;
+    const timer = setTimeout(() => setResendCooldown((c) => c - 1), 1000);
+    return () => clearTimeout(timer);
+  }, [resendCooldown]);
+
   const onSubmit = async (data: RegisterFormData) => {
     setServerError(null);
     try {
@@ -110,11 +126,41 @@ export default function RegisterPage() {
       setUser(res.user);
       setTokens(res.tokens.accessToken);
       setAccessToken(res.tokens.accessToken);
-      router.push('/channels/@me');
+      setRegisteredEmail(data.email);
+      setResendCooldown(60);
+      setStep('verify');
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'Registration failed. Please try again.';
       setServerError(message);
+    }
+  };
+
+  const handleVerify = async () => {
+    if (verificationCode.length !== 6) return;
+    setVerifyError(null);
+    setIsVerifying(true);
+    try {
+      await verifyEmailCode(verificationCode);
+      updateUser({ verified: true });
+      router.push('/channels/@me');
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Verification failed';
+      setVerifyError(message);
+    } finally {
+      setIsVerifying(false);
+    }
+  };
+
+  const handleResend = async () => {
+    if (resendCooldown > 0) return;
+    try {
+      await resendVerificationCode();
+      setResendCooldown(60);
+      setVerifyError(null);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to resend code';
+      setVerifyError(message);
     }
   };
 
@@ -170,318 +216,464 @@ export default function RegisterPage() {
         animate="visible"
         className="relative z-10 w-full max-w-[420px] mx-4"
       >
-        {/* Logo */}
-        <motion.div variants={itemVariants} className="text-center mb-7">
-          <div className="inline-flex items-center gap-2.5 mb-5">
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ background: 'var(--color-accent-primary)' }}
-            >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path
-                  d="M4 6C4 4.895 4.895 4 6 4H14C15.105 4 16 4.895 16 6V11C16 12.105 15.105 13 14 13H11L8 16V13H6C4.895 13 4 12.105 4 11V6Z"
-                  fill="white"
-                />
-              </svg>
-            </div>
-            <span className="text-xl font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
-              ConstChat
-            </span>
-          </div>
-          <h1
-            className="text-3xl font-bold"
-            style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.03em' }}
-          >
-            Create your account
-          </h1>
-          <p className="mt-2 text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
-            Join thousands of teams already using ConstChat
-          </p>
-        </motion.div>
+        {step === 'form' ? (
+          <>
+            {/* Logo */}
+            <motion.div variants={itemVariants} className="text-center mb-7">
+              <div className="inline-flex items-center gap-2.5 mb-5">
+                <div
+                  className="w-9 h-9 rounded-xl flex items-center justify-center"
+                  style={{ background: 'var(--color-accent-primary)' }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
+                    <path
+                      d="M4 6C4 4.895 4.895 4 6 4H14C15.105 4 16 4.895 16 6V11C16 12.105 15.105 13 14 13H11L8 16V13H6C4.895 13 4 12.105 4 11V6Z"
+                      fill="white"
+                    />
+                  </svg>
+                </div>
+                <span className="text-xl font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
+                  Swiip
+                </span>
+              </div>
+              <h1
+                className="text-3xl font-bold"
+                style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.03em' }}
+              >
+                Create your account
+              </h1>
+              <p className="mt-2 text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
+                Join thousands of teams already using Swiip
+              </p>
+            </motion.div>
 
-        <motion.div
-          variants={itemVariants}
-          className="rounded-2xl p-6"
-          style={{
-            background: 'var(--color-surface-elevated)',
-            border: '1px solid var(--color-border-subtle)',
-          }}
-        >
-          {serverError && (
             <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="mb-4 px-3 py-2.5 rounded-lg text-sm"
+              variants={itemVariants}
+              className="rounded-2xl p-6"
               style={{
-                background: 'var(--color-danger-muted)',
-                border: '1px solid rgba(239,68,68,0.25)',
-                color: '#fca5a5',
+                background: 'var(--color-surface-elevated)',
+                border: '1px solid var(--color-border-subtle)',
               }}
             >
-              {serverError}
-            </motion.div>
-          )}
-
-          <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
-            {/* Email */}
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-xs font-semibold uppercase tracking-wider mb-1.5"
-                style={{ color: 'var(--color-text-secondary)' }}
-              >
-                Email address
-              </label>
-              <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                {...register('email')}
-                className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all duration-fast"
-                style={inputStyle(!!errors.email)}
-                onFocus={(e) => handleFocus(e, !!errors.email)}
-                onBlur={(e) => handleBlur(e, !!errors.email)}
-                placeholder="you@example.com"
-              />
-              {errors.email && (
-                <p className="mt-1 text-xs" style={{ color: 'var(--color-danger-default)' }}>
-                  {errors.email.message}
-                </p>
-              )}
-            </div>
-
-            {/* Username */}
-            <div>
-              <label
-                htmlFor="username"
-                className="block text-xs font-semibold uppercase tracking-wider mb-1.5"
-                style={{ color: 'var(--color-text-secondary)' }}
-              >
-                Username
-              </label>
-              <div className="relative">
-                <div
-                  className="absolute left-3 top-1/2 -translate-y-1/2"
-                  style={{ color: 'var(--color-text-tertiary)' }}
+              {serverError && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="mb-4 px-3 py-2.5 rounded-lg text-sm"
+                  style={{
+                    background: 'var(--color-danger-muted)',
+                    border: '1px solid rgba(239,68,68,0.25)',
+                    color: '#fca5a5',
+                  }}
                 >
-                  <AtSign size={14} />
-                </div>
-                <input
-                  id="username"
-                  type="text"
-                  autoComplete="username"
-                  {...register('username')}
-                  className="w-full pl-8 pr-3 py-2.5 rounded-lg text-sm outline-none transition-all duration-fast"
-                  style={inputStyle(!!errors.username)}
-                  onFocus={(e) => handleFocus(e, !!errors.username)}
-                  onBlur={(e) => handleBlur(e, !!errors.username)}
-                  placeholder="yourhandle"
-                />
-              </div>
-              {usernameValue && !errors.username && (
-                <p className="mt-1 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-                  Your handle will be{' '}
-                  <span style={{ color: 'var(--color-text-accent)' }}>@{usernameValue}</span>
-                </p>
-              )}
-              {errors.username && (
-                <p className="mt-1 text-xs" style={{ color: 'var(--color-danger-default)' }}>
-                  {errors.username.message}
-                </p>
-              )}
-            </div>
-
-            {/* Password */}
-            <div>
-              <label
-                htmlFor="password"
-                className="block text-xs font-semibold uppercase tracking-wider mb-1.5"
-                style={{ color: 'var(--color-text-secondary)' }}
-              >
-                Password
-              </label>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  {...register('password', {
-                    onChange: (e) => setPasswordValue(e.target.value),
-                  })}
-                  className="w-full px-3 py-2.5 pr-10 rounded-lg text-sm outline-none transition-all duration-fast"
-                  style={inputStyle(!!errors.password)}
-                  onFocus={(e) => handleFocus(e, !!errors.password)}
-                  onBlur={(e) => handleBlur(e, !!errors.password)}
-                  placeholder="Min. 8 characters"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded"
-                  style={{ color: 'var(--color-text-tertiary)' }}
-                  tabIndex={-1}
-                >
-                  {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-
-              {/* Password strength */}
-              {passwordValue && (
-                <div className="mt-2 space-y-1.5">
-                  <div className="flex gap-1">
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <div
-                        key={i}
-                        className="h-1 flex-1 rounded-full transition-all duration-normal"
-                        style={{
-                          background:
-                            i <= passwordStrength.score
-                              ? passwordStrength.color
-                              : 'var(--color-surface-overlay)',
-                        }}
-                      />
-                    ))}
-                  </div>
-                  <p className="text-xs" style={{ color: passwordStrength.color }}>
-                    {passwordStrength.label}
-                  </p>
-                </div>
+                  {serverError}
+                </motion.div>
               )}
 
-              {errors.password && (
-                <p className="mt-1 text-xs" style={{ color: 'var(--color-danger-default)' }}>
-                  {errors.password.message}
-                </p>
-              )}
-            </div>
-
-            {/* Confirm Password */}
-            <div>
-              <label
-                htmlFor="confirmPassword"
-                className="block text-xs font-semibold uppercase tracking-wider mb-1.5"
-                style={{ color: 'var(--color-text-secondary)' }}
-              >
-                Confirm password
-              </label>
-              <div className="relative">
-                <input
-                  id="confirmPassword"
-                  type={showConfirm ? 'text' : 'password'}
-                  autoComplete="new-password"
-                  {...register('confirmPassword')}
-                  className="w-full px-3 py-2.5 pr-10 rounded-lg text-sm outline-none transition-all duration-fast"
-                  style={inputStyle(!!errors.confirmPassword)}
-                  onFocus={(e) => handleFocus(e, !!errors.confirmPassword)}
-                  onBlur={(e) => handleBlur(e, !!errors.confirmPassword)}
-                  placeholder="Repeat your password"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowConfirm((v) => !v)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded"
-                  style={{ color: 'var(--color-text-tertiary)' }}
-                  tabIndex={-1}
-                >
-                  {showConfirm ? <EyeOff size={15} /> : <Eye size={15} />}
-                </button>
-              </div>
-              {errors.confirmPassword && (
-                <p className="mt-1 text-xs" style={{ color: 'var(--color-danger-default)' }}>
-                  {errors.confirmPassword.message}
-                </p>
-              )}
-            </div>
-
-            {/* Terms */}
-            <div>
-              <label className="flex items-start gap-2.5 cursor-pointer group">
-                <div className="relative mt-0.5">
+              <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
+                {/* Email */}
+                <div>
+                  <label
+                    htmlFor="email"
+                    className="block text-xs font-semibold uppercase tracking-wider mb-1.5"
+                    style={{ color: 'var(--color-text-secondary)' }}
+                  >
+                    Email address
+                  </label>
                   <input
-                    type="checkbox"
-                    {...register('terms')}
-                    className="sr-only"
-                    id="terms"
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    {...register('email')}
+                    className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all duration-fast"
+                    style={inputStyle(!!errors.email)}
+                    onFocus={(e) => handleFocus(e, !!errors.email)}
+                    onBlur={(e) => handleBlur(e, !!errors.email)}
+                    placeholder="you@example.com"
                   />
-                  <div
-                    className="w-4 h-4 rounded flex items-center justify-center transition-all duration-fast"
+                  {errors.email && (
+                    <p className="mt-1 text-xs" style={{ color: 'var(--color-danger-default)' }}>
+                      {errors.email.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Username */}
+                <div>
+                  <label
+                    htmlFor="username"
+                    className="block text-xs font-semibold uppercase tracking-wider mb-1.5"
+                    style={{ color: 'var(--color-text-secondary)' }}
+                  >
+                    Username
+                  </label>
+                  <div className="relative">
+                    <div
+                      className="absolute left-3 top-1/2 -translate-y-1/2"
+                      style={{ color: 'var(--color-text-tertiary)' }}
+                    >
+                      <AtSign size={14} />
+                    </div>
+                    <input
+                      id="username"
+                      type="text"
+                      autoComplete="username"
+                      {...register('username')}
+                      className="w-full pl-8 pr-3 py-2.5 rounded-lg text-sm outline-none transition-all duration-fast"
+                      style={inputStyle(!!errors.username)}
+                      onFocus={(e) => handleFocus(e, !!errors.username)}
+                      onBlur={(e) => handleBlur(e, !!errors.username)}
+                      placeholder="yourhandle"
+                    />
+                  </div>
+                  {usernameValue && !errors.username && (
+                    <p className="mt-1 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+                      Your handle will be{' '}
+                      <span style={{ color: 'var(--color-text-accent)' }}>@{usernameValue}</span>
+                    </p>
+                  )}
+                  {errors.username && (
+                    <p className="mt-1 text-xs" style={{ color: 'var(--color-danger-default)' }}>
+                      {errors.username.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Password */}
+                <div>
+                  <label
+                    htmlFor="password"
+                    className="block text-xs font-semibold uppercase tracking-wider mb-1.5"
+                    style={{ color: 'var(--color-text-secondary)' }}
+                  >
+                    Password
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="password"
+                      type={showPassword ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      {...register('password', {
+                        onChange: (e) => setPasswordValue(e.target.value),
+                      })}
+                      className="w-full px-3 py-2.5 pr-10 rounded-lg text-sm outline-none transition-all duration-fast"
+                      style={inputStyle(!!errors.password)}
+                      onFocus={(e) => handleFocus(e, !!errors.password)}
+                      onBlur={(e) => handleBlur(e, !!errors.password)}
+                      placeholder="Min. 8 characters"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowPassword((v) => !v)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded"
+                      style={{ color: 'var(--color-text-tertiary)' }}
+                      tabIndex={-1}
+                    >
+                      {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+
+                  {/* Password strength */}
+                  {passwordValue && (
+                    <div className="mt-2 space-y-1.5">
+                      <div className="flex gap-1">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <div
+                            key={i}
+                            className="h-1 flex-1 rounded-full transition-all duration-normal"
+                            style={{
+                              background:
+                                i <= passwordStrength.score
+                                  ? passwordStrength.color
+                                  : 'var(--color-surface-overlay)',
+                            }}
+                          />
+                        ))}
+                      </div>
+                      <p className="text-xs" style={{ color: passwordStrength.color }}>
+                        {passwordStrength.label}
+                      </p>
+                    </div>
+                  )}
+
+                  {errors.password && (
+                    <p className="mt-1 text-xs" style={{ color: 'var(--color-danger-default)' }}>
+                      {errors.password.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Confirm Password */}
+                <div>
+                  <label
+                    htmlFor="confirmPassword"
+                    className="block text-xs font-semibold uppercase tracking-wider mb-1.5"
+                    style={{ color: 'var(--color-text-secondary)' }}
+                  >
+                    Confirm password
+                  </label>
+                  <div className="relative">
+                    <input
+                      id="confirmPassword"
+                      type={showConfirm ? 'text' : 'password'}
+                      autoComplete="new-password"
+                      {...register('confirmPassword')}
+                      className="w-full px-3 py-2.5 pr-10 rounded-lg text-sm outline-none transition-all duration-fast"
+                      style={inputStyle(!!errors.confirmPassword)}
+                      onFocus={(e) => handleFocus(e, !!errors.confirmPassword)}
+                      onBlur={(e) => handleBlur(e, !!errors.confirmPassword)}
+                      placeholder="Repeat your password"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowConfirm((v) => !v)}
+                      className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded"
+                      style={{ color: 'var(--color-text-tertiary)' }}
+                      tabIndex={-1}
+                    >
+                      {showConfirm ? <EyeOff size={15} /> : <Eye size={15} />}
+                    </button>
+                  </div>
+                  {errors.confirmPassword && (
+                    <p className="mt-1 text-xs" style={{ color: 'var(--color-danger-default)' }}>
+                      {errors.confirmPassword.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Terms */}
+                <div>
+                  <label className="flex items-start gap-2.5 cursor-pointer group">
+                    <div className="relative mt-0.5">
+                      <input
+                        type="checkbox"
+                        {...register('terms')}
+                        className="sr-only"
+                        id="terms"
+                      />
+                      <div
+                        className="w-4 h-4 rounded flex items-center justify-center transition-all duration-fast"
+                        style={{
+                          background: 'var(--color-surface-raised)',
+                          border: errors.terms
+                            ? '1px solid var(--color-danger-default)'
+                            : '1px solid var(--color-border-strong)',
+                        }}
+                      >
+                      </div>
+                    </div>
+                    <span className="text-sm leading-snug" style={{ color: 'var(--color-text-secondary)' }}>
+                      I agree to the{' '}
+                      <Link
+                        href="/terms"
+                        className="transition-colors duration-fast"
+                        style={{ color: 'var(--color-text-accent)' }}
+                      >
+                        Terms of Service
+                      </Link>{' '}
+                      and{' '}
+                      <Link
+                        href="/privacy"
+                        className="transition-colors duration-fast"
+                        style={{ color: 'var(--color-text-accent)' }}
+                      >
+                        Privacy Policy
+                      </Link>
+                    </span>
+                  </label>
+                  {errors.terms && (
+                    <p className="mt-1 text-xs ml-6.5" style={{ color: 'var(--color-danger-default)' }}>
+                      {errors.terms.message}
+                    </p>
+                  )}
+                </div>
+
+                {/* Submit */}
+                <button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-2.5 rounded-lg text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all duration-fast mt-2"
+                  style={{
+                    background: isSubmitting ? 'var(--color-accent-hover)' : 'var(--color-accent-primary)',
+                    opacity: isSubmitting ? 0.8 : 1,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isSubmitting) e.currentTarget.style.background = 'var(--color-accent-hover)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isSubmitting) e.currentTarget.style.background = 'var(--color-accent-primary)';
+                  }}
+                >
+                  {isSubmitting ? (
+                    <>
+                      <Loader2 size={15} className="animate-spin" />
+                      Creating account…
+                    </>
+                  ) : (
+                    'Create account'
+                  )}
+                </button>
+              </form>
+            </motion.div>
+
+            <motion.p
+              variants={itemVariants}
+              className="text-center mt-5 text-sm"
+              style={{ color: 'var(--color-text-tertiary)' }}
+            >
+              Already have an account?{' '}
+              <Link
+                href="/login"
+                className="font-medium transition-colors duration-fast"
+                style={{ color: 'var(--color-text-accent)' }}
+              >
+                Sign in
+              </Link>
+            </motion.p>
+          </>
+        ) : (
+          /* ── Verification Step ── */
+          <>
+            <motion.div variants={itemVariants} className="text-center mb-7">
+              <div
+                className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5"
+                style={{ background: 'var(--color-accent-muted, rgba(99,102,241,0.15))' }}
+              >
+                <Mail size={28} style={{ color: 'var(--color-accent-primary)' }} />
+              </div>
+              <h1
+                className="text-3xl font-bold"
+                style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.03em' }}
+              >
+                Check your email
+              </h1>
+              <p className="mt-2 text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
+                We sent a 6-digit code to{' '}
+                <span style={{ color: 'var(--color-text-primary)' }}>{registeredEmail}</span>
+              </p>
+            </motion.div>
+
+            <motion.div
+              variants={itemVariants}
+              className="rounded-2xl p-6"
+              style={{
+                background: 'var(--color-surface-elevated)',
+                border: '1px solid var(--color-border-subtle)',
+              }}
+            >
+              {verifyError && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0 }}
+                  animate={{ opacity: 1, height: 'auto' }}
+                  className="mb-4 px-3 py-2.5 rounded-lg text-sm"
+                  style={{
+                    background: 'var(--color-danger-muted)',
+                    border: '1px solid rgba(239,68,68,0.25)',
+                    color: '#fca5a5',
+                  }}
+                >
+                  {verifyError}
+                </motion.div>
+              )}
+
+              <div className="space-y-4">
+                <div>
+                  <label
+                    htmlFor="code"
+                    className="block text-xs font-semibold uppercase tracking-wider mb-1.5"
+                    style={{ color: 'var(--color-text-secondary)' }}
+                  >
+                    Verification code
+                  </label>
+                  <input
+                    id="code"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={6}
+                    autoFocus
+                    value={verificationCode}
+                    onChange={(e) => {
+                      const v = e.target.value.replace(/\D/g, '').slice(0, 6);
+                      setVerificationCode(v);
+                    }}
+                    className="w-full px-3 py-3 rounded-lg text-center text-2xl font-bold tracking-[0.3em] outline-none transition-all duration-fast"
                     style={{
                       background: 'var(--color-surface-raised)',
-                      border: errors.terms
-                        ? '1px solid var(--color-danger-default)'
-                        : '1px solid var(--color-border-strong)',
+                      border: '1px solid var(--color-border-default)',
+                      color: 'var(--color-text-primary)',
+                      letterSpacing: '0.3em',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--color-border-focus)';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.15)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = 'var(--color-border-default)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && verificationCode.length === 6) handleVerify();
+                    }}
+                    placeholder="000000"
+                  />
+                </div>
+
+                <button
+                  onClick={handleVerify}
+                  disabled={isVerifying || verificationCode.length !== 6}
+                  className="w-full py-2.5 rounded-lg text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all duration-fast"
+                  style={{
+                    background: isVerifying || verificationCode.length !== 6
+                      ? 'var(--color-accent-hover)'
+                      : 'var(--color-accent-primary)',
+                    opacity: verificationCode.length !== 6 ? 0.5 : 1,
+                  }}
+                  onMouseEnter={(e) => {
+                    if (!isVerifying && verificationCode.length === 6)
+                      e.currentTarget.style.background = 'var(--color-accent-hover)';
+                  }}
+                  onMouseLeave={(e) => {
+                    if (!isVerifying && verificationCode.length === 6)
+                      e.currentTarget.style.background = 'var(--color-accent-primary)';
+                  }}
+                >
+                  {isVerifying ? (
+                    <>
+                      <Loader2 size={15} className="animate-spin" />
+                      Verifying…
+                    </>
+                  ) : (
+                    'Verify email'
+                  )}
+                </button>
+
+                <div className="flex items-center justify-between">
+                  <button
+                    onClick={() => setStep('form')}
+                    className="text-sm flex items-center gap-1 transition-colors duration-fast"
+                    style={{ color: 'var(--color-text-tertiary)' }}
+                    onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-primary)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-tertiary)'; }}
+                  >
+                    <ArrowLeft size={14} />
+                    Back
+                  </button>
+                  <button
+                    onClick={handleResend}
+                    disabled={resendCooldown > 0}
+                    className="text-sm transition-colors duration-fast"
+                    style={{
+                      color: resendCooldown > 0 ? 'var(--color-text-muted)' : 'var(--color-text-accent)',
+                      cursor: resendCooldown > 0 ? 'not-allowed' : 'pointer',
                     }}
                   >
-                  </div>
+                    {resendCooldown > 0 ? `Resend code (${resendCooldown}s)` : 'Resend code'}
+                  </button>
                 </div>
-                <span className="text-sm leading-snug" style={{ color: 'var(--color-text-secondary)' }}>
-                  I agree to the{' '}
-                  <Link
-                    href="/terms"
-                    className="transition-colors duration-fast"
-                    style={{ color: 'var(--color-text-accent)' }}
-                  >
-                    Terms of Service
-                  </Link>{' '}
-                  and{' '}
-                  <Link
-                    href="/privacy"
-                    className="transition-colors duration-fast"
-                    style={{ color: 'var(--color-text-accent)' }}
-                  >
-                    Privacy Policy
-                  </Link>
-                </span>
-              </label>
-              {errors.terms && (
-                <p className="mt-1 text-xs ml-6.5" style={{ color: 'var(--color-danger-default)' }}>
-                  {errors.terms.message}
-                </p>
-              )}
-            </div>
-
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-2.5 rounded-lg text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all duration-fast mt-2"
-              style={{
-                background: isSubmitting ? 'var(--color-accent-hover)' : 'var(--color-accent-primary)',
-                opacity: isSubmitting ? 0.8 : 1,
-              }}
-              onMouseEnter={(e) => {
-                if (!isSubmitting) e.currentTarget.style.background = 'var(--color-accent-hover)';
-              }}
-              onMouseLeave={(e) => {
-                if (!isSubmitting) e.currentTarget.style.background = 'var(--color-accent-primary)';
-              }}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 size={15} className="animate-spin" />
-                  Creating account…
-                </>
-              ) : (
-                'Create account'
-              )}
-            </button>
-          </form>
-        </motion.div>
-
-        <motion.p
-          variants={itemVariants}
-          className="text-center mt-5 text-sm"
-          style={{ color: 'var(--color-text-tertiary)' }}
-        >
-          Already have an account?{' '}
-          <Link
-            href="/login"
-            className="font-medium transition-colors duration-fast"
-            style={{ color: 'var(--color-text-accent)' }}
-          >
-            Sign in
-          </Link>
-        </motion.p>
+              </div>
+            </motion.div>
+          </>
+        )}
       </motion.div>
     </div>
   );

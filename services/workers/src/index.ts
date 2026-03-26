@@ -1,5 +1,5 @@
 /**
- * ConstChat Workers Service
+ * Swiip Workers Service
  *
  * Background job processor consuming from NATS JetStream.
  * Each worker subscribes to specific subjects and processes jobs:
@@ -34,7 +34,7 @@ const prisma = new PrismaClient();
 const sc = StringCodec();
 
 async function main() {
-  logger.info('ConstChat Workers starting...');
+  logger.info('Swiip Workers starting...');
 
   // Connect to NATS
   const nc: NatsConnection = await connect({

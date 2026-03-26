@@ -343,7 +343,7 @@ async function handleClientDispatch(
 
       // Persist to Redis for RESUME replay
       const redis = context.pubsub.getPublisher();
-      redis.sadd(`constchat:session_guilds:${session.id}`, d.guildId).catch(() => {});
+      redis.sadd(`swiip:session_guilds:${session.id}`, d.guildId).catch(() => {});
 
       // Send current presence for all members of this guild
       await sendGuildPresenceSnapshot(ws, d.guildId, context);
@@ -358,7 +358,7 @@ async function handleClientDispatch(
 
       // Remove from Redis
       const redis2 = context.pubsub.getPublisher();
-      redis2.srem(`constchat:session_guilds:${session.id}`, d.guildId).catch(() => {});
+      redis2.srem(`swiip:session_guilds:${session.id}`, d.guildId).catch(() => {});
       break;
     }
 

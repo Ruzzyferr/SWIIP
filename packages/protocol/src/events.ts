@@ -126,6 +126,8 @@ export interface UserPayload {
   createdAt: string;
   /** Bitfield of UserFlags. */
   flags: number;
+  /** Whether the user's email has been verified. */
+  verified?: boolean;
 }
 
 export interface RolePayload {

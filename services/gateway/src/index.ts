@@ -19,7 +19,7 @@ async function main(): Promise<void> {
       logLevel: config.LOG_LEVEL,
       maxConnections: config.MAX_CONNECTIONS,
     },
-    'Starting ConstChat Gateway',
+    'Starting Swiip Gateway',
   );
 
   const server = new GatewayServer(config);
@@ -68,7 +68,7 @@ async function main(): Promise<void> {
     await server.start();
     logger.info(
       { port: config.PORT },
-      'ConstChat Gateway is ready to accept connections',
+      'Swiip Gateway is ready to accept connections',
     );
   } catch (err) {
     logger.fatal({ err }, 'Failed to start gateway');

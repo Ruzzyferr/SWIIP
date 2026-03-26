@@ -37,7 +37,7 @@ export class PresenceManager {
     customStatus?: string,
     activities?: ActivityPayload[],
   ): Promise<void> {
-    const key = `constchat:presence:${userId}`;
+    const key = `swiip:presence:${userId}`;
     const data: PresenceData = {
       userId,
       status,
@@ -83,7 +83,7 @@ export class PresenceManager {
    * Returns null if not found or TTL has expired (treat as offline).
    */
   async getPresence(userId: string): Promise<PresenceData | null> {
-    const key = `constchat:presence:${userId}`;
+    const key = `swiip:presence:${userId}`;
     const raw = await this.redis.hgetall(key);
     if (!raw || !raw['status']) return null;
     return this.deserializePresence(raw);
@@ -98,7 +98,7 @@ export class PresenceManager {
 
     const pipeline = this.redis.pipeline();
     for (const userId of userIds) {
-      pipeline.hgetall(`constchat:presence:${userId}`);
+      pipeline.hgetall(`swiip:presence:${userId}`);
     }
 
     const results = await pipeline.exec();
@@ -129,7 +129,7 @@ export class PresenceManager {
    */
   async onConnect(userId: string, sessionId: string, guildIds: string[]): Promise<void> {
     // Add sessionId to user's session set
-    const sessionsKey = `constchat:user_sessions:${userId}`;
+    const sessionsKey = `swiip:user_sessions:${userId}`;
     await this.redis.sadd(sessionsKey, sessionId);
     // sessions key should outlive individual session TTL
     await this.redis.expire(sessionsKey, 86_400);
@@ -140,7 +140,7 @@ export class PresenceManager {
       await this.updatePresence(userId, 'online', guildIds);
     } else {
       // Just refresh the TTL
-      await this.redis.expire(`constchat:presence:${userId}`, PRESENCE_TTL_SECONDS);
+      await this.redis.expire(`swiip:presence:${userId}`, PRESENCE_TTL_SECONDS);
     }
 
     log.debug({ userId, sessionId }, 'User connected');
@@ -151,7 +151,7 @@ export class PresenceManager {
    * If this was the user's last active session, marks them offline.
    */
   async onDisconnect(userId: string, sessionId: string, guildIds: string[]): Promise<void> {
-    const sessionsKey = `constchat:user_sessions:${userId}`;
+    const sessionsKey = `swiip:user_sessions:${userId}`;
     await this.redis.srem(sessionsKey, sessionId);
 
     const remainingSessions = await this.redis.scard(sessionsKey);
@@ -167,7 +167,7 @@ export class PresenceManager {
    * Refreshes the presence TTL (called on each heartbeat ACK).
    */
   async refreshTTL(userId: string): Promise<void> {
-    const key = `constchat:presence:${userId}`;
+    const key = `swiip:presence:${userId}`;
     await this.redis.expire(key, PRESENCE_TTL_SECONDS);
   }
 

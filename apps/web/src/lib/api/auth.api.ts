@@ -59,6 +59,12 @@ export async function changePassword(
   await apiClient.post('/auth/change-password', { currentPassword, newPassword });
 }
 
-export async function verifyEmail(token: string): Promise<void> {
-  await apiClient.post('/auth/verify-email', { token });
+export async function verifyEmailCode(code: string): Promise<{ verified: boolean }> {
+  const res = await apiClient.post<{ verified: boolean }>('/auth/verify-email', { code });
+  return res.data;
+}
+
+export async function resendVerificationCode(): Promise<{ message: string }> {
+  const res = await apiClient.post<{ message: string }>('/auth/resend-verification');
+  return res.data;
 }

@@ -54,7 +54,7 @@ export function InviteModal() {
     setLoading(true);
     try {
       const result = await createInvite(guildId, channelId, {
-        expiresIn: expiresIn || undefined,
+        maxAge: expiresIn || undefined,
         maxUses: maxUses || undefined,
       });
       setInvite(result);

@@ -70,13 +70,20 @@ export class AuthController {
     return this.authService.refreshToken(dto.refreshToken);
   }
 
-  @Public()
   @Post('verify-email')
   @HttpCode(HttpStatus.OK)
-  @ApiOperation({ summary: 'Verify email address' })
-  async verifyEmail(@Body() dto: VerifyEmailDto) {
-    await this.authService.verifyEmail(dto.token);
-    return { message: 'Email verified successfully' };
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Verify email with 6-digit code' })
+  async verifyEmail(@CurrentUser() user: AuthUser, @Body() dto: VerifyEmailDto) {
+    return this.authService.verifyEmailCode(user.userId, dto.code);
+  }
+
+  @Post('resend-verification')
+  @HttpCode(HttpStatus.OK)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Resend email verification code' })
+  async resendVerification(@CurrentUser() user: AuthUser) {
+    return this.authService.resendVerificationCode(user.userId);
   }
 
   @Public()

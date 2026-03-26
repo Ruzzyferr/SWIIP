@@ -1,17 +1,17 @@
 $ErrorActionPreference = "Continue"
-$Host.UI.RawUI.WindowTitle = "ConstChat - Stop All Services"
+$Host.UI.RawUI.WindowTitle = "Swiip - Stop All Services"
 
 $PROJECT = $PSScriptRoot
 
 Write-Host ""
 Write-Host "  ========================================" -ForegroundColor Red
-Write-Host "    ConstChat - Tum Servisler Durduruluyor" -ForegroundColor Red
+Write-Host "    Swiip - Tum Servisler Durduruluyor" -ForegroundColor Red
 Write-Host "  ========================================" -ForegroundColor Red
 Write-Host ""
 
 Write-Host "[1/3] Electron kapatiliyor..." -ForegroundColor Yellow
 Stop-Process -Name "electron" -Force -ErrorAction SilentlyContinue
-Stop-Process -Name "ConstChat" -Force -ErrorAction SilentlyContinue
+Stop-Process -Name "Swiip" -Force -ErrorAction SilentlyContinue
 Write-Host "  OK" -ForegroundColor Green
 
 Write-Host "[2/3] Node servisleri kapatiliyor..." -ForegroundColor Yellow
@@ -32,7 +32,7 @@ foreach ($port in @(3000, 4000, 4001, 4002)) {
 Get-Process -Name "node" -ErrorAction SilentlyContinue | Where-Object {
     try {
         $cmd = (Get-CimInstance Win32_Process -Filter "ProcessId=$($_.Id)" -ErrorAction SilentlyContinue).CommandLine
-        $cmd -and $cmd -match "constchat|ConstChat"
+        $cmd -and $cmd -match "swiip|Swiip"
     } catch { $false }
 } | ForEach-Object {
     Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue

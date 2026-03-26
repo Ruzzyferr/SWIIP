@@ -157,7 +157,7 @@ function AppearancePage() {
           className="text-sm"
           style={{ color: 'var(--color-text-secondary)' }}
         >
-          Customize how ConstChat looks on your device.
+          Customize how Swiip looks on your device.
         </p>
       </div>
 

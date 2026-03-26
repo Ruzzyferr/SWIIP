@@ -11,8 +11,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'ConstChat',
-    template: '%s — ConstChat',
+    default: 'Swiip',
+    template: '%s — Swiip',
   },
   description: 'Next-generation communication platform',
   icons: { icon: '/favicon.ico' },

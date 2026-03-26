@@ -67,6 +67,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }
       }
 
+      // Redirect unverified users to verify-email page
+      const currentUser = useAuthStore.getState().user;
+      if (currentUser && !currentUser.verified) {
+        router.replace('/verify-email');
+        return;
+      }
+
       setReady(true);
     };
 
@@ -91,7 +98,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
             className="text-sm font-medium"
             style={{ color: 'var(--color-text-secondary)' }}
           >
-            Loading ConstChat...
+            Loading Swiip...
           </p>
         </div>
       </div>

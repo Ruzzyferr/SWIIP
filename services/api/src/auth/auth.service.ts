@@ -11,6 +11,7 @@ import { ConfigService } from '@nestjs/config';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
+import { EmailService } from '../email/email.service';
 import * as bcrypt from 'bcryptjs';
 import { authenticator } from 'otplib';
 import * as QRCode from 'qrcode';
@@ -39,7 +40,9 @@ export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private readonly BCRYPT_ROUNDS = 12;
   private readonly SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
-  private readonly EMAIL_VERIFY_TTL = 60 * 60 * 24; // 24 hours
+  private readonly EMAIL_VERIFY_TTL = 60 * 10; // 10 minutes
+  private readonly EMAIL_VERIFY_MAX_ATTEMPTS = 5;
+  private readonly EMAIL_RESEND_COOLDOWN = 60; // 60 seconds
   private readonly PASSWORD_RESET_TTL = 60 * 60; // 1 hour
 
   constructor(
@@ -48,6 +51,7 @@ export class AuthService {
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
     private readonly eventEmitter: EventEmitter2,
+    private readonly emailService: EmailService,
   ) {}
 
   async register(dto: RegisterDto): Promise<{ user: any; tokens: TokenPair }> {
@@ -60,7 +64,6 @@ export class AuthService {
 
     const discriminator = await this.generateUniqueDiscriminator(dto.username);
     const passwordHash = await bcrypt.hash(dto.password, this.BCRYPT_ROUNDS);
-    const verificationToken = nanoid(32);
 
     const user = await this.prisma.user.create({
       data: {
@@ -88,17 +91,29 @@ export class AuthService {
       },
     });
 
+    // Generate 6-digit verification code and send email
+    const code = String(Math.floor(100000 + Math.random() * 900000));
     await this.redis.setex(
-      `email:verify:${verificationToken}`,
+      `email:verify:code:${user.id}`,
       this.EMAIL_VERIFY_TTL,
-      user.id,
+      code,
     );
+    await this.redis.setex(
+      `email:verify:attempts:${user.id}`,
+      this.EMAIL_VERIFY_TTL,
+      '0',
+    );
+
+    try {
+      await this.emailService.sendVerificationCode(user.email, code, user.username);
+    } catch {
+      this.logger.warn(`Failed to send verification email to ${user.email}, user can resend later`);
+    }
 
     this.eventEmitter.emit('user.registered', {
       userId: user.id,
       email: user.email,
       username: user.username,
-      verificationToken,
     });
 
     const session = await this.createSession(user.id);
@@ -271,10 +286,27 @@ export class AuthService {
     return { accessToken, refreshToken };
   }
 
-  async verifyEmail(token: string): Promise<void> {
-    const userId = await this.redis.get(`email:verify:${token}`);
-    if (!userId) {
-      throw new BadRequestException('Invalid or expired verification token');
+  async verifyEmailCode(userId: string, code: string): Promise<{ verified: boolean }> {
+    const storedCode = await this.redis.get(`email:verify:code:${userId}`);
+    if (!storedCode) {
+      throw new BadRequestException('No verification code found. Please request a new one.');
+    }
+
+    const attempts = parseInt(await this.redis.get(`email:verify:attempts:${userId}`) || '0', 10);
+    if (attempts >= this.EMAIL_VERIFY_MAX_ATTEMPTS) {
+      await this.redis.del(`email:verify:code:${userId}`);
+      await this.redis.del(`email:verify:attempts:${userId}`);
+      throw new BadRequestException('Too many attempts. Please request a new code.');
+    }
+
+    await this.redis.setex(
+      `email:verify:attempts:${userId}`,
+      this.EMAIL_VERIFY_TTL,
+      String(attempts + 1),
+    );
+
+    if (code !== storedCode) {
+      throw new BadRequestException('Invalid verification code');
     }
 
     await this.prisma.user.update({
@@ -282,8 +314,34 @@ export class AuthService {
       data: { verified: true },
     });
 
-    await this.redis.del(`email:verify:${token}`);
+    await this.redis.del(`email:verify:code:${userId}`);
+    await this.redis.del(`email:verify:attempts:${userId}`);
+    await this.redis.del(`email:verify:cooldown:${userId}`);
     this.logger.log(`Email verified for user: ${userId}`);
+    return { verified: true };
+  }
+
+  async resendVerificationCode(userId: string): Promise<{ message: string }> {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, username: true, verified: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    if (user.verified) throw new BadRequestException('Email is already verified');
+
+    const cooldown = await this.redis.get(`email:verify:cooldown:${userId}`);
+    if (cooldown) {
+      throw new BadRequestException('Please wait before requesting a new code');
+    }
+
+    const code = String(Math.floor(100000 + Math.random() * 900000));
+    await this.redis.setex(`email:verify:code:${userId}`, this.EMAIL_VERIFY_TTL, code);
+    await this.redis.setex(`email:verify:attempts:${userId}`, this.EMAIL_VERIFY_TTL, '0');
+    await this.redis.setex(`email:verify:cooldown:${userId}`, this.EMAIL_RESEND_COOLDOWN, '1');
+
+    await this.emailService.sendVerificationCode(user.email, code, user.username);
+    this.logger.log(`Verification code resent to ${user.email}`);
+    return { message: 'Verification code sent' };
   }
 
   async requestPasswordReset(email: string): Promise<void> {
@@ -333,7 +391,7 @@ export class AuthService {
     if (user.mfaEnabled) throw new BadRequestException('MFA is already enabled');
 
     const secret = authenticator.generateSecret();
-    const otpauthUrl = authenticator.keyuri(user.email, 'ConstChat', secret);
+    const otpauthUrl = authenticator.keyuri(user.email, 'Swiip', secret);
     const qrCodeUrl = await QRCode.toDataURL(otpauthUrl);
 
     await this.redis.setex(`mfa:setup:${userId}`, 300, secret);

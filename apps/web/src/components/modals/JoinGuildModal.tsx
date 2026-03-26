@@ -22,7 +22,7 @@ export function JoinGuildModal() {
 
   const extractCode = (input: string): string => {
     const trimmed = input.trim();
-    // Handle full URLs like https://constchat.app/invite/abc123
+    // Handle full URLs like https://swiip.app/invite/abc123
     const urlMatch = trimmed.match(/(?:invite\/|invite=)([a-zA-Z0-9]+)/);
     if (urlMatch?.[1]) return urlMatch[1];
     // Handle bare codes
@@ -76,7 +76,7 @@ export function JoinGuildModal() {
         <Input
           value={inviteLink}
           onChange={(e) => { setInviteLink(e.target.value); setError(''); }}
-          placeholder="https://constchat.app/invite/abc123 or abc123"
+          placeholder="https://swiip.app/invite/abc123 or abc123"
           error={error || undefined}
           onKeyDown={(e) => { if (e.key === 'Enter') handleJoin(); }}
           autoFocus
@@ -92,7 +92,7 @@ export function JoinGuildModal() {
         </p>
         <div className="space-y-0.5 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
           <p>hTKzmak</p>
-          <p>https://constchat.app/invite/hTKzmak</p>
+          <p>https://swiip.app/invite/hTKzmak</p>
         </div>
       </div>
 

@@ -414,18 +414,18 @@ export class GatewayServer {
       const pipeline = redis.pipeline();
 
       // Mark the session as disconnected (but keep it alive for RESUME)
-      pipeline.hset(`constchat:sessions:${sessionId}`, {
+      pipeline.hset(`swiip:sessions:${sessionId}`, {
         disconnectedAt: String(Date.now()),
         sequence: String(lastSequence),
       });
-      pipeline.expire(`constchat:sessions:${sessionId}`, resumeWindowSec);
+      pipeline.expire(`swiip:sessions:${sessionId}`, resumeWindowSec);
 
       // Keep guild subscriptions alive for RESUME replay
-      pipeline.expire(`constchat:session_guilds:${sessionId}`, resumeWindowSec);
+      pipeline.expire(`swiip:session_guilds:${sessionId}`, resumeWindowSec);
 
       // Keep the session in the user-sessions set but let it auto-expire
       // The resume handler will clean up on successful resume
-      pipeline.expire(`constchat:user_sessions:${userId}`, 86_400);
+      pipeline.expire(`swiip:user_sessions:${userId}`, 86_400);
 
       await pipeline.exec();
     } catch (err) {

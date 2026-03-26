@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
@@ -39,6 +39,8 @@ const itemVariants = {
 
 export default function LoginPage() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const redirectTo = searchParams.get('redirect');
   const setUser = useAuthStore((s) => s.setUser);
   const setTokens = useAuthStore((s) => s.setTokens);
   const [showPassword, setShowPassword] = useState(false);
@@ -59,7 +61,7 @@ export default function LoginPage() {
       setUser(res.user);
       setTokens(res.tokens.accessToken);
       setAccessToken(res.tokens.accessToken);
-      router.push('/channels/@me');
+      router.push(redirectTo || '/channels/@me');
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'Invalid email or password';
@@ -139,7 +141,7 @@ export default function LoginPage() {
               className="text-xl font-bold tracking-tight"
               style={{ color: 'var(--color-text-primary)' }}
             >
-              ConstChat
+              Swiip
             </span>
           </div>
           <h1

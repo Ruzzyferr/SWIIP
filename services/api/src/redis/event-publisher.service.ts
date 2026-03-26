@@ -7,15 +7,15 @@ import { PrismaService } from '../prisma/prisma.service';
  * EventPublisherService bridges NestJS EventEmitter events to the Gateway's
  * realtime delivery system. It does two things for each event:
  *
- * 1. PUBLISH to `constchat:events:{topic}` — for live delivery via Redis pub/sub
+ * 1. PUBLISH to `swiip:events:{topic}` — for live delivery via Redis pub/sub
  *    (the gateway's SubscriptionManager fans this out to connected WebSockets)
  *
- * 2. XADD to `constchat:stream:{topic}` — for replay on RESUME
+ * 2. XADD to `swiip:stream:{topic}` — for replay on RESUME
  *    (the gateway reads these streams when a client reconnects and missed events)
  *
  * Stream topology:
- *   constchat:stream:guild:{guildId}  — guild-scoped events (messages, members, channels, roles)
- *   constchat:stream:user:{userId}    — personal events (DMs, notifications, friend requests)
+ *   swiip:stream:guild:{guildId}  — guild-scoped events (messages, members, channels, roles)
+ *   swiip:stream:user:{userId}    — personal events (DMs, notifications, friend requests)
  *
  * Delivery guarantees:
  *   - Pub/sub: at-most-once (if no subscriber is listening, the event is lost)
@@ -69,7 +69,7 @@ export class EventPublisherService implements OnModuleInit {
     };
 
     const pubsubMessage = JSON.stringify({ topic, event });
-    const pubsubChannel = `constchat:events:${topic}`;
+    const pubsubChannel = `swiip:events:${topic}`;
 
     try {
       // 1. Live delivery via pub/sub
@@ -77,7 +77,7 @@ export class EventPublisherService implements OnModuleInit {
 
       // 2. Stream write for replay (unless ephemeral)
       if (writeStream) {
-        const streamKey = `constchat:stream:${topic}`;
+        const streamKey = `swiip:stream:${topic}`;
         const client = this.redis.getClient();
         await client.xadd(
           streamKey,
@@ -228,6 +228,18 @@ export class EventPublisherService implements OnModuleInit {
     });
     await this.publishUserEvent(payload.userId, 'GUILD_DELETE', {
       guildId: payload.guildId,
+    });
+  }
+
+  @OnEvent('guild.memberUpdate')
+  async onGuildMemberUpdate(payload: {
+    guildId: string;
+    userId: string;
+    member: unknown;
+  }): Promise<void> {
+    await this.publishGuildEvent(payload.guildId, 'GUILD_MEMBER_UPDATE', {
+      guildId: payload.guildId,
+      member: payload.member,
     });
   }
 

@@ -88,7 +88,7 @@ const apiConfigSchema = z.object({
 
   /**
    * Allowed CORS origin(s). Accepts a single origin string or a
-   * comma-separated list, e.g. "https://constchat.app,https://www.constchat.app".
+   * comma-separated list, e.g. "https://swiip.app,https://www.swiip.app".
    */
   CORS_ORIGIN: z.string().default('*'),
 

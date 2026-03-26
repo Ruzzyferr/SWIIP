@@ -2,7 +2,7 @@ const { app, BrowserWindow, shell, Menu, Tray, nativeImage, ipcMain, session } =
 const path = require('path');
 
 // Move userData out of OneDrive to avoid cache permission errors on Windows
-app.setPath('userData', path.join(process.env.LOCALAPPDATA || app.getPath('appData'), 'ConstChat'));
+app.setPath('userData', path.join(process.env.LOCALAPPDATA || app.getPath('appData'), 'Swiip'));
 
 const Store = require('electron-store');
 
@@ -17,10 +17,10 @@ const store = new Store({
 });
 
 const isDev = process.argv.includes('--dev');
-const DEFAULT_PROD_URL = 'https://constchat-CHANGE_ME.ondigitalocean.app';
+const DEFAULT_PROD_URL = 'https://swiip.app';
 const WEB_URL = isDev
   ? 'http://localhost:3000'
-  : (store.get('serverUrl') || process.env.CONSTCHAT_WEB_URL || DEFAULT_PROD_URL);
+  : (store.get('serverUrl') || process.env.SWIIP_WEB_URL || DEFAULT_PROD_URL);
 
 let mainWindow = null;
 let tray = null;
@@ -35,7 +35,7 @@ function createWindow() {
     height,
     minWidth: 940,
     minHeight: 600,
-    title: 'ConstChat',
+    title: 'Swiip',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     frame: false,
     titleBarStyle: 'hidden',
@@ -113,11 +113,11 @@ function createTray() {
   }
 
   tray = new Tray(trayIcon.isEmpty() ? nativeImage.createFromDataURL(createTrayIconDataURL()) : trayIcon);
-  tray.setToolTip('ConstChat');
+  tray.setToolTip('Swiip');
 
   const contextMenu = Menu.buildFromTemplate([
     {
-      label: 'Open ConstChat',
+      label: 'Open Swiip',
       click: () => {
         if (mainWindow) {
           mainWindow.show();
@@ -157,7 +157,7 @@ function createTrayIconDataURL() {
 function setupAppMenu() {
   const template = [
     {
-      label: 'ConstChat',
+      label: 'Swiip',
       submenu: [
         { role: 'about' },
         { type: 'separator' },
@@ -228,7 +228,7 @@ if (!gotLock) {
 app.on('ready', () => {
   // Set custom user agent to identify desktop app
   session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
-    details.requestHeaders['X-ConstChat-Client'] = 'desktop';
+    details.requestHeaders['X-Swiip-Client'] = 'desktop';
     callback({ requestHeaders: details.requestHeaders });
   });
 

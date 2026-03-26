@@ -96,7 +96,7 @@ export class NotificationsService {
     await this.create({
       userId: payload.userId,
       type: 'WELCOME',
-      title: 'Welcome to ConstChat!',
+      title: 'Welcome to Swiip!',
       body: `Hey ${payload.username}, welcome aboard! Explore guilds and connect with others.`,
     });
   }

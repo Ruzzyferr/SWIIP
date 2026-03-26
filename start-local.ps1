@@ -1,12 +1,12 @@
 $ErrorActionPreference = "Continue"
-$Host.UI.RawUI.WindowTitle = "ConstChat - Local Dev Launcher"
+$Host.UI.RawUI.WindowTitle = "Swiip - Local Dev Launcher"
 
 $PROJECT = $PSScriptRoot
 $SCRIPTS = Join-Path $PROJECT "scripts"
 
 Write-Host ""
 Write-Host "  ========================================" -ForegroundColor Cyan
-Write-Host "    ConstChat Local Development Launcher  " -ForegroundColor Cyan
+Write-Host "    Swiip Local Development Launcher  " -ForegroundColor Cyan
 Write-Host "  ========================================" -ForegroundColor Cyan
 Write-Host ""
 
@@ -41,7 +41,7 @@ Write-Host ""
 # --- Step 3: Wait for PostgreSQL ---
 Write-Host "[3/7] PostgreSQL bekleniyor..." -ForegroundColor Yellow
 while ($true) {
-    & docker exec constchat-postgres pg_isready -U constchat -d constchat 2>$null | Out-Null
+    & docker exec swiip-postgres pg_isready -U swiip -d swiip 2>$null | Out-Null
     if ($LASTEXITCODE -eq 0) { break }
     Start-Sleep -Seconds 2
 }
@@ -127,7 +127,7 @@ Write-Host "  Gateway:  ws://localhost:4001" -ForegroundColor White
 Write-Host "  Media:    http://localhost:4002" -ForegroundColor White
 Write-Host "  LiveKit:  ws://localhost:7880" -ForegroundColor White
 Write-Host "  MinIO:    http://localhost:9001" -ForegroundColor White
-Write-Host "  DB:       localhost:5432/constchat" -ForegroundColor White
+Write-Host "  DB:       localhost:5432/swiip" -ForegroundColor White
 Write-Host "  ----------------------------------------" -ForegroundColor DarkGray
 Write-Host ""
 Read-Host "Kapatmak icin Enter"

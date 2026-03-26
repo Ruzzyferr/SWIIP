@@ -1,0 +1,28 @@
+# Redirect www to apex
+www.swiip.app {
+    redir https://swiip.app{uri} permanent
+}
+
+swiip.app {
+    # Static downloads (desktop app installer)
+    handle /downloads/* {
+        root * /srv
+        file_server
+    }
+
+    # API — strip /api prefix before proxying
+    handle /api/* {
+        uri strip_prefix /api
+        reverse_proxy api:4000
+    }
+
+    # WebSocket gateway
+    handle /gateway {
+        reverse_proxy gateway:4001
+    }
+
+    # Web frontend (catch-all)
+    handle {
+        reverse_proxy web:3000
+    }
+}

@@ -21,7 +21,8 @@ import { Button } from '@/components/ui/Button';
 import { Input } from '@/components/ui/Input';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { useUIStore } from '@/stores/ui.store';
-import { updateGuild, deleteGuild } from '@/lib/api/guilds.api';
+import { useAuthStore } from '@/stores/auth.store';
+import { updateGuild, deleteGuild, kickMember, banMember } from '@/lib/api/guilds.api';
 import { toastSuccess, toastError } from '@/lib/toast';
 
 // ---------------------------------------------------------------------------
@@ -169,7 +170,41 @@ function OverviewPage({ guildId }: { guildId: string }) {
 
 function MembersPage({ guildId }: { guildId: string }) {
   const members = useGuildsStore((s) => s.members[guildId] ?? {});
-  const memberList = Object.values(members);
+  const guild = useGuildsStore((s) => s.guilds[guildId]);
+  const removeMember = useGuildsStore((s) => s.removeMember);
+  const currentUserId = useAuthStore((s) => s.user?.id);
+  const isOwner = guild?.ownerId === currentUserId;
+  const [search, setSearch] = useState('');
+  const [confirmAction, setConfirmAction] = useState<{ type: 'kick' | 'ban'; userId: string } | null>(null);
+
+  const memberList = Object.values(members).filter((m) => {
+    if (!search) return true;
+    const q = search.toLowerCase();
+    const name = (m.nick ?? m.user?.globalName ?? m.user?.username ?? '').toLowerCase();
+    return name.includes(q);
+  });
+
+  const handleKick = async (userId: string) => {
+    try {
+      await kickMember(guildId, userId);
+      removeMember(guildId, userId);
+      toastSuccess('Member kicked');
+      setConfirmAction(null);
+    } catch {
+      toastError('Failed to kick member');
+    }
+  };
+
+  const handleBan = async (userId: string) => {
+    try {
+      await banMember(guildId, userId);
+      removeMember(guildId, userId);
+      toastSuccess('Member banned');
+      setConfirmAction(null);
+    } catch {
+      toastError('Failed to ban member');
+    }
+  };
 
   return (
     <div className="space-y-4">
@@ -180,6 +215,8 @@ function MembersPage({ guildId }: { guildId: string }) {
         <div className="relative">
           <input
             placeholder="Search members"
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
             className="rounded-md px-3 py-1.5 text-sm outline-none"
             style={{
               background: 'var(--color-surface-base)',
@@ -192,28 +229,98 @@ function MembersPage({ guildId }: { guildId: string }) {
       </div>
 
       <div className="space-y-1">
-        {memberList.map((member) => (
-          <div
-            key={member.userId}
-            className="flex items-center gap-3 px-3 py-2 rounded-lg"
-            style={{ background: 'var(--color-surface-raised)' }}
-          >
-            <Avatar displayName={member.nick ?? member.userId} size="md" />
-            <div className="flex-1 min-w-0">
-              <span className="text-sm font-medium truncate block"
-                style={{ color: 'var(--color-text-primary)' }}>
-                {member.nick ?? member.userId}
-              </span>
-              <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-                {member.roles.length} role{member.roles.length !== 1 ? 's' : ''}
-              </span>
+        {memberList.map((member) => {
+          const displayName = member.nick ?? member.user?.globalName ?? member.user?.username ?? member.userId;
+          const isSelf = member.userId === currentUserId;
+          const isMemberOwner = member.userId === guild?.ownerId;
+
+          return (
+            <div
+              key={member.userId}
+              className="flex items-center gap-3 px-3 py-2 rounded-lg group"
+              style={{ background: 'var(--color-surface-raised)' }}
+            >
+              <Avatar
+                displayName={displayName}
+                userId={member.userId}
+                src={member.avatar ?? member.user?.avatar}
+                size="md"
+              />
+              <div className="flex-1 min-w-0">
+                <span className="text-sm font-medium truncate block"
+                  style={{ color: 'var(--color-text-primary)' }}>
+                  {displayName}
+                  {isMemberOwner && (
+                    <span className="ml-1.5 text-xs" style={{ color: 'var(--color-warning-default)' }}>
+                      Owner
+                    </span>
+                  )}
+                </span>
+                <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+                  @{member.user?.username ?? member.userId} · {member.roles.length} role{member.roles.length !== 1 ? 's' : ''}
+                </span>
+              </div>
+
+              {/* Action buttons - visible for owner, not for self or guild owner */}
+              {isOwner && !isSelf && !isMemberOwner && (
+                <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                  {confirmAction?.userId === member.userId ? (
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs mr-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                        {confirmAction.type === 'kick' ? 'Kick?' : 'Ban?'}
+                      </span>
+                      <button
+                        onClick={() =>
+                          confirmAction.type === 'kick'
+                            ? handleKick(member.userId)
+                            : handleBan(member.userId)
+                        }
+                        className="px-2 py-1 rounded text-xs font-medium text-white"
+                        style={{ background: 'var(--color-danger-default)' }}
+                      >
+                        Yes
+                      </button>
+                      <button
+                        onClick={() => setConfirmAction(null)}
+                        className="px-2 py-1 rounded text-xs font-medium"
+                        style={{ color: 'var(--color-text-secondary)', background: 'var(--color-surface-overlay)' }}
+                      >
+                        No
+                      </button>
+                    </div>
+                  ) : (
+                    <>
+                      <button
+                        onClick={() => setConfirmAction({ type: 'kick', userId: member.userId })}
+                        className="px-2 py-1 rounded text-xs transition-colors"
+                        style={{ color: 'var(--color-danger-default)' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-danger-muted)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                        title="Kick member"
+                      >
+                        Kick
+                      </button>
+                      <button
+                        onClick={() => setConfirmAction({ type: 'ban', userId: member.userId })}
+                        className="px-2 py-1 rounded text-xs transition-colors"
+                        style={{ color: 'var(--color-danger-default)' }}
+                        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-danger-muted)'; }}
+                        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                        title="Ban member"
+                      >
+                        Ban
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
             </div>
-          </div>
-        ))}
+          );
+        })}
 
         {memberList.length === 0 && (
           <p className="text-sm text-center py-8" style={{ color: 'var(--color-text-tertiary)' }}>
-            No members loaded
+            {search ? 'No members match your search' : 'No members loaded'}
           </p>
         )}
       </div>

@@ -83,7 +83,7 @@ export async function handleResume(
 
   // 2. Look up the previous session in Redis
   const redis = context.pubsub.getPublisher();
-  const sessionKey = `constchat:sessions:${data.sessionId}`;
+  const sessionKey = `swiip:sessions:${data.sessionId}`;
 
   let storedSession: StoredSessionData | null;
   try {
@@ -148,7 +148,7 @@ export async function handleResume(
   );
 
   // 4. Determine which streams to read from
-  const guildSetKey = `constchat:session_guilds:${data.sessionId}`;
+  const guildSetKey = `swiip:session_guilds:${data.sessionId}`;
   let guildIds: string[];
   try {
     guildIds = await redis.smembers(guildSetKey);
@@ -209,22 +209,22 @@ export async function handleResume(
   try {
     const pipeline = redis.pipeline();
     // Store new session data
-    pipeline.hset(`constchat:sessions:${session.id}`, {
+    pipeline.hset(`swiip:sessions:${session.id}`, {
       id: session.id,
       userId,
       sequence: String(session.sequence),
       connectedAt: String(Date.now()),
       remoteAddress: session.remoteAddress,
     });
-    pipeline.expire(`constchat:sessions:${session.id}`, 86_400);
+    pipeline.expire(`swiip:sessions:${session.id}`, 86_400);
     // Store guild subscriptions for the new session
     if (guildIds.length > 0) {
-      pipeline.sadd(`constchat:session_guilds:${session.id}`, ...guildIds);
-      pipeline.expire(`constchat:session_guilds:${session.id}`, 86_400);
+      pipeline.sadd(`swiip:session_guilds:${session.id}`, ...guildIds);
+      pipeline.expire(`swiip:session_guilds:${session.id}`, 86_400);
     }
     // Clean up old session keys
-    pipeline.del(`constchat:sessions:${data.sessionId}`);
-    pipeline.del(`constchat:session_guilds:${data.sessionId}`);
+    pipeline.del(`swiip:sessions:${data.sessionId}`);
+    pipeline.del(`swiip:session_guilds:${data.sessionId}`);
     await pipeline.exec();
   } catch (err) {
     log.warn({ err }, 'Failed to update session in Redis after resume');
@@ -240,8 +240,8 @@ export async function handleResume(
  * Reads missed events from Redis Streams for all topics the session was subscribed to.
  *
  * Stream topology:
- *   constchat:stream:guild:{guildId}  — guild-scoped events
- *   constchat:stream:user:{userId}    — personal events
+ *   swiip:stream:guild:{guildId}  — guild-scoped events
+ *   swiip:stream:user:{userId}    — personal events
  *
  * Returns null if too many events are missed (session is not resumable).
  * Returns sorted array of event JSON strings on success.
@@ -257,8 +257,8 @@ async function replayMissedEvents(
 
   // Build list of streams to read from
   const streamKeys: string[] = [
-    `constchat:stream:user:${userId}`,
-    ...guildIds.map((id) => `constchat:stream:guild:${id}`),
+    `swiip:stream:user:${userId}`,
+    ...guildIds.map((id) => `swiip:stream:guild:${id}`),
   ];
 
   // Use the disconnect timestamp as the lower bound for XRANGE.
@@ -352,7 +352,7 @@ async function restoreSubscriptions(
     await context.presenceManager.onConnect(userId, newSessionId, guildIds);
 
     // Update user sessions set
-    const userSessionsKey = `constchat:user_sessions:${userId}`;
+    const userSessionsKey = `swiip:user_sessions:${userId}`;
     const pipeline = redis.pipeline();
     pipeline.srem(userSessionsKey, oldSessionId);
     pipeline.sadd(userSessionsKey, newSessionId);

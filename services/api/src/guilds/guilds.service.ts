@@ -389,6 +389,8 @@ export class GuildsService {
       },
     });
 
+    this.eventEmitter.emit('guild.memberUpdate', { guildId, userId: targetId, member: updated });
+
     return updated;
   }
 

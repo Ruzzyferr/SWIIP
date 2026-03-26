@@ -197,8 +197,8 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
       token: this.token,
       properties: {
         os: typeof navigator !== 'undefined' ? navigator.platform : 'unknown',
-        browser: 'ConstChat Web',
-        device: 'ConstChat Web',
+        browser: 'Swiip Web',
+        device: 'Swiip Web',
       },
       compress: false,
     });

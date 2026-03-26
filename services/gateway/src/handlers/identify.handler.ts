@@ -115,7 +115,7 @@ export async function handleIdentify(
   try {
     if (guildIds.length > 0) {
       const redis = context.pubsub.getPublisher();
-      const guildSetKey = `constchat:session_guilds:${session.id}`;
+      const guildSetKey = `swiip:session_guilds:${session.id}`;
       const pipeline = redis.pipeline();
       pipeline.sadd(guildSetKey, ...guildIds);
       pipeline.expire(guildSetKey, 86_400);
@@ -154,7 +154,7 @@ async function fetchReadyPayload(
   context: GatewayContext,
 ): Promise<ReadyPayload> {
   const redis = context.pubsub.getPublisher();
-  const cacheKey = `constchat:ready_cache:${userId}`;
+  const cacheKey = `swiip:ready_cache:${userId}`;
 
   // Try Redis cache (populated by the API service after login)
   try {
@@ -214,8 +214,8 @@ async function storeSessionInRedis(
   context: GatewayContext,
 ): Promise<void> {
   const redis = context.pubsub.getPublisher();
-  const sessionKey = `constchat:sessions:${session.id}`;
-  const userSessionsKey = `constchat:user_sessions:${userId}`;
+  const sessionKey = `swiip:sessions:${session.id}`;
+  const userSessionsKey = `swiip:user_sessions:${userId}`;
 
   const pipeline = redis.pipeline();
   pipeline.hset(sessionKey, {

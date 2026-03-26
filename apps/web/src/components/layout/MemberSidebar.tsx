@@ -1,16 +1,29 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState, useCallback } from 'react';
 import { Avatar } from '@/components/ui/Avatar';
+import { MemberContextMenu } from '@/components/menus/MemberContextMenu';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { usePresenceStore } from '@/stores/presence.store';
+import { useAuthStore } from '@/stores/auth.store';
 import type { MemberPayload, RolePayload } from '@constchat/protocol';
 
 interface MemberSidebarProps {
   guildId: string;
 }
 
-function MemberItem({ member }: { member: MemberPayload }) {
+interface ContextMenuState {
+  member: MemberPayload;
+  position: { x: number; y: number };
+}
+
+function MemberItem({
+  member,
+  onContextMenu,
+}: {
+  member: MemberPayload;
+  onContextMenu: (e: React.MouseEvent, member: MemberPayload) => void;
+}) {
   const getPresence = usePresenceStore((s) => s.getPresence);
   const status = getPresence(member.userId);
   const displayName = member.nick ?? member.user?.globalName ?? member.user?.username ?? member.userId;
@@ -27,6 +40,7 @@ function MemberItem({ member }: { member: MemberPayload }) {
       onMouseLeave={(e) => {
         e.currentTarget.style.background = 'transparent';
       }}
+      onContextMenu={(e) => onContextMenu(e, member)}
       aria-label={displayName}
     >
       <Avatar
@@ -50,6 +64,16 @@ export function MemberSidebar({ guildId }: MemberSidebarProps) {
   const members = useGuildsStore((s) => s.members[guildId] ?? {});
   const roles = useGuildsStore((s) => s.roles);
   const getPresence = usePresenceStore((s) => s.getPresence);
+  const guild = useGuildsStore((s) => s.guilds[guildId]);
+  const currentUserId = useAuthStore((s) => s.user?.id);
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+
+  const isOwner = guild?.ownerId === currentUserId;
+
+  const handleContextMenu = useCallback((e: React.MouseEvent, member: MemberPayload) => {
+    e.preventDefault();
+    setContextMenu({ member, position: { x: e.clientX, y: e.clientY } });
+  }, []);
 
   // Group members by their highest hoisted role
   const grouped = useMemo(() => {
@@ -116,11 +140,25 @@ export function MemberSidebar({ guildId }: MemberSidebarProps) {
           </p>
           <div className="px-2 space-y-0.5">
             {groupMembers.map((member) => (
-              <MemberItem key={member.userId} member={member} />
+              <MemberItem
+                key={member.userId}
+                member={member}
+                onContextMenu={handleContextMenu}
+              />
             ))}
           </div>
         </div>
       ))}
+
+      {contextMenu && (
+        <MemberContextMenu
+          guildId={guildId}
+          member={contextMenu.member}
+          position={contextMenu.position}
+          isOwner={isOwner}
+          onClose={() => setContextMenu(null)}
+        />
+      )}
     </aside>
   );
 }

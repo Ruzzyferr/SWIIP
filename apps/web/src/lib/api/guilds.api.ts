@@ -73,18 +73,56 @@ export interface CreateInviteResponse {
 }
 
 export async function createInvite(
-  guildId: string,
+  _guildId: string,
   channelId: string,
-  options?: { maxUses?: number; expiresIn?: number }
+  options?: { maxUses?: number; maxAge?: number }
 ): Promise<CreateInviteResponse> {
   const res = await apiClient.post<CreateInviteResponse>(
-    `/guilds/${guildId}/invites`,
-    { channelId, ...options }
+    `/channels/${channelId}/invites`,
+    options
   );
   return res.data;
 }
 
 export async function joinGuildByInvite(code: string): Promise<GuildPayload> {
   const res = await apiClient.post<GuildPayload>(`/invites/${code}`);
+  return res.data;
+}
+
+export async function resolveInvite(code: string): Promise<{
+  code: string;
+  guild: { id: string; name: string; icon?: string; memberCount: number; description?: string };
+  channel: { id: string; name: string };
+  inviter?: { id: string; username: string; globalName?: string };
+  expiresAt?: string;
+}> {
+  const res = await apiClient.get(`/invites/${code}`);
+  return res.data;
+}
+
+export async function banMember(
+  guildId: string,
+  userId: string,
+  reason?: string
+): Promise<void> {
+  await apiClient.put(`/guilds/${guildId}/bans/${userId}`, { reason });
+}
+
+export async function unbanMember(
+  guildId: string,
+  userId: string
+): Promise<void> {
+  await apiClient.delete(`/guilds/${guildId}/bans/${userId}`);
+}
+
+export async function updateMember(
+  guildId: string,
+  userId: string,
+  data: { nick?: string; roles?: string[] }
+): Promise<MemberPayload> {
+  const res = await apiClient.patch<MemberPayload>(
+    `/guilds/${guildId}/members/${userId}`,
+    data
+  );
   return res.data;
 }

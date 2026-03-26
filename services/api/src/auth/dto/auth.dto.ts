@@ -9,7 +9,7 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class RegisterDto {
-  @ApiProperty({ example: 'alice@constchat.dev' })
+  @ApiProperty({ example: 'alice@swiip.dev' })
   @IsEmail()
   email: string;
 
@@ -30,7 +30,7 @@ export class RegisterDto {
 }
 
 export class LoginDto {
-  @ApiProperty({ example: 'alice@constchat.dev' })
+  @ApiProperty({ example: 'alice@swiip.dev' })
   @IsEmail()
   email: string;
 
@@ -51,9 +51,11 @@ export class RefreshTokenDto {
 }
 
 export class VerifyEmailDto {
-  @ApiProperty()
+  @ApiProperty({ example: '123456', description: '6-digit verification code' })
   @IsString()
-  token: string;
+  @MinLength(6)
+  @MaxLength(6)
+  code: string;
 }
 
 export class RequestPasswordResetDto {
