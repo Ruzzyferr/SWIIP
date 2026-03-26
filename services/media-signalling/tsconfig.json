@@ -6,12 +6,8 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "outDir": "dist",
-    "rootDir": "src",
     "baseUrl": ".",
-    "paths": {
-      "@constchat/protocol": ["../../packages/protocol/src"],
-      "@constchat/config": ["../../packages/config/src"]
-    },
+    "paths": {},
     "skipLibCheck": true,
     "exactOptionalPropertyTypes": false,
     "noUnusedLocals": false,

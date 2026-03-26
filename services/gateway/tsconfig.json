@@ -4,12 +4,8 @@
     "module": "commonjs",
     "moduleResolution": "node",
     "outDir": "dist",
-    "rootDir": "src",
     "baseUrl": ".",
-    "paths": {
-      "@constchat/protocol": ["../../packages/protocol/src"],
-      "@constchat/config": ["../../packages/config/src"]
-    },
+    "paths": {},
     "exactOptionalPropertyTypes": false,
     "noUnusedLocals": false,
     "noUnusedParameters": false
