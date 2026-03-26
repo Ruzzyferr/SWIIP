@@ -77,7 +77,7 @@ export class InternalController {
       },
     });
 
-    const guilds = memberships.map((m) => m.guild);
+    const guilds = memberships.map((m: any) => m.guild);
 
     const dmParticipants = await this.prisma.dMParticipant.findMany({
       where: { userId, leftAt: null },
@@ -104,7 +104,7 @@ export class InternalController {
       take: 50,
     });
 
-    const dms = dmParticipants.map((p) => p.conversation);
+    const dms = dmParticipants.map((p: any) => p.conversation);
 
     return { user, guilds, dms };
   }
@@ -119,7 +119,7 @@ export class InternalController {
       where: { guildId },
       select: { userId: true },
     });
-    return { memberIds: members.map((m) => m.userId) };
+    return { memberIds: members.map((m: any) => m.userId) };
   }
 
   @Get('guilds/:guildId/members')
