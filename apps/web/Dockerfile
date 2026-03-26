@@ -15,7 +15,8 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 RUN npm install -g pnpm
 
-COPY --from=deps /app/node_modules ./node_modules
+COPY --from=deps /app ./
+
 COPY tsconfig.base.json ./
 COPY packages/design-tokens ./packages/design-tokens
 COPY packages/protocol ./packages/protocol

@@ -16,8 +16,7 @@ FROM node:20-alpine AS builder
 WORKDIR /app
 RUN npm install -g pnpm
 
-COPY --from=deps /app/node_modules ./node_modules
-COPY --from=deps /app/packages/*/node_modules ./packages/
+COPY --from=deps /app ./
 
 COPY tsconfig.base.json ./
 COPY packages/design-tokens ./packages/design-tokens
@@ -30,6 +29,15 @@ RUN pnpm --filter @constchat/config build
 RUN pnpm --filter @constchat/api build
 RUN cd services/api && npx prisma generate
 
+# Create flat deployment with resolved node_modules (no pnpm symlinks)
+RUN pnpm --filter @constchat/api deploy --prod /app/deploy
+# Copy built artifacts and prisma into deploy dir
+RUN cp -r /app/services/api/dist /app/deploy/dist
+RUN cp -r /app/services/api/prisma /app/deploy/prisma
+# Copy prisma client generated output
+RUN cp -r /app/services/api/node_modules/.prisma /app/deploy/node_modules/.prisma 2>/dev/null || true
+RUN cp -r /app/node_modules/.prisma /app/deploy/node_modules/.prisma 2>/dev/null || true
+
 # ── Stage 3: runner ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
 WORKDIR /app
@@ -37,9 +45,7 @@ WORKDIR /app
 RUN addgroup --system --gid 1001 constchat
 RUN adduser --system --uid 1001 constchat
 
-COPY --from=builder --chown=constchat:constchat /app/services/api/dist ./dist
-COPY --from=builder --chown=constchat:constchat /app/services/api/node_modules ./node_modules
-COPY --from=builder --chown=constchat:constchat /app/services/api/prisma ./prisma
+COPY --from=builder --chown=constchat:constchat /app/deploy ./
 
 USER constchat
 EXPOSE 4000

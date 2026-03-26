@@ -26,6 +26,10 @@ RUN pnpm --filter @constchat/protocol build
 RUN pnpm --filter @constchat/config build
 RUN cd services/gateway && npx tsc
 
+# Create flat deployment
+RUN pnpm --filter @constchat/gateway deploy --prod /app/deploy
+RUN cp -r /app/services/gateway/dist /app/deploy/dist
+
 # ── Stage 3: runner ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
 WORKDIR /app
@@ -33,14 +37,9 @@ WORKDIR /app
 RUN addgroup --system --gid 1001 constchat
 RUN adduser --system --uid 1001 constchat
 
-COPY --from=builder --chown=constchat:constchat /app/services/gateway/dist ./dist
-COPY --from=builder --chown=constchat:constchat /app/services/gateway/node_modules ./node_modules
-COPY --from=builder --chown=constchat:constchat /app/packages/protocol/dist ./node_modules/@constchat/protocol/dist
-COPY --from=builder --chown=constchat:constchat /app/packages/protocol/package.json ./node_modules/@constchat/protocol/package.json
-COPY --from=builder --chown=constchat:constchat /app/packages/config/dist ./node_modules/@constchat/config/dist
-COPY --from=builder --chown=constchat:constchat /app/packages/config/package.json ./node_modules/@constchat/config/package.json
+COPY --from=builder --chown=constchat:constchat /app/deploy ./
 
 USER constchat
 EXPOSE 4001
 
-CMD ["node", "dist/services/gateway/src/index.js"]
+CMD ["node", "dist/index.js"]

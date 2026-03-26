@@ -6,6 +6,7 @@
     "experimentalDecorators": true,
     "emitDecoratorMetadata": true,
     "outDir": "dist",
+    "rootDir": "src",
     "baseUrl": ".",
     "paths": {
       "@constchat/protocol": ["../../packages/protocol/src"],

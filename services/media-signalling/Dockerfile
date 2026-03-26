@@ -26,6 +26,10 @@ RUN pnpm --filter @constchat/protocol build
 RUN pnpm --filter @constchat/config build
 RUN cd services/media-signalling && npx tsc
 
+# Create flat deployment
+RUN pnpm --filter @constchat/media-signalling deploy --prod /app/deploy
+RUN cp -r /app/services/media-signalling/dist /app/deploy/dist
+
 # ── Stage 3: runner ──────────────────────────────────────────────────────────
 FROM node:20-alpine AS runner
 WORKDIR /app
@@ -33,8 +37,7 @@ WORKDIR /app
 RUN addgroup --system --gid 1001 constchat
 RUN adduser --system --uid 1001 constchat
 
-COPY --from=builder --chown=constchat:constchat /app/services/media-signalling/dist ./dist
-COPY --from=builder --chown=constchat:constchat /app/services/media-signalling/node_modules ./node_modules
+COPY --from=builder --chown=constchat:constchat /app/deploy ./
 
 USER constchat
 EXPOSE 4002
