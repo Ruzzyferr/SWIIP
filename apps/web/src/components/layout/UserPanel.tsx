@@ -17,6 +17,11 @@ export function UserPanel() {
   const selfDeafened = useVoiceStore((s) => s.selfDeafened);
   const connectionState = useVoiceStore((s) => s.connectionState);
   const currentChannelId = useVoiceStore((s) => s.currentChannelId);
+  const isSpeaking = useVoiceStore((s) => {
+    if (!currentChannelId || !user?.id) return false;
+    const key = `${currentChannelId}:${user.id}`;
+    return s.participants[key]?.speaking === true && !s.selfMuted;
+  });
   const { toggleMute, toggleDeafen } = useVoiceActions();
 
   if (!user) return null;
@@ -24,13 +29,6 @@ export function UserPanel() {
   const status = user.id ? getPresence(user.id) : 'offline';
   const displayName = user.globalName ?? user.username;
   const isInVoice = connectionState === 'connected' || connectionState === 'connecting' || connectionState === 'reconnecting';
-
-  // Check if user is currently speaking in a voice channel
-  const isSpeaking = useVoiceStore((s) => {
-    if (!currentChannelId || !user?.id) return false;
-    const key = `${currentChannelId}:${user.id}`;
-    return s.participants[key]?.speaking === true && !s.selfMuted;
-  });
 
   const iconButtonStyle = (active: boolean) => ({
     color: active ? 'var(--color-danger-default)' : 'var(--color-text-secondary)',
