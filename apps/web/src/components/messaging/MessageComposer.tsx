@@ -26,10 +26,11 @@ import {
 import { Tooltip } from '@/components/ui/Tooltip';
 import { Spinner } from '@/components/ui/Spinner';
 import { EmojiPicker } from '@/components/ui/EmojiPicker';
-import { sendMessage } from '@/lib/api/messages.api';
+import { sendMessage, requestAttachmentUpload, uploadFileToPresignedUrl } from '@/lib/api/messages.api';
 import { triggerTyping } from '@/lib/api/channels.api';
 import { useMessagesStore } from '@/stores/messages.store';
 import { formatFileSize, debounce } from '@/lib/utils';
+import { toastError } from '@/lib/toast';
 import type { MessagePayload, AttachmentRef } from '@constchat/protocol';
 
 // ---------------------------------------------------------------------------
@@ -256,17 +257,41 @@ export function MessageComposer({
 
     setSending(true);
     try {
+      let attachmentIds: string[] | undefined;
+
+      // Upload files via presigned URLs
+      if (files.length > 0) {
+        const presignResponse = await requestAttachmentUpload(
+          channelId,
+          files.map((f) => ({
+            filename: f.name,
+            fileSize: f.size,
+            contentType: f.type || 'application/octet-stream',
+          })),
+        );
+
+        // Upload each file directly to S3
+        await Promise.all(
+          presignResponse.map((presigned, i) =>
+            uploadFileToPresignedUrl(presigned.uploadUrl, files[i]!),
+          ),
+        );
+
+        attachmentIds = presignResponse.map((p) => p.uploadId);
+      }
+
       const msg = await sendMessage(channelId, {
         content: trimmed || undefined,
         replyToId: replyTo?.id,
+        attachmentIds,
       });
       addMessage(channelId, msg);
       setContent('');
       setFiles([]);
       onClearReply();
       localStorage.removeItem(DRAFT_KEY(channelId));
-    } catch {
-      // show toast
+    } catch (err: unknown) {
+      toastError(err instanceof Error ? err.message : 'Failed to send message');
     } finally {
       setSending(false);
     }
@@ -364,7 +389,7 @@ export function MessageComposer({
             >
               <ComposerHeader
                 type="reply"
-                label={`Replying to @${replyTo.author.id}`}
+                label={`Replying to @${replyTo.author.globalName ?? replyTo.author.username ?? replyTo.author.id}`}
                 onClose={onClearReply}
               />
             </motion.div>

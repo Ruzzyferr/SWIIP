@@ -90,8 +90,9 @@ apiClient.interceptors.response.use(
       _retry?: boolean;
     };
 
-    // 401 → try to refresh token once (skip auth endpoints)
-    const isAuthEndpoint = originalRequest.url?.startsWith('/auth/');
+    // 401 → try to refresh token once (skip only login/register/refresh to avoid loops)
+    const skipRefreshUrls = ['/auth/login', '/auth/register', '/auth/refresh'];
+    const isAuthEndpoint = skipRefreshUrls.some((u) => originalRequest.url?.startsWith(u));
     if (
       error.response?.status === 401 &&
       !originalRequest._retry &&

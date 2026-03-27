@@ -54,7 +54,7 @@ export class AuthService {
     private readonly emailService: EmailService,
   ) {}
 
-  async register(dto: RegisterDto): Promise<{ user: any; tokens: TokenPair }> {
+  async register(dto: RegisterDto): Promise<{ user: any; tokens: TokenPair; sessionId: string }> {
     const existingEmail = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -125,8 +125,15 @@ export class AuthService {
       data: { refreshToken: tokens.refreshToken },
     });
 
+    // Store session in Redis so JWT strategy can validate it
+    await this.redis.setex(
+      `session:${session.id}`,
+      this.SESSION_TTL_SECONDS,
+      JSON.stringify({ userId: user.id, sessionId: session.id }),
+    );
+
     this.logger.log(`User registered: ${user.email}`);
-    return { user, tokens };
+    return { user, tokens, sessionId: session.id };
   }
 
   async login(
@@ -182,6 +189,31 @@ export class AuthService {
       premiumType: user.premiumType,
       createdAt: user.createdAt,
     };
+
+    // If the user hasn't verified their email yet, send a fresh verification code
+    if (!user.verified) {
+      const code = String(Math.floor(100000 + Math.random() * 900000));
+      await this.redis.setex(
+        `email:verify:code:${user.id}`,
+        this.EMAIL_VERIFY_TTL,
+        code,
+      );
+      await this.redis.setex(
+        `email:verify:attempts:${user.id}`,
+        this.EMAIL_VERIFY_TTL,
+        '0',
+      );
+      await this.redis.setex(
+        `email:verify:cooldown:${user.id}`,
+        this.EMAIL_RESEND_COOLDOWN,
+        '1',
+      );
+      try {
+        await this.emailService.sendVerificationCode(user.email, code, user.username);
+      } catch {
+        this.logger.warn(`Failed to send verification email on login to ${user.email}`);
+      }
+    }
 
     this.logger.log(`User logged in: ${user.email}`);
     return { user: safeUser, tokens, sessionId: session.id };
@@ -351,7 +383,12 @@ export class AuthService {
     await this.redis.setex(`email:verify:attempts:${userId}`, this.EMAIL_VERIFY_TTL, '0');
     await this.redis.setex(`email:verify:cooldown:${userId}`, this.EMAIL_RESEND_COOLDOWN, '1');
 
-    await this.emailService.sendVerificationCode(user.email, code, user.username);
+    try {
+      await this.emailService.sendVerificationCode(user.email, code, user.username);
+    } catch {
+      this.logger.warn(`Failed to resend verification email to ${user.email}`);
+      throw new BadRequestException('Failed to send verification email. Please try again.');
+    }
     this.logger.log(`Verification code resent to ${user.email}`);
     return { message: 'Verification code sent' };
   }

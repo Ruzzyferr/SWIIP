@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
 
 export interface VoiceParticipant {
@@ -18,6 +19,14 @@ export type VoiceConnectionState =
   | 'reconnecting'
   | 'error';
 
+interface VoiceSettings {
+  inputDeviceId: string;
+  outputDeviceId: string;
+  inputVolume: number;   // 0–100
+  outputVolume: number;  // 0–100
+  notificationSounds: boolean;
+}
+
 interface VoiceState {
   // Connection
   connectionState: VoiceConnectionState;
@@ -36,6 +45,9 @@ interface VoiceState {
   // Error
   error: string | null;
 
+  // Device settings (persisted)
+  settings: VoiceSettings;
+
   // Actions
   setConnectionState: (state: VoiceConnectionState) => void;
   setCurrentChannel: (channelId: string | null, guildId: string | null) => void;
@@ -44,6 +56,7 @@ interface VoiceState {
   setSelfMuted: (muted: boolean) => void;
   setSelfDeafened: (deafened: boolean) => void;
   setError: (error: string | null) => void;
+  updateSettings: (patch: Partial<VoiceSettings>) => void;
 
   // Participant management
   setParticipant: (participant: VoiceParticipant) => void;
@@ -58,11 +71,20 @@ interface VoiceState {
   disconnect: () => void;
 }
 
+const DEFAULT_SETTINGS: VoiceSettings = {
+  inputDeviceId: 'default',
+  outputDeviceId: 'default',
+  inputVolume: 100,
+  outputVolume: 100,
+  notificationSounds: true,
+};
+
 function participantKey(channelId: string, userId: string) {
   return `${channelId}:${userId}`;
 }
 
 export const useVoiceStore = create<VoiceState>()(
+  persist(
   immer((set, get) => ({
     connectionState: 'disconnected',
     currentChannelId: null,
@@ -73,6 +95,7 @@ export const useVoiceStore = create<VoiceState>()(
     selfDeafened: false,
     participants: {},
     error: null,
+    settings: { ...DEFAULT_SETTINGS },
 
     setConnectionState: (connectionState) =>
       set((state) => {
@@ -106,6 +129,11 @@ export const useVoiceStore = create<VoiceState>()(
       set((state) => {
         state.selfDeafened = deafened;
         if (deafened) state.selfMuted = true;
+      }),
+
+    updateSettings: (patch) =>
+      set((state) => {
+        Object.assign(state.settings, patch);
       }),
 
     setError: (error) =>
@@ -160,5 +188,9 @@ export const useVoiceStore = create<VoiceState>()(
         state.selfDeafened = false;
         state.error = null;
       }),
-  }))
+  })),
+  {
+    name: 'voice-settings',
+    partialize: (state) => ({ settings: state.settings }),
+  })
 );

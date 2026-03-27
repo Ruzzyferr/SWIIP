@@ -4,6 +4,7 @@ import { useEffect, useRef, useCallback } from 'react';
 import {
   Room,
   RoomEvent,
+  ParticipantEvent,
   ConnectionState,
   Track,
   type RemoteParticipant,
@@ -14,6 +15,7 @@ import {
 } from 'livekit-client';
 import { useVoiceStore } from '@/stores/voice.store';
 import { useAuthStore } from '@/stores/auth.store';
+import { playJoinSound, playLeaveSound, playDisconnectSound } from '@/lib/sounds';
 
 /** How long to wait for LiveKit credentials after VOICE_JOIN before giving up */
 const CREDENTIAL_TIMEOUT_MS = 12_000;
@@ -34,6 +36,9 @@ export function useLiveKitRoom() {
   const connectionState = useVoiceStore((s) => s.connectionState);
   const selfMuted = useVoiceStore((s) => s.selfMuted);
   const selfDeafened = useVoiceStore((s) => s.selfDeafened);
+  const inputDeviceId = useVoiceStore((s) => s.settings.inputDeviceId);
+  const outputDeviceId = useVoiceStore((s) => s.settings.outputDeviceId);
+  const outputVolume = useVoiceStore((s) => s.settings.outputVolume);
   const setConnectionState = useVoiceStore((s) => s.setConnectionState);
   const setSpeaking = useVoiceStore((s) => s.setSpeaking);
   const setParticipant = useVoiceStore((s) => s.setParticipant);
@@ -120,6 +125,14 @@ export function useLiveKitRoom() {
       }
     };
 
+    // Per-participant speaking detection (instant, no batching delay)
+    const bindSpeakingListener = (participant: Participant) => {
+      participant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
+        if (!currentChannelId) return;
+        setSpeaking(currentChannelId, participant.identity, speaking);
+      });
+    };
+
     // --- Event handlers ---
     room.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
       console.debug('[LiveKit] Connection state:', state);
@@ -157,11 +170,20 @@ export function useLiveKitRoom() {
         serverDeaf: false,
         speaking: participant.isSpeaking,
       });
+      bindSpeakingListener(participant);
+      const vs = useVoiceStore.getState();
+      if (!vs.selfDeafened && vs.settings.notificationSounds) {
+        playJoinSound();
+      }
     });
 
     room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
       if (!currentChannelId) return;
       removeParticipant(currentChannelId, participant.identity);
+      const vs = useVoiceStore.getState();
+      if (!vs.selfDeafened && vs.settings.notificationSounds) {
+        playLeaveSound();
+      }
     });
 
     room.on(
@@ -177,20 +199,6 @@ export function useLiveKitRoom() {
         detachAudio(track.sid);
       }
     });
-
-    room.on(
-      RoomEvent.ActiveSpeakersChanged,
-      (speakers: Participant[]) => {
-        if (!currentChannelId) return;
-        const participants = useVoiceStore.getState().getChannelParticipants(currentChannelId);
-        for (const p of participants) {
-          const isSpeaking = speakers.some((s) => s.identity === p.userId);
-          if (p.speaking !== isSpeaking) {
-            setSpeaking(currentChannelId, p.userId, isSpeaking);
-          }
-        }
-      }
-    );
 
     // Connect — use Google STUN for local dev (avoids Twilio DNS errors)
     setConnectionState('connecting');
@@ -216,7 +224,7 @@ export function useLiveKitRoom() {
           useVoiceStore.getState().setSelfMuted(true);
         }
 
-        // Register self as participant
+        // Register self as participant + bind speaking listener
         if (currentChannelId && userId) {
           const isMuted = useVoiceStore.getState().selfMuted;
           setParticipant({
@@ -228,9 +236,10 @@ export function useLiveKitRoom() {
             serverDeaf: false,
             speaking: false,
           });
+          bindSpeakingListener(room.localParticipant);
         }
 
-        // Register existing remote participants
+        // Register existing remote participants + bind speaking listeners
         for (const [, participant] of room.remoteParticipants) {
           if (currentChannelId) {
             setParticipant({
@@ -242,6 +251,7 @@ export function useLiveKitRoom() {
               serverDeaf: false,
               speaking: participant.isSpeaking,
             });
+            bindSpeakingListener(participant);
           }
           for (const pub of participant.audioTrackPublications.values()) {
             if (pub.track) {
@@ -273,15 +283,35 @@ export function useLiveKitRoom() {
     room.localParticipant.setMicrophoneEnabled(!selfMuted).catch(console.error);
   }, [selfMuted]);
 
-  // Sync deafen state — mute all remote audio tracks
+  // Sync deafen state + output volume — adjust all remote audio elements
   useEffect(() => {
     const room = roomRef.current;
     if (!room || room.state !== ConnectionState.Connected) return;
 
+    const vol = selfDeafened ? 0 : Math.min(outputVolume / 100, 1);
     for (const audioElement of audioElementsRef.current.values()) {
-      audioElement.volume = selfDeafened ? 0 : 1;
+      audioElement.volume = vol;
     }
-  }, [selfDeafened]);
+  }, [selfDeafened, outputVolume]);
+
+  // Sync input device to LiveKit
+  useEffect(() => {
+    const room = roomRef.current;
+    if (!room || room.state !== ConnectionState.Connected) return;
+    if (inputDeviceId && inputDeviceId !== 'default') {
+      room.switchActiveDevice('audioinput', inputDeviceId).catch(console.error);
+    }
+  }, [inputDeviceId]);
+
+  // Sync output device to all audio elements
+  useEffect(() => {
+    if (!outputDeviceId || outputDeviceId === 'default') return;
+    for (const audioElement of audioElementsRef.current.values()) {
+      if (typeof audioElement.setSinkId === 'function') {
+        audioElement.setSinkId(outputDeviceId).catch(console.error);
+      }
+    }
+  }, [outputDeviceId]);
 
   const disconnectRoom = useCallback(() => {
     if (credentialTimeoutRef.current) {

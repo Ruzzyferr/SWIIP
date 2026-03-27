@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import { ChannelSidebar } from '@/components/layout/ChannelSidebar';
 import { useGuildsStore } from '@/stores/guilds.store';
@@ -20,6 +20,25 @@ export default function GuildPage() {
   const channels = useGuildsStore((s) => s.channels);
   const setActiveGuild = useUIStore((s) => s.setActiveGuild);
   const setActiveChannel = useUIStore((s) => s.setActiveChannel);
+  const isMobileNavOpen = useUIStore((s) => s.isMobileNavOpen);
+  const setMobileNavOpen = useUIStore((s) => s.setMobileNavOpen);
+  const [isMobile, setIsMobile] = useState(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const media = window.matchMedia('(max-width: 767px)');
+    const sync = () => setIsMobile(media.matches);
+    sync();
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
+  }, []);
+
+  // On mobile, show channel list by default
+  useEffect(() => {
+    if (isMobile) {
+      setMobileNavOpen(true);
+    }
+  }, [isMobile, setMobileNavOpen]);
 
   useEffect(() => {
     setActiveGuild(guildId);
@@ -45,6 +64,11 @@ export default function GuildPage() {
       router.replace(`/channels/${guildId}/${firstChannel.id}`);
     }
   }, [guildId, channels, router, setActiveChannel]);
+
+  // On mobile, show only the sidebar (user picks a channel from here)
+  if (isMobile) {
+    return <ChannelSidebar guildId={guildId} />;
+  }
 
   return (
     <>

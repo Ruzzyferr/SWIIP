@@ -23,9 +23,10 @@ import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateMessageDto {
   @ApiProperty({ maxLength: 4000 })
+  @IsOptional()
   @IsString()
   @MaxLength(4000)
-  content: string;
+  content?: string;
 
   @ApiPropertyOptional()
   @IsOptional()
@@ -36,6 +37,12 @@ export class CreateMessageDto {
   @IsOptional()
   @IsString()
   nonce?: string;
+
+  @ApiPropertyOptional({ type: [String] })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  attachmentIds?: string[];
 }
 
 export class UpdateMessageDto {
@@ -87,6 +94,10 @@ export class MessagesService {
   };
 
   async create(channelId: string, userId: string, dto: CreateMessageDto) {
+    if (!dto.content?.trim() && (!dto.attachmentIds || dto.attachmentIds.length === 0)) {
+      throw new BadRequestException('Message must have content or attachments');
+    }
+
     const channel = await this.prisma.channel.findUnique({ where: { id: channelId } });
     if (!channel) throw new NotFoundException('Channel not found');
 
@@ -118,13 +129,50 @@ export class MessagesService {
         channelId,
         guildId: channel.guildId,
         authorId: userId,
-        content: dto.content,
+        content: dto.content ?? '',
         referencedMessageId: dto.referencedMessageId,
         nonce: dto.nonce,
         type: dto.referencedMessageId ? 'REPLY' : 'DEFAULT',
       },
       include: this.MESSAGE_INCLUDE,
     });
+
+    // Link pending attachments to this message
+    if (dto.attachmentIds && dto.attachmentIds.length > 0) {
+      await this.prisma.attachment.updateMany({
+        where: {
+          id: { in: dto.attachmentIds },
+          uploaderId: userId,
+          messageId: null,
+        },
+        data: { messageId: message.id },
+      });
+
+      // Re-fetch message with linked attachments
+      const updated = await this.prisma.message.findUnique({
+        where: { id: message.id },
+        include: this.MESSAGE_INCLUDE,
+      });
+      if (updated) {
+        await this.prisma.channel.update({
+          where: { id: channelId },
+          data: { lastMessageId: message.id },
+        });
+
+        await this.redis.publish(
+          `channel:${channelId}:messages`,
+          JSON.stringify({ type: 'MESSAGE_CREATE', data: updated }),
+        );
+
+        this.eventEmitter.emit('message.created', {
+          channelId,
+          guildId: channel.guildId,
+          message: updated,
+        });
+
+        return updated;
+      }
+    }
 
     await this.prisma.channel.update({
       where: { id: channelId },

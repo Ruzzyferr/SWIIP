@@ -47,9 +47,8 @@ export class AuthController {
     return this.configService.get<string>('AUTH_REFRESH_COOKIE_NAME', 'swiip_rt');
   }
 
-  private get refreshCookieMaxAgeMs(): number {
-    const maxAgeSec = this.configService.get<number>('AUTH_COOKIE_MAX_AGE_SECONDS', 60 * 60 * 24 * 30);
-    return maxAgeSec * 1000;
+  private get refreshCookieMaxAgeSec(): number {
+    return this.configService.get<number>('AUTH_COOKIE_MAX_AGE_SECONDS', 60 * 60 * 24 * 30);
   }
 
   private get cookieSecure(): boolean {
@@ -76,7 +75,7 @@ export class AuthController {
       sameSite: this.cookieSameSite,
       domain: this.configService.get<string>('AUTH_COOKIE_DOMAIN'),
       path: this.configService.get<string>('AUTH_COOKIE_PATH', '/'),
-      maxAge: this.refreshCookieMaxAgeMs,
+      maxAge: this.refreshCookieMaxAgeSec,
     });
   }
 
@@ -101,6 +100,7 @@ export class AuthController {
     return {
       user: result.user,
       tokens: { accessToken: result.tokens.accessToken },
+      sessionId: result.sessionId,
     };
   }
 

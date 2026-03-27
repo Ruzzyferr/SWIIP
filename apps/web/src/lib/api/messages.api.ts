@@ -12,6 +12,7 @@ export interface SendMessageRequest {
   content?: string;
   nonce?: string;
   replyToId?: string;
+  attachmentIds?: string[];
   attachments?: AttachmentRef[];
   mentionedUserIds?: string[];
 }
@@ -47,7 +48,12 @@ export async function sendMessage(
 ): Promise<MessagePayload> {
   const res = await apiClient.post<MessagePayload>(
     `/channels/${channelId}/messages`,
-    data
+    {
+      content: data.content,
+      nonce: data.nonce,
+      referencedMessageId: data.replyToId,
+      attachmentIds: data.attachmentIds,
+    }
   );
   return res.data;
 }
@@ -117,8 +123,39 @@ export async function requestAttachmentUpload(
   files: Array<{ filename: string; fileSize: number; contentType: string }>
 ): Promise<UploadAttachmentResponse[]> {
   const res = await apiClient.post<UploadAttachmentResponse[]>(
-    `/channels/${channelId}/attachments`,
+    `/uploads/channels/${channelId}/attachments`,
     { files }
   );
   return res.data;
+}
+
+export async function uploadFileToPresignedUrl(
+  uploadUrl: string,
+  file: File,
+  onProgress?: (percent: number) => void,
+): Promise<void> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open('PUT', uploadUrl);
+    xhr.setRequestHeader('Content-Type', file.type);
+
+    if (onProgress) {
+      xhr.upload.onprogress = (e) => {
+        if (e.lengthComputable) {
+          onProgress(Math.round((e.loaded / e.total) * 100));
+        }
+      };
+    }
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        resolve();
+      } else {
+        reject(new Error(`Upload failed with status ${xhr.status}`));
+      }
+    };
+
+    xhr.onerror = () => reject(new Error('Upload failed'));
+    xhr.send(file);
+  });
 }

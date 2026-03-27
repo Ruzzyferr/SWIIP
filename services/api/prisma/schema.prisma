@@ -433,7 +433,9 @@ model MessageRevision {
 
 model Attachment {
   id               String   @id @default(cuid())
-  messageId        String
+  messageId        String?
+  channelId        String?
+  uploaderId       String?
   filename         String
   originalFilename String
   contentType      String
@@ -446,7 +448,7 @@ model Attachment {
   spoiler          Boolean  @default(false)
   createdAt        DateTime @default(now())
 
-  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  message Message? @relation(fields: [messageId], references: [id], onDelete: Cascade)
 
   @@index([messageId])
 }

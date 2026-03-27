@@ -10,6 +10,8 @@ import { nanoid } from 'nanoid';
 import * as https from 'https';
 import * as http from 'http';
 import * as url from 'url';
+import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { getSignedUrl as awsGetSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 export interface ProcessImageOptions {
   width: number;
@@ -56,6 +58,7 @@ export class UploadsService {
   private readonly s3SecretKey: string;
   private readonly s3Region: string;
   private readonly cdnUrl: string;
+  private readonly s3Client: S3Client;
 
   constructor(private readonly configService: ConfigService) {
     this.maxUploadSizeMB = parseInt(
@@ -68,6 +71,16 @@ export class UploadsService {
     this.s3SecretKey = this.configService.get<string>('S3_SECRET_KEY', 'minioadmin');
     this.s3Region = this.configService.get<string>('S3_REGION', 'us-east-1');
     this.cdnUrl = this.configService.get<string>('S3_CDN_URL', 'http://localhost:9000/constchat');
+
+    this.s3Client = new S3Client({
+      endpoint: this.s3Endpoint,
+      region: this.s3Region,
+      credentials: {
+        accessKeyId: this.s3AccessKey,
+        secretAccessKey: this.s3SecretKey,
+      },
+      forcePathStyle: true, // Required for MinIO
+    });
   }
 
   async uploadAvatar(userId: string, file: Express.Multer.File): Promise<UploadResult> {
@@ -235,12 +248,45 @@ export class UploadsService {
     return `${this.cdnUrl}/${s3Key}`;
   }
 
-  async getSignedUrl(s3Key: string, expiresInSeconds = 3600): Promise<string> {
-    // For MinIO/S3, we generate a pre-signed URL
-    // In production, use @aws-sdk/client-s3 with GetObjectCommand + getSignedUrl
-    // This is a placeholder that returns the direct URL
-    this.logger.debug(`Generating signed URL for: ${s3Key}`);
-    return `${this.s3Endpoint}/${this.s3Bucket}/${s3Key}?X-Expires=${Date.now() + expiresInSeconds * 1000}`;
+  async createPresignedUpload(
+    channelId: string,
+    userId: string,
+    filename: string,
+    contentType: string,
+    fileSize: number,
+  ): Promise<{
+    uploadUrl: string;
+    s3Key: string;
+    cdnUrl: string;
+    filename: string;
+  }> {
+    const maxBytes = this.maxUploadSizeMB * 1024 * 1024;
+    if (fileSize > maxBytes) {
+      throw new PayloadTooLargeException(`File too large. Maximum ${this.maxUploadSizeMB}MB`);
+    }
+
+    if (!ALLOWED_ATTACHMENT_TYPES.includes(contentType)) {
+      throw new BadRequestException(`File type ${contentType} is not allowed`);
+    }
+
+    const safeFilename = this.sanitizeFilename(filename);
+    const s3Key = `attachments/${channelId}/${userId}/${nanoid(16)}/${safeFilename}`;
+
+    const command = new PutObjectCommand({
+      Bucket: this.s3Bucket,
+      Key: s3Key,
+      ContentType: contentType,
+      ContentLength: fileSize,
+    });
+
+    const uploadUrl = await awsGetSignedUrl(this.s3Client, command, { expiresIn: 600 });
+
+    return {
+      uploadUrl,
+      s3Key,
+      cdnUrl: this.generateCdnUrl(s3Key),
+      filename: safeFilename,
+    };
   }
 
   async deleteObject(s3Key: string): Promise<void> {

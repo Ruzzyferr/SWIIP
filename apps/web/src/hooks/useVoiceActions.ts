@@ -5,6 +5,7 @@ import { OpCode } from '@constchat/protocol';
 import { getGatewayClient } from '@/lib/gateway/GatewayClient';
 import { useVoiceStore } from '@/stores/voice.store';
 import { useGuildsStore } from '@/stores/guilds.store';
+import { playDisconnectSound } from '@/lib/sounds';
 
 /**
  * Provides actions for joining/leaving voice channels and toggling mute/deafen.
@@ -56,6 +57,7 @@ export function useVoiceActions() {
     if (!currentChannelId) return;
     const gw = getGatewayClient();
     gw.send(OpCode.DISPATCH, { t: 'VOICE_LEAVE', d: {} });
+    playDisconnectSound();
     voiceDisconnect();
   }, [currentChannelId, voiceDisconnect]);
 
@@ -72,21 +74,15 @@ export function useVoiceActions() {
   const toggleDeafen = useCallback(() => {
     const newDeafened = !selfDeafened;
     setSelfDeafened(newDeafened);
-    // If deafening, also mute
-    const newMuted = newDeafened ? true : selfMuted;
-    if (newDeafened && !selfMuted) {
-      setSelfMuted(true);
-    }
-    // If un-deafening, also unmute
-    if (!newDeafened && selfMuted) {
-      setSelfMuted(false);
-    }
+    // Deafening → auto-mute, un-deafening → auto-unmute
+    const newMuted = newDeafened ? true : false;
+    setSelfMuted(newMuted);
     const gw = getGatewayClient();
     gw.send(OpCode.VOICE_STATE_UPDATE, {
-      selfMute: newDeafened ? true : !selfMuted ? false : selfMuted,
+      selfMute: newMuted,
       selfDeaf: newDeafened,
     });
-  }, [selfDeafened, selfMuted, setSelfDeafened, setSelfMuted]);
+  }, [selfDeafened, setSelfDeafened, setSelfMuted]);
 
   return {
     joinVoiceChannel,

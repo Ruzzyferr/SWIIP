@@ -69,7 +69,13 @@ function LoginContent() {
       setUser(res.user);
       setTokens(res.tokens.accessToken, res.sessionId);
       setAccessToken(res.tokens.accessToken);
-      router.push(redirectTo || '/channels/@me');
+
+      // Redirect unverified users to verification page
+      if (!res.user.verified) {
+        router.push('/verify-email');
+      } else {
+        router.push(redirectTo || '/channels/@me');
+      }
     } catch (err: unknown) {
       const message =
         err instanceof Error ? err.message : 'Invalid email or password';

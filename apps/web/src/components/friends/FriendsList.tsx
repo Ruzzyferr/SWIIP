@@ -12,9 +12,11 @@ import {
   Search,
   Clock,
   Ban,
+  Menu,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { useUIStore } from '@/stores/ui.store';
 import { useFriendsStore } from '@/stores/friends.store';
 import { usePresenceStore } from '@/stores/presence.store';
 import {
@@ -255,6 +257,7 @@ function FriendRow({
 
 export function FriendsList() {
   const router = useRouter();
+  const toggleMobileNav = useUIStore((s) => s.toggleMobileNav);
   const [activeTab, setActiveTab] = useState<FriendsTab>('online');
   const [searchQuery, setSearchQuery] = useState('');
   const relationships = useFriendsStore((s) => s.relationships);
@@ -340,6 +343,16 @@ export function FriendsList() {
         className="flex items-center gap-4 px-4 h-12 flex-shrink-0"
         style={{ borderBottom: '1px solid var(--color-border-subtle)' }}
       >
+        {/* Mobile hamburger */}
+        <button
+          onClick={toggleMobileNav}
+          className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-fast md:hidden"
+          style={{ color: 'var(--color-text-secondary)' }}
+          aria-label="Open channels menu"
+        >
+          <Menu size={18} />
+        </button>
+
         <div className="flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
           <Users size={20} />
           <span className="font-semibold text-sm">Friends</span>

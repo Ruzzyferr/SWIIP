@@ -5,6 +5,7 @@ import {
   UseInterceptors,
   UploadedFile,
   Param,
+  Body,
   HttpCode,
   HttpStatus,
   ParseFilePipe,
@@ -13,11 +14,33 @@ import {
 } from '@nestjs/common';
 import { FileInterceptor } from '@nestjs/platform-express';
 import { ApiTags, ApiBearerAuth, ApiOperation, ApiConsumes } from '@nestjs/swagger';
+import { IsString, IsInt, IsArray, ValidateNested, Min, Max } from 'class-validator';
+import { Type } from 'class-transformer';
 import { UploadsService } from './uploads.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthUser } from '../auth/auth.service';
 import { PrismaService } from '../prisma/prisma.service';
+
+class FilePresignRequest {
+  @IsString()
+  filename: string;
+
+  @IsInt()
+  @Min(1)
+  @Max(25 * 1024 * 1024)
+  fileSize: number;
+
+  @IsString()
+  contentType: string;
+}
+
+class PresignAttachmentsDto {
+  @IsArray()
+  @ValidateNested({ each: true })
+  @Type(() => FilePresignRequest)
+  files: FilePresignRequest[];
+}
 
 @ApiTags('Uploads')
 @ApiBearerAuth()
@@ -107,20 +130,44 @@ export class UploadsController {
 
   @Post('channels/:channelId/attachments')
   @HttpCode(HttpStatus.CREATED)
-  @ApiOperation({ summary: 'Upload attachment to channel' })
-  @ApiConsumes('multipart/form-data')
-  @UseInterceptors(FileInterceptor('file'))
-  async uploadAttachment(
+  @ApiOperation({ summary: 'Request presigned URLs for attachment uploads' })
+  async presignAttachments(
     @Param('channelId') channelId: string,
     @CurrentUser() user: AuthUser,
-    @UploadedFile(
-      new ParseFilePipe({
-        validators: [new MaxFileSizeValidator({ maxSize: 25 * 1024 * 1024 })],
-      }),
-    )
-    file: Express.Multer.File,
+    @Body() dto: PresignAttachmentsDto,
   ) {
-    const result = await this.uploadsService.uploadAttachment(channelId, user.userId, file);
-    return result;
+    const results = await Promise.all(
+      dto.files.map(async (file) => {
+        const presigned = await this.uploadsService.createPresignedUpload(
+          channelId,
+          user.userId,
+          file.filename,
+          file.contentType,
+          file.fileSize,
+        );
+
+        // Create pending attachment in DB (no messageId yet)
+        const attachment = await this.prisma.attachment.create({
+          data: {
+            channelId,
+            uploaderId: user.userId,
+            filename: presigned.filename,
+            originalFilename: file.filename,
+            contentType: file.contentType,
+            size: BigInt(file.fileSize),
+            s3Key: presigned.s3Key,
+            cdnUrl: presigned.cdnUrl,
+          },
+        });
+
+        return {
+          uploadUrl: presigned.uploadUrl,
+          uploadId: attachment.id,
+          filename: presigned.filename,
+        };
+      }),
+    );
+
+    return results;
   }
 }

@@ -58,20 +58,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
         setAccessToken(token);
       }
 
-      // If we don't have user data yet, fetch it
-      if (!useAuthStore.getState().user) {
-        setLoading(true);
-        try {
-          const userData = await getCurrentUser();
-          setUser(userData);
-        } catch {
-          logoutAction();
-          setAccessToken(null);
-          router.replace('/login');
-          return;
-        } finally {
-          setLoading(false);
-        }
+      // Always fetch fresh user data to ensure verified status is current
+      setLoading(true);
+      try {
+        const userData = await getCurrentUser();
+        setUser(userData);
+      } catch {
+        logoutAction();
+        setAccessToken(null);
+        router.replace('/login');
+        return;
+      } finally {
+        setLoading(false);
       }
 
       // Redirect unverified users to verify-email page

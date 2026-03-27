@@ -21,6 +21,7 @@ import { useAuthStore } from '@/stores/auth.store';
 import { usePresenceStore } from '@/stores/presence.store';
 import { logout as logoutApi } from '@/lib/api/auth.api';
 import { setAccessToken } from '@/lib/api/client';
+import { VoiceSettingsPage } from '@/components/settings/VoiceSettingsPage';
 
 const NAV_ITEMS = [
   { id: 'account', label: 'My Account', icon: User, section: 'User Settings' },
@@ -248,6 +249,8 @@ export function SettingsOverlay() {
         return <AccountPage />;
       case 'appearance':
         return <AppearancePage />;
+      case 'voice':
+        return <VoiceSettingsPage />;
       default: {
         const item = NAV_ITEMS.find((i) => i.id === page);
         return <PlaceholderPage title={item?.label ?? 'Settings'} />;

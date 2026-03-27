@@ -23,6 +23,7 @@ import { EmojiPicker } from '@/components/ui/EmojiPicker';
 import { useAuthStore } from '@/stores/auth.store';
 import { editMessage, deleteMessage, addReaction } from '@/lib/api/messages.api';
 import { useMessagesStore } from '@/stores/messages.store';
+import { toastError } from '@/lib/toast';
 import type { MessagePayload, ReactionPayload, EmojiRef } from '@constchat/protocol';
 
 // ---------------------------------------------------------------------------
@@ -394,8 +395,8 @@ export function MessageItem({
       });
       updateMsg(channelId, message.id, updated);
       setEditing(false);
-    } catch {
-      // ignore
+    } catch (err: unknown) {
+      toastError(err instanceof Error ? err.message : 'Failed to edit message');
     }
   };
 
@@ -415,8 +416,8 @@ export function MessageItem({
     try {
       await deleteMessage(channelId, message.id);
       removeMsg(channelId, message.id);
-    } catch {
-      // ignore
+    } catch (err: unknown) {
+      toastError(err instanceof Error ? err.message : 'Failed to delete message');
     }
   };
 
@@ -603,20 +604,31 @@ export function MessageItem({
                 </div>
               </div>
             ) : (
-              <p
-                className="text-sm leading-relaxed"
-                style={{ color: 'var(--color-text-primary)', wordBreak: 'break-word' }}
-              >
-                {renderContent(message.content ?? '')}
-                {editedAt && !isGrouped && (
+              <>
+                {message.content ? (
+                  <p
+                    className="text-sm leading-relaxed"
+                    style={{ color: 'var(--color-text-primary)', wordBreak: 'break-word' }}
+                  >
+                    {renderContent(message.content)}
+                    {editedAt && !isGrouped && (
+                      <span
+                        className="text-xs ml-1"
+                        style={{ color: 'var(--color-text-disabled)' }}
+                      >
+                        (edited)
+                      </span>
+                    )}
+                  </p>
+                ) : editedAt && !isGrouped ? (
                   <span
-                    className="text-xs ml-1"
+                    className="text-xs"
                     style={{ color: 'var(--color-text-disabled)' }}
                   >
                     (edited)
                   </span>
-                )}
-              </p>
+                ) : null}
+              </>
             )}
 
             {/* Attachments */}
@@ -634,7 +646,7 @@ export function MessageItem({
                     {att.contentType?.startsWith('image/') ? (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
-                        src={att.filename}
+                        src={(att as any).cdnUrl ?? att.url ?? att.filename}
                         alt={att.filename}
                         className="max-w-full rounded-lg"
                         style={{ maxHeight: '300px', objectFit: 'contain' }}
@@ -649,7 +661,7 @@ export function MessageItem({
                         </div>
                         <div>
                           <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                            {att.filename}
+                            {(att as any).originalFilename ?? att.filename}
                           </p>
                           <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
                             {(att.size / 1024).toFixed(1)} KB

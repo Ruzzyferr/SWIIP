@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Hash,
@@ -319,6 +319,16 @@ export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
   const openModal = useUIStore((s) => s.openModal);
   const setMobileNavOpen = useUIStore((s) => s.setMobileNavOpen);
 
+  const [isMobile, setIsMobile] = useState(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const media = window.matchMedia('(max-width: 767px)');
+    const sync = () => setIsMobile(media.matches);
+    sync();
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
+  }, []);
+
   const guild = guildId ? guilds[guildId] : null;
 
   const handleCreateChannel = (categoryId?: string) => {
@@ -357,10 +367,11 @@ export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
     <div
       className="flex flex-col h-full"
       style={{
-        width: 'var(--layout-channel-sidebar-width)',
+        ...(isMobile
+          ? { flex: 1, minWidth: 0 }
+          : { width: 'var(--layout-channel-sidebar-width)', flexShrink: 0 }),
         background: 'var(--color-surface-elevated)',
-        borderRight: '1px solid var(--color-border-subtle)',
-        flexShrink: 0,
+        borderRight: isMobile ? 'none' : '1px solid var(--color-border-subtle)',
       }}
     >
       {/* Server header with dropdown */}

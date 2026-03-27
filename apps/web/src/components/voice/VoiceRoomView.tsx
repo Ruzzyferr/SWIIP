@@ -56,13 +56,13 @@ function ParticipantTile({
         border: `2px solid ${borderColor}`,
         minWidth: 120,
         maxWidth: 160,
-        transition: 'border-color 0.2s',
+        transition: 'border-color 0.1s',
       }}
     >
       {/* Avatar with speaking ring */}
       <div className="relative">
         <div
-          className="rounded-full transition-shadow duration-200"
+          className="rounded-full transition-shadow duration-100"
           style={{
             boxShadow: isSpeaking ? '0 0 12px var(--color-voice-speaking)' : 'none',
           }}

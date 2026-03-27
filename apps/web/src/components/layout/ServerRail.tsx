@@ -2,7 +2,7 @@
 
 import { useRef, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Home, Plus, Compass } from 'lucide-react';
+import { Home, Plus, Compass, Link2 } from 'lucide-react';
 import Image from 'next/image';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useGuildsStore } from '@/stores/guilds.store';
@@ -261,6 +261,34 @@ export function ServerRail() {
           aria-label="Add a Server"
         >
           <Plus size={20} />
+        </button>
+      </Tooltip>
+
+      {/* Join Server */}
+      <Tooltip content="Join a Server" placement="right">
+        <button
+          onClick={() => openModal('join-guild')}
+          className="flex items-center justify-center transition-all duration-normal flex-shrink-0"
+          style={{
+            width: 48,
+            height: 48,
+            borderRadius: 'var(--radius-full)',
+            background: 'var(--color-surface-elevated)',
+            color: 'var(--color-accent-primary)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderRadius = 'var(--radius-xl)';
+            e.currentTarget.style.background = 'var(--color-accent-primary)';
+            e.currentTarget.style.color = '#ffffff';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderRadius = 'var(--radius-full)';
+            e.currentTarget.style.background = 'var(--color-surface-elevated)';
+            e.currentTarget.style.color = 'var(--color-accent-primary)';
+          }}
+          aria-label="Join a Server"
+        >
+          <Link2 size={20} />
         </button>
       </Tooltip>
 

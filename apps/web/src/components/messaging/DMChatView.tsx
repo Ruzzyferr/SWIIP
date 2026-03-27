@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Phone, Video, UserPlus } from 'lucide-react';
+import { Phone, Video, UserPlus, Menu } from 'lucide-react';
 import { MessageList } from './MessageList';
 import { MessageComposer } from './MessageComposer';
 import { TypingIndicator } from './TypingIndicator';
@@ -25,6 +25,7 @@ export function DMChatView({ conversationId }: DMChatViewProps) {
   const addConversation = useDMsStore((s) => s.addConversation);
   const currentUser = useAuthStore((s) => s.user);
   const setActiveDM = useUIStore((s) => s.setActiveDM);
+  const toggleMobileNav = useUIStore((s) => s.toggleMobileNav);
   const updateMessage = useMessagesStore((s) => s.updateMessage);
   const presences = usePresenceStore((s) => s.users);
 
@@ -85,6 +86,15 @@ export function DMChatView({ conversationId }: DMChatViewProps) {
         style={{ borderBottom: '1px solid var(--color-border-subtle)' }}
       >
         <div className="flex items-center gap-2.5 min-w-0">
+          {/* Mobile hamburger */}
+          <button
+            onClick={toggleMobileNav}
+            className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-fast md:hidden"
+            style={{ color: 'var(--color-text-secondary)' }}
+            aria-label="Open channels menu"
+          >
+            <Menu size={18} />
+          </button>
           {otherUser && !isGroup && (
             <Avatar
               src={otherUser.avatar}

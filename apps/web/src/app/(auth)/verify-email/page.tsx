@@ -1,11 +1,12 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion } from 'framer-motion';
 import { Loader2, Mail, ArrowLeft } from 'lucide-react';
 import { verifyEmailCode, resendVerificationCode } from '@/lib/api/auth.api';
 import { useAuthStore } from '@/stores/auth.store';
+import { Spinner } from '@/components/ui/Spinner';
 
 const containerVariants = {
   hidden: { opacity: 0 },
@@ -32,14 +33,28 @@ export default function VerifyEmailPage() {
   const [error, setError] = useState<string | null>(null);
   const [isVerifying, setIsVerifying] = useState(false);
   const [resendCooldown, setResendCooldown] = useState(0);
+  const [hydrated, setHydrated] = useState(false);
+
+  // Wait for zustand persist hydration before making redirect decisions
+  useEffect(() => {
+    const unsub = useAuthStore.persist.onFinishHydration(() => {
+      unsub();
+      setHydrated(true);
+    });
+    if (useAuthStore.persist.hasHydrated()) {
+      unsub();
+      setHydrated(true);
+    }
+  }, []);
 
   useEffect(() => {
+    if (!hydrated) return;
     if (!user) {
       router.replace('/login');
     } else if (user.verified) {
       router.replace('/channels/@me');
     }
-  }, [user, router]);
+  }, [user, router, hydrated]);
 
   useEffect(() => {
     if (resendCooldown <= 0) return;
@@ -73,7 +88,13 @@ export default function VerifyEmailPage() {
     }
   };
 
-  if (!user) return null;
+  if (!hydrated || !user) {
+    return (
+      <div className="flex items-center justify-center h-screen w-screen" style={{ background: 'var(--color-surface-base)' }}>
+        <Spinner size={32} />
+      </div>
+    );
+  }
 
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-surface-base py-8">
