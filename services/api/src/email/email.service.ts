@@ -11,9 +11,9 @@ export class EmailService implements OnModuleInit {
   constructor(private readonly config: ConfigService) {}
 
   onModuleInit() {
-    const host = this.config.get('SMTP_HOST', 'mail.swiip.app');
+    const host = this.config.get('SMTP_HOST', 'smtp.gmail.com');
     const port = this.config.get<number>('SMTP_PORT', 587);
-    const user = this.config.get('SMTP_USER', 'info@swiip.app');
+    const user = this.config.get('SMTP_USER', '');
     const pass = this.config.get('SMTP_PASS', '');
 
     this.transporter = nodemailer.createTransport({
