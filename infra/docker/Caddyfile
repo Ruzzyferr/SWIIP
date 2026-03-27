@@ -21,6 +21,11 @@ swiip.app {
         reverse_proxy gateway:4001
     }
 
+    # LiveKit WebSocket/HTTP
+    handle /livekit* {
+        reverse_proxy livekit:7880
+    }
+
     # Web frontend (catch-all)
     handle {
         reverse_proxy web:3000

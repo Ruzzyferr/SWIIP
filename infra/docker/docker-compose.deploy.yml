@@ -95,8 +95,21 @@ services:
       LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
       LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
     depends_on:
+      livekit:
+        condition: service_started
       redis:
         condition: service_healthy
+
+  livekit:
+    profiles: ["voice"]
+    image: livekit/livekit-server:latest
+    container_name: swiip-livekit
+    restart: unless-stopped
+    command: >
+      --dev=false
+      --bind 0.0.0.0
+      --port 7880
+      --keys ${LIVEKIT_API_KEY}:${LIVEKIT_API_SECRET}
 
   # ─── Infrastructure ───────────────────────────────────────────────────────
 

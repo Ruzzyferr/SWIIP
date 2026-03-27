@@ -19,6 +19,7 @@ REMOTE="origin"
 HEALTH_TIMEOUT=120
 HEALTH_INTERVAL=5
 LOG_FILE="/var/log/constchat-deploy.log"
+ENABLE_VOICE=0
 
 # All deployable services
 ALL_SERVICES=(api gateway web)
@@ -46,6 +47,18 @@ header() {
 
 dc() {
     docker compose -f "$COMPOSE_FILE" --env-file "$ENV_FILE" "$@"
+}
+
+voice_env_ready() {
+    local required=("LIVEKIT_URL" "LIVEKIT_WS_URL" "LIVEKIT_API_KEY" "LIVEKIT_API_SECRET")
+    local missing=0
+    for key in "${required[@]}"; do
+        if ! grep -q "^${key}=.\+" "$ENV_FILE"; then
+            err "Missing voice env: ${key}"
+            missing=$((missing + 1))
+        fi
+    done
+    [ $missing -eq 0 ]
 }
 
 # ─── Pre-flight checks ──────────────────────────────────────────────────────
@@ -104,6 +117,7 @@ health_check() {
         api)     container="swiip-api";     url="http://localhost:4000/health" ;;
         gateway) container="swiip-gateway"; url="http://localhost:4001/health" ;;
         media-signalling) container="swiip-media-signalling"; url="http://localhost:4002/docs" ;;
+        livekit) container="swiip-livekit"; url="http://localhost:7880" ;;
         web)     container="swiip-web";     url="http://localhost:3000" ;;
         *)       warn "No health check defined for $service"; return 0 ;;
     esac
@@ -206,6 +220,14 @@ deploy() {
 
     preflight
 
+    if [ "$ENABLE_VOICE" -eq 1 ]; then
+        log "Voice mode enabled: validating voice environment..."
+        if ! voice_env_ready; then
+            err "Voice env is incomplete. Fix $ENV_FILE and retry with --voice."
+            exit 1
+        fi
+    fi
+
     # Save current commit for rollback reference
     local prev_commit
     prev_commit=$(git rev-parse HEAD 2>/dev/null || echo "none")
@@ -230,7 +252,12 @@ deploy() {
 
     # Build & restart
     log "Building and deploying: ${services[*]}..."
-    dc up -d --build "${services[@]}"
+    if [ "$ENABLE_VOICE" -eq 1 ]; then
+        dc --profile voice up -d --build "${services[@]}" media-signalling livekit
+        services+=("media-signalling" "livekit")
+    else
+        dc up -d --build "${services[@]}"
+    fi
 
     # Health checks
     echo ""
@@ -294,10 +321,16 @@ main() {
             echo "Options:"
             echo "  (no args)          Deploy all services"
             echo "  web api gateway    Deploy specific service(s)"
+            echo "  --voice            Enable voice profile deploy checks"
             echo "  --rollback, -r     Rollback to previous commit"
             echo "  --status, -s       Show service status"
             echo "  --logs, -l [svc]   Tail logs (optionally for a service)"
             echo "  --help, -h         Show this help"
+            ;;
+        --voice)
+            ENABLE_VOICE=1
+            shift
+            deploy "$@"
             ;;
         --*)
             err "Unknown option: $1"
