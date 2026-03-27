@@ -47,7 +47,7 @@ RUN adduser --system --uid 1001 constchat
 
 COPY --from=builder /app/apps/web/public ./public
 COPY --from=builder --chown=constchat:constchat /app/apps/web/.next/standalone ./
-COPY --from=builder --chown=constchat:constchat /app/apps/web/.next/static ./.next/static
+COPY --from=builder --chown=constchat:constchat /app/apps/web/.next/static ./apps/web/.next/static
 
 USER constchat
 EXPOSE 3000
