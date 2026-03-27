@@ -18,7 +18,7 @@
   },
   "dependencies": {
     "@constchat/config": "workspace:*",
-    "@fastify/cookie": "^11.0.2",
+    "@fastify/cookie": "^9.4.0",
     "@fastify/static": "^7.0.4",
     "@nestjs/common": "^10.3",
     "@nestjs/config": "^3.2",
