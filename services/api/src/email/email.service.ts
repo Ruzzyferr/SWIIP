@@ -6,11 +6,20 @@ import type { Transporter } from 'nodemailer';
 @Injectable()
 export class EmailService implements OnModuleInit {
   private readonly logger = new Logger(EmailService.name);
-  private transporter: Transporter;
+  private transporter: Transporter | null = null;
+  private brevoApiKey: string | null = null;
+  private readonly brevoApiUrl = 'https://api.brevo.com/v3/smtp/email';
 
   constructor(private readonly config: ConfigService) {}
 
   onModuleInit() {
+    this.brevoApiKey = this.config.get<string>('BREVO_API_KEY')?.trim() || null;
+
+    if (this.brevoApiKey) {
+      this.logger.log('Email transport configured: Brevo API');
+      return;
+    }
+
     const host = this.config.get('SMTP_HOST', 'smtp.gmail.com');
     const port = this.config.get<number>('SMTP_PORT', 587);
     const user = this.config.get('SMTP_USER', '');
@@ -28,6 +37,52 @@ export class EmailService implements OnModuleInit {
 
   private get from(): string {
     return this.config.get('SMTP_FROM', 'Swiip <info@swiip.app>');
+  }
+
+  private parseFrom() {
+    const from = this.from;
+    const match = from.match(/^\s*"?([^"<]+?)"?\s*<([^>]+)>\s*$/);
+    if (match) {
+      return { name: match[1]!.trim(), email: match[2]!.trim() };
+    }
+    return { name: 'Swiip', email: from.trim() };
+  }
+
+  private async sendEmail(to: string, subject: string, html: string): Promise<void> {
+    if (this.brevoApiKey) {
+      const from = this.parseFrom();
+      const response = await fetch(this.brevoApiUrl, {
+        method: 'POST',
+        headers: {
+          'accept': 'application/json',
+          'api-key': this.brevoApiKey,
+          'content-type': 'application/json',
+        },
+        body: JSON.stringify({
+          sender: from,
+          to: [{ email: to }],
+          subject,
+          htmlContent: html,
+        }),
+      });
+
+      if (!response.ok) {
+        const body = await response.text();
+        throw new Error(`Brevo send failed (${response.status}): ${body.slice(0, 300)}`);
+      }
+      return;
+    }
+
+    if (!this.transporter) {
+      throw new Error('No email transport configured');
+    }
+
+    await this.transporter.sendMail({
+      from: this.from,
+      to,
+      subject,
+      html,
+    });
   }
 
   async sendVerificationCode(
@@ -55,12 +110,7 @@ export class EmailService implements OnModuleInit {
 </html>`;
 
     try {
-      await this.transporter.sendMail({
-        from: this.from,
-        to,
-        subject: `${code} — Your Swiip verification code`,
-        html,
-      });
+      await this.sendEmail(to, `${code} — Your Swiip verification code`, html);
       this.logger.log(`Verification code sent to ${to}`);
     } catch (err) {
       this.logger.error(`Failed to send verification email to ${to}`, err);
@@ -94,12 +144,7 @@ export class EmailService implements OnModuleInit {
 </html>`;
 
     try {
-      await this.transporter.sendMail({
-        from: this.from,
-        to,
-        subject: 'Reset your Swiip password',
-        html,
-      });
+      await this.sendEmail(to, 'Reset your Swiip password', html);
       this.logger.log(`Password reset email sent to ${to}`);
     } catch (err) {
       this.logger.error(`Failed to send password reset email to ${to}`, err);

@@ -23,6 +23,7 @@ services:
       SMTP_USER: ${SMTP_USER:-info@swiip.app}
       SMTP_PASS: ${SMTP_PASS}
       SMTP_FROM: ${SMTP_FROM:-Swiip <info@swiip.app>}
+      BREVO_API_KEY: ${BREVO_API_KEY:-}
       PORT: 4000
     depends_on:
       postgres:
