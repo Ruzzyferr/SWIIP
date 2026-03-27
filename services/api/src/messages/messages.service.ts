@@ -18,6 +18,7 @@ import {
   Min,
   Max,
 } from 'class-validator';
+import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateMessageDto {
@@ -48,7 +49,7 @@ export class GetMessagesDto {
   @ApiPropertyOptional() @IsOptional() @IsString() before?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() after?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() around?: string;
-  @ApiPropertyOptional() @IsOptional() @IsInt() @Min(1) @Max(100) limit?: number;
+  @ApiPropertyOptional() @IsOptional() @Type(() => Number) @IsInt() @Min(1) @Max(100) limit?: number;
 }
 
 @Injectable()
