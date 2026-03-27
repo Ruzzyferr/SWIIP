@@ -109,7 +109,7 @@ services:
       --dev=false
       --bind 0.0.0.0
       --port 7880
-      --keys ${LIVEKIT_API_KEY}:${LIVEKIT_API_SECRET}
+      --keys "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
 
   # ─── Infrastructure ───────────────────────────────────────────────────────
 

@@ -65,10 +65,7 @@ publish_latest_installer() {
     local downloads_dir="$REPO_DIR/infra/docker/downloads"
     local latest_versioned=""
 
-    if [ ! -d "$downloads_dir" ]; then
-        warn "Installer downloads directory missing: $downloads_dir"
-        return 0
-    fi
+    mkdir -p "$downloads_dir"
 
     latest_versioned=$(ls -1 "$downloads_dir"/Swiip-Setup-*.exe 2>/dev/null | grep -v 'Swiip-Setup-latest\.exe$' | sort -V | tail -n 1 || true)
     if [ -z "$latest_versioned" ]; then
@@ -146,7 +143,7 @@ health_check() {
     local elapsed=0
 
     while [ $elapsed -lt $HEALTH_TIMEOUT ]; do
-        if docker exec "$container" sh -c "wget -q --spider $url 2>/dev/null || curl -sf $url >/dev/null 2>&1" 2>/dev/null; then
+        if curl -sf "$url" >/dev/null 2>&1; then
             ok "$service is healthy (${elapsed}s)"
             return 0
         fi
