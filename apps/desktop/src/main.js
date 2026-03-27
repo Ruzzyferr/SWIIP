@@ -18,6 +18,7 @@ const store = new Store({
 
 const isDev = process.argv.includes('--dev');
 const DEFAULT_PROD_URL = 'https://swiip.app';
+const PERSIST_PARTITION = 'persist:swiip';
 const WEB_URL = isDev
   ? 'http://localhost:3000'
   : (store.get('serverUrl') || process.env.SWIIP_WEB_URL || DEFAULT_PROD_URL);
@@ -50,6 +51,7 @@ function createWindow() {
       contextIsolation: true,
       nodeIntegration: false,
       spellcheck: true,
+      partition: PERSIST_PARTITION,
     },
     show: false,
   });
@@ -227,7 +229,8 @@ if (!gotLock) {
 // App lifecycle
 app.on('ready', () => {
   // Set custom user agent to identify desktop app
-  session.defaultSession.webRequest.onBeforeSendHeaders((details, callback) => {
+  const appSession = session.fromPartition(PERSIST_PARTITION);
+  appSession.webRequest.onBeforeSendHeaders((details, callback) => {
     details.requestHeaders['X-Swiip-Client'] = 'desktop';
     callback({ requestHeaders: details.requestHeaders });
   });

@@ -45,9 +45,10 @@ export class LoginDto {
 }
 
 export class RefreshTokenDto {
-  @ApiProperty()
+  @ApiPropertyOptional({ description: 'Optional fallback when cookie is unavailable' })
+  @IsOptional()
   @IsString()
-  refreshToken: string;
+  refreshToken?: string;
 }
 
 export class VerifyEmailDto {

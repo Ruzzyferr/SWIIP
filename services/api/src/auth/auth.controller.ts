@@ -9,6 +9,7 @@ import {
   HttpCode,
   HttpStatus,
   Request,
+  Res,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -17,6 +18,7 @@ import {
   ApiResponse,
 } from '@nestjs/swagger';
 import { AuthService } from './auth.service';
+import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
@@ -36,7 +38,56 @@ import {
 @Controller('auth')
 @UseGuards(JwtAuthGuard)
 export class AuthController {
-  constructor(private readonly authService: AuthService) {}
+  constructor(
+    private readonly authService: AuthService,
+    private readonly configService: ConfigService,
+  ) {}
+
+  private get refreshCookieName(): string {
+    return this.configService.get<string>('AUTH_REFRESH_COOKIE_NAME', 'swiip_rt');
+  }
+
+  private get refreshCookieMaxAgeMs(): number {
+    const maxAgeSec = this.configService.get<number>('AUTH_COOKIE_MAX_AGE_SECONDS', 60 * 60 * 24 * 30);
+    return maxAgeSec * 1000;
+  }
+
+  private get cookieSecure(): boolean {
+    const explicitSecure = this.configService.get<string>('AUTH_COOKIE_SECURE');
+    if (explicitSecure != null) {
+      const normalized = explicitSecure.toLowerCase();
+      return normalized === '1' || normalized === 'true' || normalized === 'yes' || normalized === 'on';
+    }
+    return this.configService.get<string>('NODE_ENV') === 'production';
+  }
+
+  private get cookieSameSite(): 'lax' | 'strict' | 'none' {
+    const configured = this.configService.get<string>('AUTH_COOKIE_SAMESITE', 'lax').toLowerCase();
+    if (configured === 'strict' || configured === 'none') {
+      return configured;
+    }
+    return 'lax';
+  }
+
+  private setRefreshCookie(reply: any, refreshToken: string) {
+    reply.setCookie(this.refreshCookieName, refreshToken, {
+      httpOnly: true,
+      secure: this.cookieSecure,
+      sameSite: this.cookieSameSite,
+      domain: this.configService.get<string>('AUTH_COOKIE_DOMAIN'),
+      path: this.configService.get<string>('AUTH_COOKIE_PATH', '/'),
+      maxAge: this.refreshCookieMaxAgeMs,
+    });
+  }
+
+  private clearRefreshCookie(reply: any) {
+    reply.clearCookie(this.refreshCookieName, {
+      domain: this.configService.get<string>('AUTH_COOKIE_DOMAIN'),
+      path: this.configService.get<string>('AUTH_COOKIE_PATH', '/'),
+      secure: this.cookieSecure,
+      sameSite: this.cookieSameSite,
+    });
+  }
 
   @Public()
   @Post('register')
@@ -44,8 +95,13 @@ export class AuthController {
   @ApiOperation({ summary: 'Register a new account' })
   @ApiResponse({ status: 201, description: 'Account created successfully' })
   @ApiResponse({ status: 409, description: 'Email already registered' })
-  async register(@Body() dto: RegisterDto) {
-    return this.authService.register(dto);
+  async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) reply: any) {
+    const result = await this.authService.register(dto);
+    this.setRefreshCookie(reply, result.tokens.refreshToken);
+    return {
+      user: result.user,
+      tokens: { accessToken: result.tokens.accessToken },
+    };
   }
 
   @Public()
@@ -54,20 +110,33 @@ export class AuthController {
   @ApiOperation({ summary: 'Login with email and password' })
   @ApiResponse({ status: 200, description: 'Logged in successfully' })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  async login(@Body() dto: LoginDto, @Request() req: any) {
+  async login(@Body() dto: LoginDto, @Request() req: any, @Res({ passthrough: true }) reply: any) {
     const deviceInfo = {
       ipAddress: req.ip,
       userAgent: req.headers?.['user-agent'],
     };
-    return this.authService.login(dto.email, dto.password, dto.mfaCode, deviceInfo);
+    const result = await this.authService.login(dto.email, dto.password, dto.mfaCode, deviceInfo);
+    this.setRefreshCookie(reply, result.tokens.refreshToken);
+    return {
+      user: result.user,
+      tokens: { accessToken: result.tokens.accessToken },
+      sessionId: result.sessionId,
+    };
   }
 
   @Public()
   @Post('refresh')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Refresh access token' })
-  async refresh(@Body() dto: RefreshTokenDto) {
-    return this.authService.refreshToken(dto.refreshToken);
+  async refresh(
+    @Body() dto: RefreshTokenDto,
+    @Request() req: any,
+    @Res({ passthrough: true }) reply: any,
+  ) {
+    const refreshToken = req.cookies?.[this.refreshCookieName] ?? dto.refreshToken;
+    const tokens = await this.authService.refreshToken(refreshToken ?? '');
+    this.setRefreshCookie(reply, tokens.refreshToken);
+    return { accessToken: tokens.accessToken };
   }
 
   @Post('verify-email')
@@ -108,16 +177,18 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout current session' })
-  async logout(@CurrentUser() user: AuthUser) {
+  async logout(@CurrentUser() user: AuthUser, @Res({ passthrough: true }) reply: any) {
     await this.authService.logout(user.sessionId);
+    this.clearRefreshCookie(reply);
   }
 
   @Post('logout-all')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout all sessions except current' })
-  async logoutAll(@CurrentUser() user: AuthUser) {
+  async logoutAll(@CurrentUser() user: AuthUser, @Res({ passthrough: true }) reply: any) {
     await this.authService.revokeAllSessions(user.userId, user.sessionId);
+    this.clearRefreshCookie(reply);
   }
 
   @Get('sessions')

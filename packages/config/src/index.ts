@@ -56,6 +56,28 @@ const apiConfigSchema = z.object({
   /** Refresh token expiry string, e.g. "30d". */
   JWT_REFRESH_EXPIRY: z.string().default('30d'),
 
+  /** HttpOnly refresh token cookie name. */
+  AUTH_REFRESH_COOKIE_NAME: z.string().default('swiip_rt'),
+
+  /** Refresh cookie domain. Leave empty for host-only cookie. */
+  AUTH_COOKIE_DOMAIN: z.string().optional(),
+
+  /** Refresh cookie path. */
+  AUTH_COOKIE_PATH: z.string().default('/'),
+
+  /** Refresh cookie SameSite policy. */
+  AUTH_COOKIE_SAMESITE: z.enum(['lax', 'strict', 'none']).default('lax'),
+
+  /** Override refresh cookie secure mode. Defaults to true in production. */
+  AUTH_COOKIE_SECURE: z.string().optional(),
+
+  /** Refresh cookie max age in seconds. */
+  AUTH_COOKIE_MAX_AGE_SECONDS: z
+    .string()
+    .default(String(60 * 60 * 24 * 30))
+    .transform((v) => parseInt(v, 10))
+    .pipe(z.number().int().min(60)),
+
   /** NATS server URL for inter-service messaging. Optional if NATS is not deployed. */
   NATS_URL: z.string().url().optional(),
 

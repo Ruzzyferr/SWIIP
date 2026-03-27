@@ -67,7 +67,7 @@ function LoginContent() {
     try {
       const res = await login({ email: data.email, password: data.password });
       setUser(res.user);
-      setTokens(res.tokens.accessToken, res.tokens.refreshToken);
+      setTokens(res.tokens.accessToken, res.sessionId);
       setAccessToken(res.tokens.accessToken);
       router.push(redirectTo || '/channels/@me');
     } catch (err: unknown) {

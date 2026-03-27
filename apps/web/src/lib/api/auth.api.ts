@@ -16,8 +16,8 @@ export interface AuthResponse {
   user: UserPayload;
   tokens: {
     accessToken: string;
-    refreshToken: string;
   };
+  sessionId?: string;
 }
 
 export async function login(data: LoginRequest): Promise<AuthResponse> {

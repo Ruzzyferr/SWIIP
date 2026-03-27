@@ -4,7 +4,7 @@ import { useEffect, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth.store';
 import { setAccessToken } from '@/lib/api/client';
-import { getCurrentUser } from '@/lib/api/auth.api';
+import { getCurrentUser, refreshTokens } from '@/lib/api/auth.api';
 import { useGatewayBridge } from '@/hooks/useGatewayBridge';
 import { useLiveKitRoom } from '@/hooks/useLiveKitRoom';
 import { Spinner } from '@/components/ui/Spinner';
@@ -44,12 +44,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const token = useAuthStore.getState().accessToken;
 
       if (!token) {
-        router.replace('/login');
-        return;
+        // Silent restore: rely on HttpOnly refresh cookie.
+        try {
+          const refreshed = await refreshTokens();
+          useAuthStore.getState().setTokens(refreshed.accessToken);
+          setAccessToken(refreshed.accessToken);
+        } catch {
+          router.replace('/login');
+          return;
+        }
+      } else {
+        // Sync token to API client
+        setAccessToken(token);
       }
-
-      // Sync token to API client
-      setAccessToken(token);
 
       // If we don't have user data yet, fetch it
       if (!useAuthStore.getState().user) {
