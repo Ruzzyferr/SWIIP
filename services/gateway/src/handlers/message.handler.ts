@@ -479,20 +479,27 @@ async function handleClientDispatch(
       const userId = session.userId!;
       const guildIds = [...session.subscribedGuilds];
       for (const guildId of guildIds) {
-        await context.pubsub.publish(`guild:${guildId}`, {
-          op: OpCode.DISPATCH,
-          t: ServerEventType.VOICE_STATE_UPDATE,
-          d: {
-            userId,
-            channelId: null,
-            guildId,
-            selfMute: false,
-            selfDeaf: false,
-            serverMute: false,
-            serverDeaf: false,
-            speaking: false,
-          },
-        });
+        try {
+          await context.pubsub.publish(`guild:${guildId}`, {
+            op: OpCode.DISPATCH,
+            t: ServerEventType.VOICE_STATE_UPDATE,
+            d: {
+              userId,
+              channelId: null,
+              guildId,
+              selfMute: false,
+              selfDeaf: false,
+              serverMute: false,
+              serverDeaf: false,
+              speaking: false,
+            },
+          });
+        } catch (err) {
+          log.warn(
+            { err, guildId, userId },
+            'VOICE_LEAVE: failed to publish voice state update for guild',
+          );
+        }
       }
       break;
     }

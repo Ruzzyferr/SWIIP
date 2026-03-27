@@ -234,14 +234,10 @@ async function storeSessionInRedis(
 }
 
 function buildResumeUrl(context: GatewayContext): string {
-  // In a multi-instance deployment, this would be the specific instance URL.
-  // The instance advertises itself via GATEWAY_PUBLIC_URL env var if set.
-  const envUrl = process.env['GATEWAY_PUBLIC_URL'];
-  if (envUrl) return envUrl;
-
-  // Local dev fallback — derive from the listening port
-  const port = context.config.PORT;
-  return `ws://localhost:${port}/gateway`;
+  // Use the validated GATEWAY_PUBLIC_URL from config (required field in GatewayConfig).
+  // Previously this read process.env directly and fell back to localhost, which
+  // could cause clients to attempt resuming to ws://localhost in production.
+  return context.config.GATEWAY_PUBLIC_URL;
 }
 
 function sendError(ws: UWSWebSocket, session: ClientSession, code: number, message: string): void {

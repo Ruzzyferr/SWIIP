@@ -80,9 +80,15 @@ export function useGatewayBridge() {
       }
     });
 
+    let lastReconnectToast = 0;
+
     gw.on('reconnecting', () => {
       setGatewayStatus('reconnecting');
-      toastInfo('Reconnecting to server...');
+      const now = Date.now();
+      if (now - lastReconnectToast >= 12_000) {
+        lastReconnectToast = now;
+        toastInfo('Reconnecting to server...');
+      }
     });
 
     // --- READY ---

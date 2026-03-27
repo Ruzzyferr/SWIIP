@@ -82,6 +82,10 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
   private destroyed: boolean = false;
   private resumeRetryCount: number = 0;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
+  private invalidSessionTimeout: ReturnType<typeof setTimeout> | null = null;
+  private helloTimeout: ReturnType<typeof setTimeout> | null = null;
+  /** Timestamp of the last successful READY/RESUMED — used for time-based backoff reset (discord.py pattern). */
+  private lastStableAt: number = 0;
 
   constructor(gatewayUrl?: string) {
     super();
@@ -100,6 +104,14 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
   connect(token: string): void {
     // Re-enable the client after a normal disconnect cleanup.
     this.destroyed = false;
+    const ws = this.ws;
+    if (
+      this.token === token &&
+      ws &&
+      (ws.readyState === WebSocket.OPEN || ws.readyState === WebSocket.CONNECTING)
+    ) {
+      return;
+    }
     this.token = token;
     this._openWebSocket(this.gatewayUrl);
   }
@@ -155,8 +167,10 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
 
     this.ws.onopen = () => {
       this.emit('connected');
-      this.reconnectAttempts = 0;
-      this.reconnectDelay = 1000;
+      // NOTE: reconnectAttempts is NOT reset here — it is reset only when the
+      // session is fully established (READY/RESUMED).  Resetting on open caused
+      // an infinite reconnect loop when the socket opened but closed immediately
+      // before completing the handshake (buape/carbon#344).
     };
 
     this.ws.onmessage = (event: MessageEvent<string>) => {
@@ -284,11 +298,29 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
         };
         this.resumeRetryCount = 0;
         this._startHeartbeat(heartbeatInterval);
-        if (this.sessionId) {
+
+        const isResume = !!this.sessionId;
+        if (isResume) {
           this._resume();
         } else {
           this._identify();
         }
+
+        // Start a 15s timeout for READY/RESUMED (discord.js PR #8759 pattern).
+        // If the server doesn't respond after IDENTIFY/RESUME, close and retry.
+        this._clearHelloTimeout();
+        this.helloTimeout = setTimeout(() => {
+          this.helloTimeout = null;
+          console.warn('[Gateway] READY/RESUMED timeout — closing connection');
+          // If it was a RESUME that timed out, clear session so next attempt
+          // does a fresh IDENTIFY
+          if (isResume) {
+            this.sessionId = null;
+            this.sequence = 0;
+            this.resumeUrl = null;
+          }
+          this.ws?.close(4000, 'READY timeout');
+        }, 15_000);
         break;
       }
 
@@ -317,18 +349,30 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
           : Boolean(event.d);
         this.emit('invalid_session', resumable);
         // Avoid infinite RESUME loops against active/stale sessions.
-        // If resume is rejected, quickly fall back to a fresh IDENTIFY.
+        // Allow up to 2 resume retries with exponential delay (gives server
+        // time to complete cleanupSessionAsync before we retry).
         this.resumeRetryCount += 1;
-        const shouldRetryResume = resumable && this.resumeRetryCount <= 1;
+        const shouldRetryResume = resumable && this.resumeRetryCount <= 2;
         if (!shouldRetryResume) {
           this.sessionId = null;
           this.sequence = 0;
           this.resumeUrl = null;
         }
-        setTimeout(() => {
+        if (this.invalidSessionTimeout) {
+          clearTimeout(this.invalidSessionTimeout);
+          this.invalidSessionTimeout = null;
+        }
+        // Exponential backoff for resume retries: 2s, 4s — gives the server
+        // time to set disconnectedAt in Redis before we retry RESUME.
+        const baseDelay = shouldRetryResume
+          ? 2000 * this.resumeRetryCount
+          : 1000;
+        this.invalidSessionTimeout = setTimeout(() => {
+          this.invalidSessionTimeout = null;
+          if (this.destroyed) return;
           if (shouldRetryResume) this._resume();
           else this._identify();
-        }, 1000 + Math.random() * 1000);
+        }, baseDelay + Math.random() * 1000);
         break;
       }
 
@@ -352,11 +396,13 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
         this.sessionId = data.sessionId;
         this.resumeUrl = data.resumeUrl ?? null;
         this.resumeRetryCount = 0;
+        this._onSessionEstablished();
         this.emit('ready', data);
         break;
       }
 
       case ServerEventType.RESUMED:
+        this._onSessionEstablished();
         this.emit('resumed');
         break;
 
@@ -463,6 +509,14 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
 
   private _scheduleReconnect(): void {
     if (this.destroyed) return;
+
+    // Time-based auto-reset (discord.py pattern): if the connection was stable
+    // long enough, reset the backoff so a fresh disconnect reconnects quickly.
+    const stableThreshold = this.reconnectDelay * 2 ** 11; // ~34 min at 1s base
+    if (this.lastStableAt > 0 && Date.now() - this.lastStableAt > stableThreshold) {
+      this.reconnectAttempts = 0;
+    }
+
     if (this.reconnectAttempts >= this.maxReconnectAttempts) {
       console.error('[Gateway] Max reconnect attempts reached');
       this.emit('error', 4999, 'Max reconnect attempts reached');
@@ -470,23 +524,53 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
     }
 
     this.reconnectAttempts++;
-    // Exponential backoff: 1s → 2s → 4s → … → 30s cap, +random jitter
-    const delay = Math.min(
-      this.reconnectDelay * 2 ** (this.reconnectAttempts - 1),
-      30_000
-    );
-    const jitter = Math.random() * 1000;
+
+    // After 3 failed attempts with resumeUrl, fall back to gatewayUrl
+    // and clear session state to force a fresh IDENTIFY.
+    if (this.reconnectAttempts > 3 && this.resumeUrl) {
+      console.warn('[Gateway] Resume URL failed repeatedly; falling back to gateway URL');
+      this.resumeUrl = null;
+      this.sessionId = null;
+      this.sequence = 0;
+    }
+
+    // Full Jitter (AWS best practice): sleep = random(0, min(cap, base * 2^attempt))
+    // Better thundering-herd prevention than fixed jitter on top of exponential.
+    const cap = 30_000;
+    const expDelay = Math.min(this.reconnectDelay * 2 ** (this.reconnectAttempts - 1), cap);
+    const delay = Math.random() * expDelay;
 
     console.info(
-      `[Gateway] Reconnecting in ${Math.round(delay + jitter)}ms (attempt ${this.reconnectAttempts})`
+      `[Gateway] Reconnecting in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts})`
     );
 
     this.emit('reconnecting', this.reconnectAttempts);
 
+    this._clearReconnect();
     this.reconnectTimeout = setTimeout(() => {
       const url = this.resumeUrl ?? this.gatewayUrl;
       this._openWebSocket(url);
-    }, delay + jitter);
+    }, delay);
+  }
+
+  /**
+   * Called when the gateway session is fully established (READY or RESUMED).
+   * This is the ONLY place where reconnect counters are reset — never on raw
+   * socket open.  Matches the pattern used by discord.js, discord.py, JDA, and
+   * Carbon (after the fix for buape/carbon#344).
+   */
+  private _onSessionEstablished(): void {
+    this.reconnectAttempts = 0;
+    this.reconnectDelay = 1000;
+    this.lastStableAt = Date.now();
+    this._clearHelloTimeout();
+  }
+
+  private _clearHelloTimeout(): void {
+    if (this.helloTimeout) {
+      clearTimeout(this.helloTimeout);
+      this.helloTimeout = null;
+    }
   }
 
   private _clearReconnect(): void {
@@ -494,6 +578,11 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
+    if (this.invalidSessionTimeout) {
+      clearTimeout(this.invalidSessionTimeout);
+      this.invalidSessionTimeout = null;
+    }
+    this._clearHelloTimeout();
   }
 }
 
