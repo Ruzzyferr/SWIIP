@@ -32,6 +32,7 @@ swiip.app {
 
     # LiveKit WebSocket/HTTP
     handle /livekit* {
+        uri strip_prefix /livekit
         reverse_proxy livekit:7880
     }
 
