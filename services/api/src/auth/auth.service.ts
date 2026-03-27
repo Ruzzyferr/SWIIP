@@ -119,6 +119,12 @@ export class AuthService {
     const session = await this.createSession(user.id);
     const tokens = await this.generateTokenPair(user.id, session.id);
 
+    // Store the actual JWT refresh token in the session record
+    await this.prisma.session.update({
+      where: { id: session.id },
+      data: { refreshToken: tokens.refreshToken },
+    });
+
     this.logger.log(`User registered: ${user.email}`);
     return { user, tokens };
   }
@@ -149,6 +155,12 @@ export class AuthService {
 
     const session = await this.createSession(user.id, deviceInfo);
     const tokens = await this.generateTokenPair(user.id, session.id);
+
+    // Store the actual JWT refresh token in the session record
+    await this.prisma.session.update({
+      where: { id: session.id },
+      data: { refreshToken: tokens.refreshToken },
+    });
 
     await this.redis.setex(
       `session:${session.id}`,
