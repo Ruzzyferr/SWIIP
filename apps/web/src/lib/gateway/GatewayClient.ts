@@ -80,6 +80,7 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
   private resumeUrl: string | null = null;
   private gatewayUrl: string;
   private destroyed: boolean = false;
+  private resumeRetryCount: number = 0;
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
 
   constructor(gatewayUrl?: string) {
@@ -97,13 +98,16 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
   // ---------------------------------------------------------------------------
 
   connect(token: string): void {
-    if (this.destroyed) return;
+    // Re-enable the client after a normal disconnect cleanup.
+    this.destroyed = false;
     this.token = token;
     this._openWebSocket(this.gatewayUrl);
   }
 
   disconnect(): void {
-    this.destroyed = true;
+    // Normal app-level disconnect should be reversible (logout/login, route remounts).
+    // Keep destroyed=false so connect() can be called again.
+    this.destroyed = false;
     this._clearHeartbeat();
     this._clearReconnect();
     if (this.ws) {
@@ -278,6 +282,7 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
           heartbeatInterval: number;
           sessionId: string;
         };
+        this.resumeRetryCount = 0;
         this._startHeartbeat(heartbeatInterval);
         if (this.sessionId) {
           this._resume();
@@ -311,15 +316,19 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
           ? Boolean((event.d as { resumable?: boolean }).resumable)
           : Boolean(event.d);
         this.emit('invalid_session', resumable);
-        if (!resumable) {
+        // Avoid infinite RESUME loops against active/stale sessions.
+        // If resume is rejected, quickly fall back to a fresh IDENTIFY.
+        this.resumeRetryCount += 1;
+        const shouldRetryResume = resumable && this.resumeRetryCount <= 1;
+        if (!shouldRetryResume) {
           this.sessionId = null;
           this.sequence = 0;
+          this.resumeUrl = null;
         }
-        // Wait a moment then re-identify
         setTimeout(() => {
-          if (resumable) this._resume();
+          if (shouldRetryResume) this._resume();
           else this._identify();
-        }, 2000 + Math.random() * 3000);
+        }, 1000 + Math.random() * 1000);
         break;
       }
 
@@ -342,6 +351,7 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
         const data = event.d;
         this.sessionId = data.sessionId;
         this.resumeUrl = data.resumeUrl ?? null;
+        this.resumeRetryCount = 0;
         this.emit('ready', data);
         break;
       }
