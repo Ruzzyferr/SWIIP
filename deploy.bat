@@ -9,22 +9,44 @@ set REPO_DIR=/opt/ConstChat
 set COMPOSE_FILE=infra/docker/docker-compose.deploy.yml
 set ENV_FILE=.env.production
 
-:: ─── Step 1: Build Desktop App ──────────────────────────────────────────────
+cd /d "%~dp0"
+
+:: ─── Ask what to do ─────────────────────────────────────────────────────────
+echo.
+echo   ========================================
+echo     Swiip Deploy Script
+echo   ========================================
+echo.
+echo   1) Full deploy (git push + server rebuild)
+echo   2) Full deploy + Desktop app build
+echo   3) Server only (skip git push, just rebuild)
+echo.
+set /p CHOICE="  Select (1/2/3): "
+
+if "%CHOICE%"=="2" goto :desktop_build
+goto :git_step
+
+:: ─── Desktop Build (optional) ───────────────────────────────────────────────
+:desktop_build
 echo.
 echo ============================================================
-echo   STEP 1: Desktop App Build
+echo   STEP: Desktop App Build
 echo ============================================================
 echo.
 
-cd /d "%~dp0"
 echo [*] Building desktop installer...
-cd apps\desktop
+cd /d "%~dp0apps\desktop"
+
+if not exist "node_modules" (
+    echo [*] Installing dependencies...
+    call npm install
+)
 
 call npm run build
 if errorlevel 1 (
-    echo [!] Desktop build failed!
-    pause
-    exit /b 1
+    echo [!] Desktop build failed. Continuing without installer update...
+    cd /d "%~dp0"
+    goto :git_step
 )
 
 :: Find the built installer
@@ -32,127 +54,109 @@ set "INSTALLER="
 for %%f in (dist\Swiip-Setup-*.exe) do set "INSTALLER=%%f"
 
 if not defined INSTALLER (
-    echo [!] No installer found in apps\desktop\dist\
-    pause
-    exit /b 1
+    echo [!] No installer found. Continuing...
+    cd /d "%~dp0"
+    goto :git_step
 )
 
-echo [OK] Built: %INSTALLER%
-
-:: Extract version from filename (Swiip-Setup-X.Y.Z.exe)
-for %%f in (%INSTALLER%) do set "INSTALLER_NAME=%%~nxf"
+for %%f in (!INSTALLER!) do set "INSTALLER_NAME=%%~nxf"
+echo [OK] Built: !INSTALLER_NAME!
 
 cd /d "%~dp0"
 
-:: ─── Step 2: Upload Installer to Server ─────────────────────────────────────
-echo.
-echo ============================================================
-echo   STEP 2: Upload Desktop Installer
-echo ============================================================
-echo.
-
-echo [*] Uploading %INSTALLER_NAME% to server...
-scp "apps\desktop\%INSTALLER%" %SERVER%:%REPO_DIR%/infra/docker/downloads/%INSTALLER_NAME%
+echo [*] Uploading !INSTALLER_NAME! to server...
+scp "apps\desktop\!INSTALLER!" %SERVER%:%REPO_DIR%/infra/docker/downloads/!INSTALLER_NAME!
 if errorlevel 1 (
-    echo [!] Upload failed!
-    pause
-    exit /b 1
+    echo [!] Upload failed. Continuing...
+    goto :git_step
 )
-echo [OK] Installer uploaded
 
-echo [*] Updating latest alias and generating manifest...
-ssh %SERVER% "cd %REPO_DIR%/infra/docker/downloads && cp -f '%INSTALLER_NAME%' Swiip-Setup-latest.exe && sha256sum Swiip-Setup-latest.exe | awk '{print $1}' > Swiip-Setup-latest.exe.sha256 && echo Updated latest alias"
+echo [*] Updating latest alias...
+ssh %SERVER% "cd %REPO_DIR%/infra/docker/downloads && cp -f '!INSTALLER_NAME!' Swiip-Setup-latest.exe && sha256sum Swiip-Setup-latest.exe | awk '{print $1}' > Swiip-Setup-latest.exe.sha256"
 
-:: Generate latest.yml for electron-updater auto-update
+:: Upload latest.yml for electron-updater
 for %%f in (apps\desktop\dist\*.yml) do (
-    scp "%%f" %SERVER%:%REPO_DIR%/infra/docker/downloads/
+    scp "%%f" %SERVER%:%REPO_DIR%/infra/docker/downloads/ >nul 2>&1
 )
 echo [OK] Installer published
-
-:: ─── Step 3: Git Push ───────────────────────────────────────────────────────
-echo.
-echo ============================================================
-echo   STEP 3: Git Push
-echo ============================================================
 echo.
 
-echo [*] Checking local git status...
-for /f %%i in ('git status --porcelain 2^>nul') do (
-    echo [!] Uncommitted changes detected:
+:: ─── Git Push ───────────────────────────────────────────────────────────────
+:git_step
+cd /d "%~dp0"
+
+if "%CHOICE%"=="3" goto :deploy
+
+echo.
+echo ============================================================
+echo   STEP: Git Push
+echo ============================================================
+echo.
+
+:: Check for uncommitted changes
+git diff --quiet --exit-code 2>nul
+if errorlevel 1 (
+    echo [!] Uncommitted changes:
     git status --short
     echo.
-    set /p CONTINUE="Commit and push? (y/N): "
-    if /i not "!CONTINUE!"=="y" (
-        echo Skipping push...
-        goto :deploy
-    )
-    echo [*] Committing all changes...
+    set /p COMMIT_MSG="  Commit message (or press Enter to skip push): "
+    if "!COMMIT_MSG!"=="" goto :deploy
     git add -A
-    git commit -m "chore: deploy update"
-    goto :push
+    git commit -m "!COMMIT_MSG!"
 )
 
-:push
 echo [*] Pushing to origin/master...
 git push origin master
 if errorlevel 1 (
-    echo [!] Push failed!
+    echo [!] Push failed. Check errors above.
+    echo.
     pause
     exit /b 1
 )
 echo [OK] Push successful
 
-:: ─── Step 4: Server Deploy ──────────────────────────────────────────────────
+:: ─── Server Deploy ──────────────────────────────────────────────────────────
 :deploy
 echo.
 echo ============================================================
-echo   STEP 4: Server Deploy
+echo   STEP: Server Deploy
 echo ============================================================
 echo.
 
 echo [*] Pulling latest code on server...
 ssh %SERVER% "cd %REPO_DIR% && git pull origin master"
 if errorlevel 1 (
-    echo [!] Git pull failed on server!
+    echo [!] Git pull failed!
     pause
     exit /b 1
 )
 
 echo [*] Running Prisma migrations...
-ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% exec -T api npx prisma migrate deploy 2>&1 || echo 'Migration skipped (container not running yet)'"
+ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% exec -T api npx prisma migrate deploy 2>&1 || echo 'Skipped (container rebuilding)'"
 
-echo [*] Rebuilding and deploying all services (this takes a few minutes)...
+echo.
+echo [*] Rebuilding services (this takes a few minutes)...
 ssh -t %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% --profile voice up -d --build api gateway web media-signalling 2>&1"
 if errorlevel 1 (
-    echo [!] Docker build/deploy failed!
+    echo [!] Docker build failed!
     pause
     exit /b 1
 )
 
-:: ─── Step 5: Health Checks ──────────────────────────────────────────────────
+:: ─── Health Checks ──────────────────────────────────────────────────────────
 echo.
 echo ============================================================
-echo   STEP 5: Health Checks
+echo   STEP: Health Checks
 echo ============================================================
 echo.
 
-echo [*] Waiting 30 seconds for services to start...
+echo [*] Waiting 30s for services to start...
 timeout /t 30 /nobreak >nul
 
-set FAILED=0
-
-echo [*] Checking API...
-ssh %SERVER% "curl -sf http://localhost:4000/health > /dev/null 2>&1 && echo 'OK' || echo 'FAIL'"
-echo [*] Checking Gateway...
-ssh %SERVER% "curl -sf http://localhost:4001/health > /dev/null 2>&1 && echo 'OK' || echo 'FAIL'"
-echo [*] Checking Web...
-ssh %SERVER% "curl -sf http://localhost:3000 > /dev/null 2>&1 && echo 'OK' || echo 'FAIL'"
+ssh %SERVER% "docker ps --format 'table {{.Names}}\t{{.Status}}'"
 
 echo.
-echo [*] Service status:
-ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% ps"
-
-echo [*] Cleaning up old Docker images...
+echo [*] Cleaning up old images...
 ssh %SERVER% "docker image prune -f --filter 'until=24h' > /dev/null 2>&1"
 
 :: ─── Done ───────────────────────────────────────────────────────────────────
@@ -161,8 +165,7 @@ echo ============================================================
 echo   DEPLOY COMPLETE
 echo ============================================================
 echo.
-echo   Desktop installer: %INSTALLER_NAME%
 echo   Server: 209.38.205.251
-echo   URL: https://swiip.app
+echo   URL:    https://swiip.app
 echo.
 pause
