@@ -13,7 +13,7 @@ export class InternalTokenGuard implements CanActivate {
   canActivate(context: ExecutionContext): boolean {
     const request = context.switchToHttp().getRequest();
     const token = request.headers?.['x-internal-token'];
-    const secret = this.config.get<string>('INTERNAL_TOKEN');
+    const secret = this.config.get<string>('INTERNAL_TOKEN') ?? this.config.get<string>('JWT_SECRET');
     if (!token || !secret || token !== secret) {
       throw new ForbiddenException('Invalid internal token');
     }

@@ -90,9 +90,23 @@ export function useVoiceActions() {
     });
   }, [selfDeafened, cameraEnabled, setSelfDeafened, setSelfMuted]);
 
-  const toggleCamera = useCallback(() => {
+  const toggleCamera = useCallback(async () => {
     if (!currentChannelId) return;
     const newEnabled = !cameraEnabled;
+
+    // If enabling, check permission first so user sees the browser prompt
+    if (newEnabled) {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        // Release the test stream — LiveKit will request its own
+        stream.getTracks().forEach((t) => t.stop());
+      } catch (err) {
+        console.warn('[Voice] Camera permission denied:', err);
+        useVoiceStore.getState().setError('Camera permission denied. Please allow camera access in your browser settings.');
+        return;
+      }
+    }
+
     setCameraEnabled(newEnabled);
     const gw = getGatewayClient();
     gw.send(OpCode.VOICE_STATE_UPDATE, {

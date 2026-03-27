@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import {
   Mic,
   MicOff,
@@ -21,7 +21,8 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { VideoTile } from './VideoTile';
-import { useVoiceStore, type VoiceParticipant } from '@/stores/voice.store';
+import { ScreenShareModal } from './ScreenShareModal';
+import { useVoiceStore, type VoiceParticipant, type ScreenShareQuality } from '@/stores/voice.store';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { useVoiceActions } from '@/hooks/useVoiceActions';
@@ -328,34 +329,31 @@ function VideoGrid({
 
 function ScreenShareButton() {
   const screenShareEnabled = useVoiceStore((s) => s.screenShareEnabled);
-  const screenShareQuality = useVoiceStore((s) => s.screenShareQuality);
   const { toggleScreenShare } = useVoiceActions();
+  const [modalOpen, setModalOpen] = useState(false);
 
   const btnClass =
     'w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200';
 
-  const contextItems: ContextMenuItem[] = [
-    { type: 'label', label: 'Screen Share Quality' },
-    { type: 'separator' },
-    {
-      label: `720p 30fps${screenShareQuality === '720p30' ? ' ✓' : ''}`,
-      onClick: () => toggleScreenShare('720p30'),
-    },
-    {
-      label: `1080p 30fps${screenShareQuality === '1080p30' ? ' ✓' : ''}`,
-      onClick: () => toggleScreenShare('1080p30'),
-    },
-    {
-      label: `1080p 60fps (Source)${screenShareQuality === '1080p60' ? ' ✓' : ''}`,
-      onClick: () => toggleScreenShare('1080p60'),
-    },
-  ];
+  const handleClick = () => {
+    if (screenShareEnabled) {
+      // Already sharing — stop
+      toggleScreenShare();
+    } else {
+      // Not sharing — open modal to pick quality
+      setModalOpen(true);
+    }
+  };
+
+  const handleStart = (quality: ScreenShareQuality) => {
+    toggleScreenShare(quality);
+  };
 
   return (
-    <ContextMenu items={contextItems}>
+    <>
       <Tooltip content={screenShareEnabled ? 'Stop Sharing' : 'Share Screen'} placement="top">
         <button
-          onClick={() => toggleScreenShare()}
+          onClick={handleClick}
           className={btnClass}
           style={{
             color: screenShareEnabled ? '#fff' : 'var(--color-text-primary)',
@@ -374,7 +372,12 @@ function ScreenShareButton() {
           {screenShareEnabled ? <MonitorOff size={20} /> : <Monitor size={20} />}
         </button>
       </Tooltip>
-    </ContextMenu>
+      <ScreenShareModal
+        open={modalOpen}
+        onClose={() => setModalOpen(false)}
+        onStart={handleStart}
+      />
+    </>
   );
 }
 
