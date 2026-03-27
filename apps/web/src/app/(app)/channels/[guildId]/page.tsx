@@ -27,16 +27,20 @@ export default function GuildPage() {
 
   // Find the first text channel in this guild and redirect
   useEffect(() => {
-    const guildChannels = Object.values(channels)
-      .filter(
-        (ch) =>
-          (ch as typeof ch & { guildId?: string }).guildId === guildId &&
-          (ch.type === ChannelType.TEXT || ch.type === ChannelType.ANNOUNCEMENT)
-      )
-      .sort((a, b) => a.position - b.position);
+    const guildChannels = Object.values(channels).filter(
+      (ch) => (ch as typeof ch & { guildId?: string }).guildId === guildId
+    );
 
-    if (guildChannels.length > 0) {
-      const firstChannel = guildChannels[0]!;
+    const firstText = guildChannels
+      .filter((ch) => ch.type === ChannelType.TEXT || ch.type === ChannelType.ANNOUNCEMENT)
+      .sort((a, b) => a.position - b.position)[0];
+
+    const firstVoice = guildChannels
+      .filter((ch) => ch.type === ChannelType.VOICE)
+      .sort((a, b) => a.position - b.position)[0];
+
+    const firstChannel = firstText ?? firstVoice;
+    if (firstChannel) {
       setActiveChannel(firstChannel.id);
       router.replace(`/channels/${guildId}/${firstChannel.id}`);
     }

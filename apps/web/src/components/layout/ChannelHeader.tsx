@@ -5,6 +5,7 @@ import {
   Hash,
   Volume2,
   Megaphone,
+  Menu,
   Users,
   Pin,
   Search,
@@ -29,9 +30,15 @@ function getChannelIcon(type: ChannelType) {
 
 interface ChannelHeaderProps {
   channelId: string;
+  onToggleMobileNav?: () => void;
+  showMobileNavToggle?: boolean;
 }
 
-export function ChannelHeader({ channelId }: ChannelHeaderProps) {
+export function ChannelHeader({
+  channelId,
+  onToggleMobileNav,
+  showMobileNavToggle = false,
+}: ChannelHeaderProps) {
   const channel = useGuildsStore((s) => s.channels[channelId]);
   const isMemberSidebarOpen = useUIStore((s) => s.isMemberSidebarOpen);
   const toggleMemberSidebar = useUIStore((s) => s.toggleMemberSidebar);
@@ -49,6 +56,17 @@ export function ChannelHeader({ channelId }: ChannelHeaderProps) {
         background: 'var(--color-surface-elevated)',
       }}
     >
+      {showMobileNavToggle && (
+        <button
+          onClick={onToggleMobileNav}
+          className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-fast md:hidden"
+          style={{ color: 'var(--color-text-secondary)' }}
+          aria-label="Open channels menu"
+        >
+          <Menu size={18} />
+        </button>
+      )}
+
       {/* Channel icon + name */}
       <div
         className="flex items-center gap-1.5 flex-shrink-0"

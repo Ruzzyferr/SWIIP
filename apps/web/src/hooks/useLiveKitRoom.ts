@@ -7,6 +7,8 @@ import {
   ConnectionState,
   Track,
   type RemoteParticipant,
+  type RemoteTrack,
+  type RemoteTrackPublication,
   type LocalParticipant,
   type Participant,
 } from 'livekit-client';
@@ -24,6 +26,7 @@ const CREDENTIAL_TIMEOUT_MS = 12_000;
 export function useLiveKitRoom() {
   const roomRef = useRef<Room | null>(null);
   const credentialTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
 
   const livekitToken = useVoiceStore((s) => s.livekitToken);
   const livekitUrl = useVoiceStore((s) => s.livekitUrl);
@@ -85,6 +88,38 @@ export function useLiveKitRoom() {
 
     roomRef.current = room;
 
+    const detachAudio = (trackSid: string) => {
+      const existing = audioElementsRef.current.get(trackSid);
+      if (existing) {
+        try {
+          existing.pause();
+          existing.remove();
+        } catch {
+          // ignore cleanup failures
+        }
+        audioElementsRef.current.delete(trackSid);
+      }
+    };
+
+    const attachAudio = async (track: RemoteTrack) => {
+      if (track.kind !== Track.Kind.Audio) return;
+      const trackSid = track.sid ?? `${Date.now()}-${Math.random()}`;
+      detachAudio(trackSid);
+      const element = track.attach() as HTMLAudioElement;
+      element.autoplay = true;
+      element.setAttribute('playsinline', 'true');
+      element.muted = false;
+      element.volume = selfDeafened ? 0 : 1;
+      document.body.appendChild(element);
+      audioElementsRef.current.set(trackSid, element);
+      try {
+        await element.play();
+      } catch {
+        // Fallback for browsers that gate autoplay until explicit gesture.
+        room.startAudio().catch(() => {});
+      }
+    };
+
     // --- Event handlers ---
     room.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
       console.debug('[LiveKit] Connection state:', state);
@@ -106,6 +141,9 @@ export function useLiveKitRoom() {
 
     room.on(RoomEvent.Disconnected, () => {
       console.debug('[LiveKit] Disconnected from room');
+      for (const sid of audioElementsRef.current.keys()) {
+        detachAudio(sid);
+      }
     });
 
     room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
@@ -124,6 +162,20 @@ export function useLiveKitRoom() {
     room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
       if (!currentChannelId) return;
       removeParticipant(currentChannelId, participant.identity);
+    });
+
+    room.on(
+      RoomEvent.TrackSubscribed,
+      async (track: RemoteTrack, _publication: RemoteTrackPublication, _participant: RemoteParticipant) => {
+        await attachAudio(track);
+      },
+    );
+
+    room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
+      if (track.kind !== Track.Kind.Audio) return;
+      if (track.sid) {
+        detachAudio(track.sid);
+      }
     });
 
     room.on(
@@ -153,6 +205,7 @@ export function useLiveKitRoom() {
       })
       .then(async () => {
         console.debug('[LiveKit] Connected successfully');
+        await room.startAudio().catch(() => {});
 
         // Try to publish microphone — handle permission denial gracefully
         try {
@@ -190,6 +243,11 @@ export function useLiveKitRoom() {
               speaking: participant.isSpeaking,
             });
           }
+          for (const pub of participant.audioTrackPublications.values()) {
+            if (pub.track) {
+              await attachAudio(pub.track as RemoteTrack);
+            }
+          }
         }
       })
       .catch((err) => {
@@ -201,6 +259,9 @@ export function useLiveKitRoom() {
       console.debug('[LiveKit] Cleaning up room');
       room.disconnect();
       room.removeAllListeners();
+      for (const sid of audioElementsRef.current.keys()) {
+        detachAudio(sid);
+      }
       roomRef.current = null;
     };
   }, [livekitToken, livekitUrl, currentChannelId]);
@@ -217,12 +278,8 @@ export function useLiveKitRoom() {
     const room = roomRef.current;
     if (!room || room.state !== ConnectionState.Connected) return;
 
-    for (const [, participant] of room.remoteParticipants) {
-      for (const pub of participant.audioTrackPublications.values()) {
-        if (pub.track && pub.track.mediaStreamTrack) {
-          pub.track.mediaStreamTrack.enabled = !selfDeafened;
-        }
-      }
+    for (const audioElement of audioElementsRef.current.values()) {
+      audioElement.volume = selfDeafened ? 0 : 1;
     }
   }, [selfDeafened]);
 
@@ -235,6 +292,15 @@ export function useLiveKitRoom() {
     if (room) {
       room.disconnect();
       room.removeAllListeners();
+      for (const audioElement of audioElementsRef.current.values()) {
+        try {
+          audioElement.pause();
+          audioElement.remove();
+        } catch {
+          // ignore cleanup failures
+        }
+      }
+      audioElementsRef.current.clear();
       roomRef.current = null;
     }
     disconnect();

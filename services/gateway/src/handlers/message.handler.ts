@@ -437,6 +437,21 @@ async function handleClientDispatch(
         );
 
         // 3. Send VOICE_SERVER_UPDATE with LiveKit credentials
+        await context.pubsub.publish(`guild:${channelData.guildId}`, {
+          op: OpCode.DISPATCH,
+          t: ServerEventType.VOICE_STATE_UPDATE,
+          d: {
+            userId: session.userId,
+            channelId: d.channelId,
+            guildId: channelData.guildId,
+            selfMute: false,
+            selfDeaf: false,
+            serverMute: false,
+            serverDeaf: false,
+            speaking: false,
+          },
+        });
+
         ws.send(
           JSON.stringify({
             op: OpCode.DISPATCH,

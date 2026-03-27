@@ -29,6 +29,7 @@ interface UIState {
   closeSettings: () => void;
   setSettingsPage: (page: string) => void;
   toggleMobileNav: () => void;
+  setMobileNavOpen: (open: boolean) => void;
   openServerSettings: (guildId: string) => void;
   closeServerSettings: () => void;
 }
@@ -102,6 +103,11 @@ export const useUIStore = create<UIState>()(
     toggleMobileNav: () =>
       set((state) => {
         state.isMobileNavOpen = !state.isMobileNavOpen;
+      }),
+
+    setMobileNavOpen: (open) =>
+      set((state) => {
+        state.isMobileNavOpen = open;
       }),
 
     openServerSettings: (guildId) =>

@@ -45,7 +45,7 @@ function MemberItem({
     >
       <Avatar
         userId={member.userId}
-        src={member.avatar ?? member.user?.avatar}
+        src={member.avatar ?? member.user?.avatar ?? (member.user as { avatarId?: string } | undefined)?.avatarId}
         displayName={displayName}
         size="sm"
         status={status}

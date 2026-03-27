@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useRouter, usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import {
   Hash,
   Volume2,
@@ -317,6 +317,7 @@ export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
   const setActiveChannel = useUIStore((s) => s.setActiveChannel);
   const openServerSettings = useUIStore((s) => s.openServerSettings);
   const openModal = useUIStore((s) => s.openModal);
+  const setMobileNavOpen = useUIStore((s) => s.setMobileNavOpen);
 
   const guild = guildId ? guilds[guildId] : null;
 
@@ -345,6 +346,10 @@ export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
     setActiveChannel(channelId);
     if (guildId) {
       router.push(`/channels/${guildId}/${channelId}`);
+      // On mobile, close the channel menu after navigating.
+      if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+        setMobileNavOpen(false);
+      }
     }
   };
 

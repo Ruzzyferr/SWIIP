@@ -14,7 +14,7 @@
  * - room_finished         → room destroyed (all left)
  *
  * Published Redis channels follow the gateway topic convention:
- *   constchat:events:guild:{guildId} — so the gateway fans out to guild members
+ *   swiip:events:guild:{guildId} — so the gateway fans out to guild members
  */
 
 import {
@@ -34,7 +34,7 @@ import Redis from 'ioredis';
 
 /**
  * Voice state stored per-user in Redis for quick lookups.
- * Key: constchat:voice:user:{userId}
+ * Key: swiip:voice:user:{userId}
  */
 interface VoiceState {
   userId: string;
@@ -52,7 +52,7 @@ interface VoiceState {
 
 /**
  * Voice room state stored per-channel in Redis.
- * Key: constchat:voice:room:{guildId}:{channelId}
+ * Key: swiip:voice:room:{guildId}:{channelId}
  */
 interface RoomState {
   guildId: string;
@@ -157,12 +157,12 @@ export class WebhooksController {
     const pipeline = this.redis.pipeline();
 
     // Per-user voice state
-    const userKey = `constchat:voice:user:${userId}`;
+    const userKey = `swiip:voice:user:${userId}`;
     pipeline.hset(userKey, this.serializeVoiceState(voiceState));
     pipeline.expire(userKey, WebhooksController.VOICE_STATE_TTL);
 
     // Per-room participant set
-    const roomKey = `constchat:voice:room:${guildId}:${channelId}`;
+    const roomKey = `swiip:voice:room:${guildId}:${channelId}`;
     pipeline.sadd(roomKey, userId);
     pipeline.expire(roomKey, WebhooksController.ROOM_STATE_TTL);
 
@@ -190,8 +190,8 @@ export class WebhooksController {
     this.logger.log(`Participant ${userId} left ${room.name}`);
 
     const pipeline = this.redis.pipeline();
-    pipeline.del(`constchat:voice:user:${userId}`);
-    pipeline.srem(`constchat:voice:room:${guildId}:${channelId}`, userId);
+    pipeline.del(`swiip:voice:user:${userId}`);
+    pipeline.srem(`swiip:voice:room:${guildId}:${channelId}`, userId);
     await pipeline.exec();
 
     // channelId: null signals "left voice"
@@ -217,9 +217,9 @@ export class WebhooksController {
 
     if (source === 'SCREEN_SHARE' || source === 'SCREEN_SHARE_AUDIO') {
       this.logger.log(`Screen share started by ${userId} in ${room.name}`);
-      await this.redis.hset(`constchat:voice:user:${userId}`, 'isScreenSharing', 'true');
+      await this.redis.hset(`swiip:voice:user:${userId}`, 'isScreenSharing', 'true');
     } else if (source === 'CAMERA') {
-      await this.redis.hset(`constchat:voice:user:${userId}`, 'isVideoEnabled', 'true');
+      await this.redis.hset(`swiip:voice:user:${userId}`, 'isVideoEnabled', 'true');
     }
 
     // Re-read full state and broadcast
@@ -236,9 +236,9 @@ export class WebhooksController {
 
     if (source === 'SCREEN_SHARE' || source === 'SCREEN_SHARE_AUDIO') {
       this.logger.log(`Screen share ended by ${userId} in ${room.name}`);
-      await this.redis.hset(`constchat:voice:user:${userId}`, 'isScreenSharing', 'false');
+      await this.redis.hset(`swiip:voice:user:${userId}`, 'isScreenSharing', 'false');
     } else if (source === 'CAMERA') {
-      await this.redis.hset(`constchat:voice:user:${userId}`, 'isVideoEnabled', 'false');
+      await this.redis.hset(`swiip:voice:user:${userId}`, 'isVideoEnabled', 'false');
     }
 
     await this.broadcastCurrentState(userId, guildId, channelId);
@@ -252,13 +252,13 @@ export class WebhooksController {
     this.logger.log(`Room finished: ${room.name}`);
 
     // Clean up all participants in this room
-    const roomKey = `constchat:voice:room:${guildId}:${channelId}`;
+    const roomKey = `swiip:voice:room:${guildId}:${channelId}`;
     const members = await this.redis.smembers(roomKey);
 
     if (members.length > 0) {
       const pipeline = this.redis.pipeline();
       for (const userId of members) {
-        pipeline.del(`constchat:voice:user:${userId}`);
+        pipeline.del(`swiip:voice:user:${userId}`);
       }
       pipeline.del(roomKey);
       await pipeline.exec();
@@ -295,14 +295,14 @@ export class WebhooksController {
     };
 
     const message = JSON.stringify({ topic, event });
-    const channel = `constchat:events:${topic}`;
+    const channel = `swiip:events:${topic}`;
 
     try {
       await this.redis.publish(channel, message);
 
       // Also write to the guild stream for replay on RESUME
       await this.redis.xadd(
-        `constchat:stream:${topic}`,
+        `swiip:stream:${topic}`,
         'MAXLEN', '~', '1000',
         '*',
         'type', 'VOICE_STATE_UPDATE',
@@ -322,7 +322,7 @@ export class WebhooksController {
     guildId: string,
     channelId: string,
   ): Promise<void> {
-    const raw = await this.redis.hgetall(`constchat:voice:user:${userId}`);
+    const raw = await this.redis.hgetall(`swiip:voice:user:${userId}`);
     if (!raw || !raw['userId']) return;
 
     await this.publishVoiceStateUpdate(guildId, {

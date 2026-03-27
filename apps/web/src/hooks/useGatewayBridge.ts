@@ -10,6 +10,7 @@ import { useMessagesStore } from '@/stores/messages.store';
 import { usePresenceStore } from '@/stores/presence.store';
 import { useVoiceStore } from '@/stores/voice.store';
 import { useDMsStore } from '@/stores/dms.store';
+import { getGuildMembers, getGuildMember } from '@/lib/api/guilds.api';
 import { toastError, toastInfo } from '@/lib/toast';
 
 /**
@@ -35,6 +36,7 @@ export function useGatewayBridge() {
   const updateChannel = useGuildsStore((s) => s.updateChannel);
   const removeChannel = useGuildsStore((s) => s.removeChannel);
   const setMember = useGuildsStore((s) => s.setMember);
+  const setMembers = useGuildsStore((s) => s.setMembers);
   const updateMember = useGuildsStore((s) => s.updateMember);
   const removeMember = useGuildsStore((s) => s.removeMember);
 
@@ -92,6 +94,15 @@ export function useGatewayBridge() {
         setConversations(data.dms);
       }
       setGatewayStatus('connected');
+
+      // Ensure member maps are loaded even if READY payload omits full members.
+      for (const guild of data.guilds) {
+        getGuildMembers(guild.id)
+          .then((members) => setMembers(guild.id, members))
+          .catch(() => {
+            // Non-fatal; sidebar can still hydrate via realtime updates.
+          });
+      }
     });
 
     gw.on('resumed', () => {
@@ -146,7 +157,18 @@ export function useGatewayBridge() {
 
     // --- Members ---
     gw.on('member_add', (data) => {
-      setMember(data.guildId, data.member);
+      if (data.member) {
+        setMember(data.guildId, data.member);
+        return;
+      }
+      // Backward compatibility for payloads that still send only userId.
+      const fallbackUserId = (data as { userId?: string }).userId;
+      if (!fallbackUserId) return;
+      getGuildMember(data.guildId, fallbackUserId)
+        .then((member) => setMember(data.guildId, member))
+        .catch(() => {
+          // ignore; next state event will reconcile
+        });
     });
 
     gw.on('member_update', (data) => {

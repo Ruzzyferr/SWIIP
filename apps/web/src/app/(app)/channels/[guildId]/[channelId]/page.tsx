@@ -26,7 +26,11 @@ export default function ChannelPage() {
   const setActiveGuild = useUIStore((s) => s.setActiveGuild);
   const setActiveChannel = useUIStore((s) => s.setActiveChannel);
   const isMemberSidebarOpen = useUIStore((s) => s.isMemberSidebarOpen);
+  const isMobileNavOpen = useUIStore((s) => s.isMobileNavOpen);
+  const toggleMobileNav = useUIStore((s) => s.toggleMobileNav);
+  const setMobileNavOpen = useUIStore((s) => s.setMobileNavOpen);
   const updateMessage = useMessagesStore((s) => s.updateMessage);
+  const [isMobile, setIsMobile] = useState(false);
 
   const [replyTo, setReplyTo] = useState<MessagePayload | null>(null);
   const [editingMessage, setEditingMessage] = useState<MessagePayload | null>(null);
@@ -35,7 +39,17 @@ export default function ChannelPage() {
   useEffect(() => {
     setActiveGuild(guildId);
     setActiveChannel(channelId);
-  }, [guildId, channelId, setActiveGuild, setActiveChannel]);
+    setMobileNavOpen(false);
+  }, [guildId, channelId, setActiveGuild, setActiveChannel, setMobileNavOpen]);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const media = window.matchMedia('(max-width: 767px)');
+    const sync = () => setIsMobile(media.matches);
+    sync();
+    media.addEventListener('change', sync);
+    return () => media.removeEventListener('change', sync);
+  }, []);
 
   const handleReply = useCallback((message: MessagePayload) => {
     setReplyTo(message);
@@ -52,9 +66,13 @@ export default function ChannelPage() {
 
   // DM conversation — render DM-specific view
   if (isDM) {
+    if (isMobile && isMobileNavOpen) {
+      return <ChannelSidebar />;
+    }
+
     return (
       <>
-        <ChannelSidebar />
+        {!isMobile && <ChannelSidebar />}
         <DMChatView conversationId={channelId} />
       </>
     );
@@ -64,46 +82,49 @@ export default function ChannelPage() {
 
   return (
     <>
-      {/* Channel sidebar */}
-      <ChannelSidebar guildId={guildId} />
+      {/* Mobile: show menu panel OR content panel, not both */}
+      {(!isMobile || isMobileNavOpen) && <ChannelSidebar guildId={guildId} />}
 
-      {/* Content area */}
-      <div
-        className="flex-1 flex flex-col min-w-0"
-        style={{ background: 'var(--color-surface-base)' }}
-      >
-        {/* Header */}
-        <ChannelHeader channelId={channelId} />
+      {(!isMobile || !isMobileNavOpen) && (
+        <div
+          className="flex-1 flex flex-col min-w-0"
+          style={{ background: 'var(--color-surface-base)' }}
+        >
+          {/* Header */}
+          <ChannelHeader
+            channelId={channelId}
+            showMobileNavToggle={isMobile}
+            onToggleMobileNav={toggleMobileNav}
+          />
 
-        {isVoiceChannel ? (
-          /* Voice channel view */
-          <div className="flex flex-1 min-h-0 overflow-hidden">
-            <VoiceRoomView channelId={channelId} guildId={guildId} />
-            {isMemberSidebarOpen && <MemberSidebar guildId={guildId} />}
-          </div>
-        ) : (
-          /* Text channel — Messages + composer */
-          <div className="flex flex-1 min-h-0 overflow-hidden">
-            <div className="flex-1 flex flex-col min-w-0">
-              <MessageList
-                channelId={channelId}
-                onReply={handleReply}
-              />
-              <TypingIndicator channelId={channelId} guildId={guildId} />
-              <MessageComposer
-                channelId={channelId}
-                channelName={channel?.name ?? 'channel'}
-                replyTo={replyTo}
-                editingMessage={editingMessage}
-                onClearReply={() => setReplyTo(null)}
-                onClearEdit={() => setEditingMessage(null)}
-                onEditSubmit={handleEditSubmit}
-              />
+          {isVoiceChannel ? (
+            <div className="flex flex-1 min-h-0 overflow-hidden">
+              <VoiceRoomView channelId={channelId} guildId={guildId} />
+              {!isMobile && isMemberSidebarOpen && <MemberSidebar guildId={guildId} />}
             </div>
-            {isMemberSidebarOpen && <MemberSidebar guildId={guildId} />}
-          </div>
-        )}
-      </div>
+          ) : (
+            <div className="flex flex-1 min-h-0 overflow-hidden">
+              <div className="flex-1 flex flex-col min-w-0">
+                <MessageList
+                  channelId={channelId}
+                  onReply={handleReply}
+                />
+                <TypingIndicator channelId={channelId} guildId={guildId} />
+                <MessageComposer
+                  channelId={channelId}
+                  channelName={channel?.name ?? 'channel'}
+                  replyTo={replyTo}
+                  editingMessage={editingMessage}
+                  onClearReply={() => setReplyTo(null)}
+                  onClearEdit={() => setEditingMessage(null)}
+                  onEditSubmit={handleEditSubmit}
+                />
+              </div>
+              {!isMobile && isMemberSidebarOpen && <MemberSidebar guildId={guildId} />}
+            </div>
+          )}
+        </div>
+      )}
     </>
   );
 }

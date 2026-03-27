@@ -117,6 +117,50 @@ export class EventPublisherService implements OnModuleInit {
     await this.publishEvent(`user:${userId}`, type, payload);
   }
 
+  private toMemberPayload(member: {
+    guildId: string;
+    userId: string;
+    nick: string | null;
+    avatar: string | null;
+    roles: string[];
+    joinedAt: Date;
+    premiumSince: Date | null;
+    pending: boolean;
+    deaf: boolean;
+    mute: boolean;
+    user: {
+      id: string;
+      username: string;
+      discriminator: string;
+      globalName: string | null;
+      avatarId: string | null;
+      createdAt?: Date;
+      flags?: bigint | number;
+    };
+  }) {
+    return {
+      guildId: member.guildId,
+      userId: member.userId,
+      nick: member.nick,
+      avatar: member.avatar,
+      roles: member.roles,
+      joinedAt: member.joinedAt.toISOString(),
+      premiumSince: member.premiumSince?.toISOString() ?? null,
+      pending: member.pending,
+      deaf: member.deaf,
+      mute: member.mute,
+      user: {
+        id: member.user.id,
+        username: member.user.username,
+        discriminator: member.user.discriminator,
+        globalName: member.user.globalName,
+        avatar: member.user.avatarId,
+        createdAt: (member.user.createdAt ?? new Date()).toISOString(),
+        flags: Number(member.user.flags ?? 0),
+      },
+    };
+  }
+
   // ---------------------------------------------------------------------------
   // Message events
   // ---------------------------------------------------------------------------
@@ -204,10 +248,32 @@ export class EventPublisherService implements OnModuleInit {
     userId: string;
     inviteCode?: string;
   }): Promise<void> {
+    const member = await this.prisma.guildMember.findUnique({
+      where: { guildId_userId: { guildId: payload.guildId, userId: payload.userId } },
+      include: {
+        user: {
+          select: {
+            id: true,
+            username: true,
+            discriminator: true,
+            globalName: true,
+            avatarId: true,
+            createdAt: true,
+            flags: true,
+          },
+        },
+      },
+    });
+
+    if (!member) {
+      this.logger.warn(`guild.memberAdd member not found for guild=${payload.guildId} user=${payload.userId}`);
+      return;
+    }
+
     // Notify the guild about the new member
     await this.publishGuildEvent(payload.guildId, 'GUILD_MEMBER_ADD', {
       guildId: payload.guildId,
-      userId: payload.userId,
+      member: this.toMemberPayload(member as any),
     });
     // Notify the user personally so they get the guild in their list
     await this.publishUserEvent(payload.userId, 'GUILD_CREATE', {
@@ -237,9 +303,26 @@ export class EventPublisherService implements OnModuleInit {
     userId: string;
     member: unknown;
   }): Promise<void> {
+    const incoming = payload.member as any;
+    const normalized = incoming?.user
+      ? {
+          ...incoming,
+          user: {
+            ...incoming.user,
+            avatar: incoming.user.avatar ?? incoming.user.avatarId ?? null,
+            createdAt: incoming.user.createdAt ?? new Date().toISOString(),
+            flags: Number(incoming.user.flags ?? 0),
+          },
+          joinedAt: incoming.joinedAt ?? new Date().toISOString(),
+          premiumSince: incoming.premiumSince ?? null,
+          pending: incoming.pending ?? false,
+          deaf: incoming.deaf ?? false,
+          mute: incoming.mute ?? false,
+        }
+      : incoming;
     await this.publishGuildEvent(payload.guildId, 'GUILD_MEMBER_UPDATE', {
       guildId: payload.guildId,
-      member: payload.member,
+      member: normalized,
     });
   }
 

@@ -37,7 +37,7 @@ function ParticipantRow({ participant, guildId }: { participant: VoiceParticipan
         style={{ border: speakingRing, padding: 1 }}
       >
         <Avatar
-          src={member?.user?.avatar}
+          src={member?.user?.avatar ?? (member?.user as { avatarId?: string } | undefined)?.avatarId}
           userId={participant.userId}
           displayName={displayName}
           size="xs"
