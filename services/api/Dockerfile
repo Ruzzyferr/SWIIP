@@ -46,8 +46,10 @@ RUN groupadd --system --gid 1001 swiip
 RUN useradd --system --uid 1001 --gid swiip swiip
 
 COPY --from=builder --chown=swiip:swiip /app/deploy ./
+COPY --chown=swiip:swiip services/api/entrypoint.sh ./entrypoint.sh
+RUN chmod +x ./entrypoint.sh
 
 USER swiip
 EXPOSE 4000
 
-CMD ["node", "dist/src/main.js"]
+ENTRYPOINT ["./entrypoint.sh"]
