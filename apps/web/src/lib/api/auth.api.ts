@@ -49,14 +49,7 @@ export async function forgotPassword(email: string): Promise<void> {
 }
 
 export async function resetPassword(token: string, password: string): Promise<void> {
-  await apiClient.post('/auth/reset-password', { token, password });
-}
-
-export async function changePassword(
-  currentPassword: string,
-  newPassword: string
-): Promise<void> {
-  await apiClient.post('/auth/change-password', { currentPassword, newPassword });
+  await apiClient.post('/auth/reset-password', { token, newPassword: password });
 }
 
 export async function verifyEmailCode(code: string): Promise<{ verified: boolean }> {

@@ -372,7 +372,7 @@ async function handleClientDispatch(
         log.warn({ userId: session.userId }, 'VOICE_JOIN: missing channelId');
         return;
       }
-      const mediaBaseUrl = process.env['MEDIA_SIGNALLING_URL'] ?? 'http://localhost:4002';
+      const mediaBaseUrl = context.mediaBaseUrl;
       const apiBase = context.apiBaseUrl;
 
       const sendVoiceError = (message: string) => {

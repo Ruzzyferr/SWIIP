@@ -4,12 +4,14 @@ import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
+import { parseApiConfig } from '@constchat/config';
 
 // BigInt fields (e.g. permissions flags) must be serializable to JSON
 (BigInt.prototype as any).toJSON = function () { return this.toString(); };
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
+  parseApiConfig(process.env);
 
   const app = await NestFactory.create<NestFastifyApplication>(
     AppModule,

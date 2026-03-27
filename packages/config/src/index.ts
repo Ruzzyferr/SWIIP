@@ -131,6 +131,15 @@ const gatewayConfigSchema = z.object({
   /** Secret for verifying access JWTs issued by the API. Must match API JWT_SECRET. */
   JWT_SECRET: z.string().min(32),
 
+  /** Internal API base URL used by gateway for internal lookups. */
+  API_INTERNAL_URL: z.string().url(),
+
+  /** Internal media-signalling base URL used for voice token issuance. */
+  MEDIA_SIGNALLING_URL: z.string().url(),
+
+  /** Public gateway WebSocket URL used by clients. */
+  GATEWAY_PUBLIC_URL: z.string().url(),
+
   /** NATS server URL for broadcasting gateway events to other services. Optional if NATS is not deployed. */
   NATS_URL: z.string().url().optional(),
 
@@ -195,6 +204,18 @@ const mediaSignallingConfigSchema = z.object({
   /** JWT secret shared with the API to validate media session tokens. */
   JWT_SECRET: z.string().min(32),
 
+  /** LiveKit HTTP URL used by server-side LiveKit SDK. */
+  LIVEKIT_URL: z.string().url(),
+
+  /** LiveKit WebSocket URL returned to clients for room connection. */
+  LIVEKIT_WS_URL: z.string().url().optional(),
+
+  /** LiveKit API key for issuing room access tokens. */
+  LIVEKIT_API_KEY: z.string().min(1),
+
+  /** LiveKit API secret for issuing room access tokens. */
+  LIVEKIT_API_SECRET: z.string().min(1),
+
   /** Comma-separated list of STUN server URLs. */
   STUN_SERVERS: z
     .string()
@@ -209,6 +230,8 @@ const mediaSignallingConfigSchema = z.object({
 
   TURN_USERNAME: z.string().optional(),
   TURN_CREDENTIAL: z.string().optional(),
+
+  CORS_ORIGIN: z.string().default('*'),
 
   NODE_ENV: nodeEnvSchema,
   LOG_LEVEL: logLevelSchema,

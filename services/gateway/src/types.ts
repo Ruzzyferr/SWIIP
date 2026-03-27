@@ -47,6 +47,8 @@ export interface GatewayContext {
   subscriptionManager: SubscriptionManager;
   /** Base URL of the internal API service (for fetching user/guild data). */
   apiBaseUrl: string;
+  /** Base URL of media-signalling service used for voice join. */
+  mediaBaseUrl: string;
 }
 
 /**

@@ -8,7 +8,8 @@
     "start": "node dist/main",
     "typecheck": "tsc --noEmit",
     "lint": "eslint src --ext .ts",
-    "test": "jest",
+    "test": "jest --config jest.config.ts",
+    "test:integration": "jest --config jest.config.ts --runInBand",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
@@ -51,6 +52,7 @@
     "seed": "ts-node prisma/seed.ts"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@nestjs/cli": "^10.3",
     "@nestjs/testing": "^10.3",
     "@types/bcryptjs": "^2.4",
@@ -59,6 +61,9 @@
     "@types/passport-jwt": "^4.0",
     "@types/passport-local": "^1.0",
     "@types/qrcode": "^1.5",
+    "jest": "^30.0.5",
+    "supertest": "^7.1.4",
+    "ts-jest": "^29.4.1",
     "ts-node": "^10.9",
     "typescript": "^5.4"
   }

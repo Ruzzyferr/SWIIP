@@ -7,7 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, Loader2, AtSign, Check, X, Mail, ArrowLeft } from 'lucide-react';
+import { Eye, EyeOff, Loader2, AtSign, Check, Mail, ArrowLeft } from 'lucide-react';
 import { register as registerUser, verifyEmailCode, resendVerificationCode } from '@/lib/api/auth.api';
 import { useAuthStore } from '@/stores/auth.store';
 import { setAccessToken } from '@/lib/api/client';
@@ -106,6 +106,7 @@ export default function RegisterPage() {
   });
 
   const usernameValue = watch('username', '');
+  const termsAccepted = watch('terms', false);
   const passwordStrength = getPasswordStrength(passwordValue);
 
   // Resend cooldown timer
@@ -454,12 +455,15 @@ export default function RegisterPage() {
                       <div
                         className="w-4 h-4 rounded flex items-center justify-center transition-all duration-fast"
                         style={{
-                          background: 'var(--color-surface-raised)',
+                          background: termsAccepted
+                            ? 'var(--color-accent-primary)'
+                            : 'var(--color-surface-raised)',
                           border: errors.terms
                             ? '1px solid var(--color-danger-default)'
                             : '1px solid var(--color-border-strong)',
                         }}
                       >
+                        {termsAccepted && <Check size={12} color="white" strokeWidth={3} />}
                       </div>
                     </div>
                     <span className="text-sm leading-snug" style={{ color: 'var(--color-text-secondary)' }}>

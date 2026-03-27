@@ -57,7 +57,7 @@ export class GatewayServer {
     this.subscriptionManager = new SubscriptionManager(redis, this.pubsub);
     this.rateLimiter = createDefaultRateLimiter();
 
-    const apiBaseUrl = process.env['API_INTERNAL_URL'] ?? 'http://localhost:4000';
+    const apiBaseUrl = config.API_INTERNAL_URL;
 
     this.context = {
       config,
@@ -65,6 +65,7 @@ export class GatewayServer {
       presenceManager: this.presenceManager,
       subscriptionManager: this.subscriptionManager,
       apiBaseUrl,
+      mediaBaseUrl: config.MEDIA_SIGNALLING_URL,
     };
 
     this.app = App();

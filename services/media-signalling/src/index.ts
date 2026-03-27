@@ -21,9 +21,11 @@ import { FastifyAdapter, NestFastifyApplication } from '@nestjs/platform-fastify
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { MediaModule } from './media.module';
+import { parseMediaSignallingConfig } from '@constchat/config';
 
 async function bootstrap() {
   const logger = new Logger('MediaSignalling');
+  const config = parseMediaSignallingConfig(process.env);
 
   const app = await NestFactory.create<NestFastifyApplication>(
     MediaModule,
@@ -33,7 +35,7 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
 
   app.enableCors({
-    origin: process.env.CORS_ORIGIN?.split(',') ?? ['http://localhost:3000'],
+    origin: config.CORS_ORIGIN.split(','),
     credentials: true,
   });
 
@@ -45,7 +47,7 @@ async function bootstrap() {
   const document = SwaggerModule.createDocument(app, config);
   SwaggerModule.setup('docs', app, document);
 
-  const port = process.env.PORT ?? 4002;
+  const port = config.PORT;
   await app.listen(port, '0.0.0.0');
   logger.log(`Media Signalling running on :${port}`);
 }
