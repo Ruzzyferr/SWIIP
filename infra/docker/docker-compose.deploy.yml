@@ -20,11 +20,11 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       JWT_REFRESH_SECRET: ${JWT_REFRESH_SECRET}
       CORS_ORIGIN: ${CORS_ORIGIN}
-      SMTP_HOST: ${SMTP_HOST:-mail.swiip.com}
+      SMTP_HOST: ${SMTP_HOST:-mail.swiip.app}
       SMTP_PORT: ${SMTP_PORT:-587}
-      SMTP_USER: ${SMTP_USER:-info@swiip.com}
+      SMTP_USER: ${SMTP_USER:-info@swiip.app}
       SMTP_PASS: ${SMTP_PASS}
-      SMTP_FROM: ${SMTP_FROM:-Swiip <info@swiip.com>}
+      SMTP_FROM: ${SMTP_FROM:-Swiip <info@swiip.app>}
       PORT: 4000
     depends_on:
       postgres:
