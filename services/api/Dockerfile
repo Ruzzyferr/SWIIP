@@ -39,12 +39,12 @@ RUN cp -r /app/services/api/node_modules/.prisma /app/deploy/node_modules/.prism
 RUN cp -r /app/node_modules/.prisma /app/deploy/node_modules/.prisma 2>/dev/null || true
 
 # ── Stage 3: runner ──────────────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 WORKDIR /app
 
-RUN apk add --no-cache openssl
-RUN addgroup --system --gid 1001 constchat
-RUN adduser --system --uid 1001 constchat
+RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
+RUN groupadd --system --gid 1001 constchat
+RUN useradd --system --uid 1001 --gid constchat constchat
 
 COPY --from=builder --chown=constchat:constchat /app/deploy ./
 
