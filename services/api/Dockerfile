@@ -1,5 +1,5 @@
 # ── Stage 1: deps ────────────────────────────────────────────────────────────
-FROM node:20-alpine AS deps
+FROM node:20-slim AS deps
 WORKDIR /app
 RUN npm install -g pnpm
 
@@ -12,7 +12,7 @@ COPY services/api/package.json ./services/api/
 RUN pnpm install --frozen-lockfile --filter @constchat/api...
 
 # ── Stage 2: builder ─────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:20-slim AS builder
 WORKDIR /app
 RUN npm install -g pnpm
 
@@ -43,12 +43,12 @@ FROM node:20-slim AS runner
 WORKDIR /app
 
 RUN apt-get update && apt-get install -y --no-install-recommends openssl ca-certificates && rm -rf /var/lib/apt/lists/*
-RUN groupadd --system --gid 1001 constchat
-RUN useradd --system --uid 1001 --gid constchat constchat
+RUN groupadd --system --gid 1001 swiip
+RUN useradd --system --uid 1001 --gid swiip swiip
 
-COPY --from=builder --chown=constchat:constchat /app/deploy ./
+COPY --from=builder --chown=swiip:swiip /app/deploy ./
 
-USER constchat
+USER swiip
 EXPOSE 4000
 
 CMD ["node", "dist/src/main.js"]

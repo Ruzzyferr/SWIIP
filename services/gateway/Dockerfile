@@ -1,5 +1,5 @@
 # ── Stage 1: deps ────────────────────────────────────────────────────────────
-FROM node:20-alpine AS deps
+FROM node:22-slim AS deps
 WORKDIR /app
 RUN npm install -g pnpm
 
@@ -11,7 +11,7 @@ COPY services/gateway/package.json ./services/gateway/
 RUN pnpm install --frozen-lockfile --filter @constchat/gateway...
 
 # ── Stage 2: builder ─────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:22-slim AS builder
 WORKDIR /app
 RUN npm install -g pnpm
 
@@ -34,12 +34,12 @@ RUN cp -r /app/services/gateway/dist /app/deploy/dist
 FROM node:22-slim AS runner
 WORKDIR /app
 
-RUN groupadd --system --gid 1001 constchat
-RUN useradd --system --uid 1001 --gid constchat constchat
+RUN groupadd --system --gid 1001 swiip
+RUN useradd --system --uid 1001 --gid swiip swiip
 
-COPY --from=builder --chown=constchat:constchat /app/deploy ./
+COPY --from=builder --chown=swiip:swiip /app/deploy ./
 
-USER constchat
+USER swiip
 EXPOSE 4001
 
 CMD ["node", "dist/index.js"]
