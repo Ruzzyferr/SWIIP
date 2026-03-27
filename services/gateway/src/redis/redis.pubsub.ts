@@ -140,7 +140,8 @@ export class RedisPubSub {
 
   private onPMessage(_pattern: string, channel: string, rawMessage: string): void {
     // channel = "swiip:events:{topic}"
-    const topic = channel.replace('swiip:events:', '');
+    const PREFIX = 'swiip:events:';
+    const topic = channel.startsWith(PREFIX) ? channel.slice(PREFIX.length) : channel;
     let parsed: PubSubMessage;
     try {
       parsed = JSON.parse(rawMessage) as PubSubMessage;

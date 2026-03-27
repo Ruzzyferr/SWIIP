@@ -178,6 +178,11 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return this.client.scan(cursor, 'MATCH', pattern);
   }
 
+  async mget(...keys: string[]): Promise<(string | null)[]> {
+    if (keys.length === 0) return [];
+    return this.client.mget(...keys);
+  }
+
   async getJson<T>(key: string): Promise<T | null> {
     const value = await this.get(key);
     if (!value) return null;

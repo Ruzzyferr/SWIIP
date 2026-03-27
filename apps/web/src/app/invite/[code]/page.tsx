@@ -7,6 +7,7 @@ import { Loader2, Users, Hash } from 'lucide-react';
 import { resolveInvite, joinGuildByInvite } from '@/lib/api/guilds.api';
 import { useAuthStore } from '@/stores/auth.store';
 import { Avatar } from '@/components/ui/Avatar';
+import { ApiError } from '@/lib/api/client';
 
 interface InviteData {
   code: string;
@@ -33,18 +34,40 @@ export default function InvitePage() {
   const [loading, setLoading] = useState(true);
   const [joining, setJoining] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  // Track whether the resolve failed due to auth so we can show a login prompt
+  const [authRequired, setAuthRequired] = useState(false);
 
   useEffect(() => {
     if (!code) return;
-    resolveInvite(code)
-      .then(setInvite)
-      .catch((err) => setError(err instanceof Error ? err.message : 'Invalid or expired invite'))
-      .finally(() => setLoading(false));
-  }, [code]);
+
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const data = await resolveInvite(code);
+        if (!cancelled) setInvite(data);
+      } catch (err) {
+        if (cancelled) return;
+
+        // If we got a 401 / auth error and the user isn't logged in, don't show
+        // a hard error — instead show a prompt to log in.
+        const is401 = err instanceof ApiError && err.statusCode === 401;
+        if (is401 && !accessToken) {
+          setAuthRequired(true);
+        } else {
+          setError(err instanceof Error ? err.message : 'Invalid or expired invite');
+        }
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    })();
+
+    return () => { cancelled = true; };
+  }, [code, accessToken]);
 
   const handleJoin = async () => {
     if (!accessToken) {
-      router.push(`/login?redirect=/invite/${code}`);
+      router.push(`/login?redirect=${encodeURIComponent(`/invite/${code}`)}`);
       return;
     }
     setJoining(true);
@@ -62,6 +85,10 @@ export default function InvitePage() {
     } finally {
       setJoining(false);
     }
+  };
+
+  const handleLoginRedirect = () => {
+    router.push(`/login?redirect=${encodeURIComponent(`/invite/${code}`)}`);
   };
 
   return (
@@ -83,6 +110,29 @@ export default function InvitePage() {
           <div className="flex flex-col items-center gap-3 py-8">
             <Loader2 size={32} className="animate-spin" style={{ color: 'var(--color-accent-primary)' }} />
             <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>Loading invite...</p>
+          </div>
+        ) : authRequired && !invite ? (
+          /* User is not authenticated and the resolve endpoint requires auth */
+          <div className="py-8">
+            <p className="text-lg font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
+              You&apos;ve Been Invited
+            </p>
+            <p className="text-sm mb-6" style={{ color: 'var(--color-text-tertiary)' }}>
+              Log in or create an account to accept this invite.
+            </p>
+            <button
+              onClick={handleLoginRedirect}
+              className="w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all duration-fast"
+              style={{ background: 'var(--color-accent-primary)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--color-accent-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--color-accent-primary)';
+              }}
+            >
+              Login to Accept
+            </button>
           </div>
         ) : error && !invite ? (
           <div className="py-8">

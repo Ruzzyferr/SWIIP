@@ -35,6 +35,15 @@ export class EmailService implements OnModuleInit {
     this.logger.log(`Email transport configured: ${host}:${port} as ${user}`);
   }
 
+  private escapeHtml(str: string): string {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#39;');
+  }
+
   private get from(): string {
     return this.config.get('SMTP_FROM', 'Swiip <info@swiip.app>');
   }
@@ -90,6 +99,7 @@ export class EmailService implements OnModuleInit {
     code: string,
     username: string,
   ): Promise<void> {
+    const safeUsername = this.escapeHtml(username);
     const html = `
 <!DOCTYPE html>
 <html>
@@ -98,7 +108,7 @@ export class EmailService implements OnModuleInit {
   <div style="max-width:480px;margin:40px auto;background:#16213e;border-radius:12px;padding:40px;color:#e0e0e0;">
     <h1 style="margin:0 0 8px;font-size:24px;color:#ffffff;">Swiip</h1>
     <p style="margin:0 0 24px;color:#a0a0b0;font-size:14px;">Email Verification</p>
-    <p style="margin:0 0 16px;font-size:16px;">Hey <strong style="color:#ffffff;">${username}</strong>,</p>
+    <p style="margin:0 0 16px;font-size:16px;">Hey <strong style="color:#ffffff;">${safeUsername}</strong>,</p>
     <p style="margin:0 0 24px;font-size:15px;color:#c0c0d0;">Use the code below to verify your email address:</p>
     <div style="background:#0f3460;border-radius:8px;padding:20px;text-align:center;margin:0 0 24px;">
       <span style="font-size:36px;font-weight:bold;letter-spacing:8px;color:#e94560;">${code}</span>
@@ -124,7 +134,8 @@ export class EmailService implements OnModuleInit {
     username: string,
   ): Promise<void> {
     const appUrl = this.config.get('APP_URL', 'https://swiip.app');
-    const resetLink = `${appUrl}/reset-password?token=${token}`;
+    const resetLink = `${appUrl}/reset-password?token=${encodeURIComponent(token)}`;
+    const safeUsername = this.escapeHtml(username);
 
     const html = `
 <!DOCTYPE html>
@@ -134,7 +145,7 @@ export class EmailService implements OnModuleInit {
   <div style="max-width:480px;margin:40px auto;background:#16213e;border-radius:12px;padding:40px;color:#e0e0e0;">
     <h1 style="margin:0 0 8px;font-size:24px;color:#ffffff;">Swiip</h1>
     <p style="margin:0 0 24px;color:#a0a0b0;font-size:14px;">Password Reset</p>
-    <p style="margin:0 0 16px;font-size:16px;">Hey <strong style="color:#ffffff;">${username}</strong>,</p>
+    <p style="margin:0 0 16px;font-size:16px;">Hey <strong style="color:#ffffff;">${safeUsername}</strong>,</p>
     <p style="margin:0 0 24px;font-size:15px;color:#c0c0d0;">Click the link below to reset your password:</p>
     <a href="${resetLink}" style="display:inline-block;background:#e94560;color:#ffffff;padding:12px 32px;border-radius:8px;text-decoration:none;font-weight:bold;font-size:15px;">Reset Password</a>
     <p style="margin:24px 0 8px;font-size:13px;color:#808090;">This link expires in 1 hour.</p>

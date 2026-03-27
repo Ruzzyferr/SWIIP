@@ -50,6 +50,8 @@ export function MemberContextMenu({
     };
   }, [onClose]);
 
+  if (!member.user) return null;
+
   // Adjust position to stay in viewport
   const menuStyle: React.CSSProperties = {
     position: 'fixed',

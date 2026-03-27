@@ -203,6 +203,8 @@ export class GatewayServer {
           lastMessageAt: Date.now(),
           authenticated: false,
           remoteAddress,
+          voiceGuildId: null,
+          voiceChannelId: null,
         };
 
         // Perform the WebSocket upgrade, attaching session to the user-data slot
@@ -299,7 +301,8 @@ export class GatewayServer {
         // Redis cleanup + presence update (async, non-blocking)
         if (session.userId) {
           const guildIds = [...session.subscribedGuilds];
-          this.cleanupSessionAsync(session.id, session.userId, guildIds, session.sequence).catch(
+          const voiceGuildId = session.voiceGuildId;
+          this.cleanupSessionAsync(session.id, session.userId, guildIds, session.sequence, voiceGuildId).catch(
             (err: unknown) =>
               log.error({ err, sessionId: session.id }, 'Error during async session cleanup'),
           );
@@ -373,9 +376,10 @@ export class GatewayServer {
         return;
       }
       // ACK received — schedule the next full interval
+      const nextDelay = Math.max(this.config.HEARTBEAT_INTERVAL - timeoutMs, 1_000);
       session.heartbeatTimer = setTimeout(() => {
         this.runHeartbeatCycle(ws);
-      }, this.config.HEARTBEAT_INTERVAL - timeoutMs);
+      }, nextDelay);
     }, timeoutMs);
   }
 
@@ -407,6 +411,7 @@ export class GatewayServer {
     userId: string,
     guildIds: string[],
     lastSequence: number,
+    voiceGuildId: string | null,
   ): Promise<void> {
     const redis = this.pubsub.getPublisher();
     const resumeWindowSec = GatewayServer.SESSION_RESUME_WINDOW_SEC;
@@ -437,6 +442,31 @@ export class GatewayServer {
       await this.presenceManager.onDisconnect(userId, sessionId, guildIds);
     } catch (err) {
       log.warn({ err, sessionId, userId }, 'Failed to update presence on disconnect');
+    }
+
+    // Clean up voice state — remove user from their voice guild only
+    if (voiceGuildId) {
+      try {
+        const removed = await redis.hdel(`swiip:voice_states:${voiceGuildId}`, userId);
+        if (removed > 0) {
+          await this.pubsub.publish(`guild:${voiceGuildId}`, {
+            op: OpCode.DISPATCH,
+            t: ServerEventType.VOICE_STATE_UPDATE,
+            d: {
+              userId,
+              channelId: null,
+              guildId: voiceGuildId,
+              selfMute: false,
+              selfDeaf: false,
+              serverMute: false,
+              serverDeaf: false,
+              speaking: false,
+            },
+          });
+        }
+      } catch (err) {
+        log.warn({ err, guildId: voiceGuildId, userId }, 'Failed to clean up voice state on disconnect');
+      }
     }
   }
 

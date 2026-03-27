@@ -152,9 +152,13 @@ export class PresenceManager {
    */
   async onDisconnect(userId: string, sessionId: string, guildIds: string[]): Promise<void> {
     const sessionsKey = `swiip:user_sessions:${userId}`;
-    await this.redis.srem(sessionsKey, sessionId);
-
-    const remainingSessions = await this.redis.scard(sessionsKey);
+    // Atomic srem + scard to avoid TOCTOU race in multi-instance deployments
+    const remainingSessions = await this.redis.eval(
+      'redis.call("srem", KEYS[1], ARGV[1]); return redis.call("scard", KEYS[1])',
+      1,
+      sessionsKey,
+      sessionId,
+    ) as number;
     if (remainingSessions === 0) {
       await this.updatePresence(userId, 'offline', guildIds);
       log.debug({ userId, sessionId }, 'User went offline (last session)');

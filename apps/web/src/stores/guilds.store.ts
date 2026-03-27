@@ -54,6 +54,9 @@ export const useGuildsStore = create<GuildsState>()(
       set((state) => {
         state.guilds = {};
         state.guildOrder = [];
+        state.channels = {};
+        state.members = {};
+        state.roles = {};
         for (const guild of guilds) {
           state.guilds[guild.id] = guild;
           state.guildOrder.push(guild.id);

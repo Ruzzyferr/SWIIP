@@ -89,6 +89,36 @@ export class NotificationsService {
   @OnEvent('message.created')
   async handleMessageCreated(payload: { channelId: string; guildId?: string; message: any }) {
     if (!payload.message?.content?.includes('@')) return;
+
+    const content: string = payload.message.content;
+    const authorId: string = payload.message.authorId;
+
+    // Extract mentioned user IDs from <@userId> patterns
+    const mentionRegex = /<@(\w+)>/g;
+    let match: RegExpExecArray | null;
+    const mentionedUserIds = new Set<string>();
+    while ((match = mentionRegex.exec(content)) !== null) {
+      const userId = match[1];
+      if (userId && userId !== authorId) {
+        mentionedUserIds.add(userId);
+      }
+    }
+
+    for (const userId of mentionedUserIds) {
+      try {
+        await this.create({
+          userId,
+          type: 'MENTION',
+          title: 'You were mentioned',
+          body: content.length > 200 ? content.slice(0, 200) + '...' : content,
+          targetUrl: payload.guildId
+            ? `/channels/${payload.guildId}/${payload.channelId}`
+            : `/channels/@me/${payload.channelId}`,
+        });
+      } catch (err) {
+        this.logger.error(`Failed to create mention notification for user ${userId}`, err);
+      }
+    }
   }
 
   @OnEvent('user.registered')

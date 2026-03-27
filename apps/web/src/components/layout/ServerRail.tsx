@@ -31,6 +31,7 @@ function ServerIcon({
   const [hovered, setHovered] = useState(false);
   const abbr = name
     .split(/\s+/)
+    .filter(Boolean)
     .map((w) => w[0])
     .join('')
     .slice(0, 2)
@@ -172,7 +173,7 @@ export function ServerRail() {
         background: 'var(--color-surface-base)',
         borderRight: '1px solid var(--color-border-subtle)',
         flexShrink: 0,
-        height: '100vh',
+        height: '100dvh',
       }}
       aria-label="Server list"
     >

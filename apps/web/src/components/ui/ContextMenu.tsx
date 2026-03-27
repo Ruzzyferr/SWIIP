@@ -13,7 +13,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 
 export interface ContextMenuItem {
-  type?: 'item' | 'separator' | 'label';
+  type?: 'item' | 'separator' | 'label' | 'custom';
   label?: string;
   icon?: ReactNode;
   shortcut?: string;
@@ -21,6 +21,7 @@ export interface ContextMenuItem {
   disabled?: boolean;
   onClick?: () => void;
   children?: ContextMenuItem[];
+  customContent?: ReactNode;
 }
 
 interface ContextMenuProps {
@@ -152,6 +153,14 @@ function ContextMenuContent({
           );
         }
 
+        if (item.type === 'custom' && item.customContent) {
+          return (
+            <div key={i} className="px-2.5 py-1.5" onMouseDown={(e) => e.stopPropagation()}>
+              {item.customContent}
+            </div>
+          );
+        }
+
         const currentIdx = actionIdx++;
         const isFocused = currentIdx === focusedIndex;
 
@@ -210,6 +219,7 @@ function ContextMenuContent({
 
 export function ContextMenu({ items, children }: ContextMenuProps) {
   const [menuPos, setMenuPos] = useState<MenuPosition | null>(null);
+  const menuContainerRef = useRef<HTMLDivElement>(null);
 
   const handleContextMenu = useCallback((e: ReactMouseEvent) => {
     e.preventDefault();
@@ -222,6 +232,8 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
   useEffect(() => {
     if (!menuPos) return;
     const handler = (e: MouseEvent) => {
+      // Don't close if click is inside the menu (e.g. dragging a slider)
+      if (menuContainerRef.current?.contains(e.target as Node)) return;
       setMenuPos(null);
     };
     window.addEventListener('mousedown', handler);
@@ -239,15 +251,17 @@ export function ContextMenu({ items, children }: ContextMenuProps) {
       </div>
 
       {createPortal(
-        <AnimatePresence>
-          {menuPos && (
-            <ContextMenuContent
-              items={items}
-              position={menuPos}
-              onClose={handleClose}
-            />
-          )}
-        </AnimatePresence>,
+        <div ref={menuContainerRef}>
+          <AnimatePresence>
+            {menuPos && (
+              <ContextMenuContent
+                items={items}
+                position={menuPos}
+                onClose={handleClose}
+              />
+            )}
+          </AnimatePresence>
+        </div>,
         document.body
       )}
     </>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Users,
@@ -307,7 +307,7 @@ export function FriendsList() {
   }, [setRelationships]);
 
   // Filter relationships by tab
-  const filtered = relationships.filter((r) => {
+  const filtered = useMemo(() => relationships.filter((r) => {
     if (activeTab === 'online') {
       return r.type === 'FRIEND' && (presences[r.user.id]?.status ?? 'offline') !== 'offline';
     }
@@ -315,19 +315,19 @@ export function FriendsList() {
     if (activeTab === 'pending') return r.type === 'PENDING_INCOMING' || r.type === 'PENDING_OUTGOING';
     if (activeTab === 'blocked') return r.type === 'BLOCKED';
     return false;
-  });
+  }), [relationships, activeTab, presences]);
 
   // Search filter
-  const displayed = searchQuery
+  const displayed = useMemo(() => searchQuery
     ? filtered.filter((r) => {
         const name = (r.user.globalName ?? r.user.username).toLowerCase();
         return name.includes(searchQuery.toLowerCase());
       })
-    : filtered;
+    : filtered, [filtered, searchQuery]);
 
-  const pendingCount = relationships.filter(
+  const pendingCount = useMemo(() => relationships.filter(
     (r) => r.type === 'PENDING_INCOMING'
-  ).length;
+  ).length, [relationships]);
 
   const tabs: { id: FriendsTab; label: string; badge?: number }[] = [
     { id: 'online', label: 'Online' },

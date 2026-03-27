@@ -1,24 +1,29 @@
 'use client';
 
 import { useCallback } from 'react';
-import { OpCode } from '@constchat/protocol';
+import { OpCode, ClientEventType } from '@constchat/protocol';
 import { getGatewayClient } from '@/lib/gateway/GatewayClient';
-import { useVoiceStore } from '@/stores/voice.store';
+import { useVoiceStore, type ScreenShareQuality } from '@/stores/voice.store';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { playDisconnectSound } from '@/lib/sounds';
 
 /**
- * Provides actions for joining/leaving voice channels and toggling mute/deafen.
+ * Provides actions for joining/leaving voice channels and toggling mute/deafen/camera/screenshare.
  * Communicates with the gateway via the existing GatewayClient singleton.
  */
 export function useVoiceActions() {
   const currentChannelId = useVoiceStore((s) => s.currentChannelId);
   const selfMuted = useVoiceStore((s) => s.selfMuted);
   const selfDeafened = useVoiceStore((s) => s.selfDeafened);
+  const cameraEnabled = useVoiceStore((s) => s.cameraEnabled);
+  const screenShareEnabled = useVoiceStore((s) => s.screenShareEnabled);
   const setCurrentChannel = useVoiceStore((s) => s.setCurrentChannel);
   const setConnectionState = useVoiceStore((s) => s.setConnectionState);
   const setSelfMuted = useVoiceStore((s) => s.setSelfMuted);
   const setSelfDeafened = useVoiceStore((s) => s.setSelfDeafened);
+  const setCameraEnabled = useVoiceStore((s) => s.setCameraEnabled);
+  const setScreenShareEnabled = useVoiceStore((s) => s.setScreenShareEnabled);
+  const setScreenShareQuality = useVoiceStore((s) => s.setScreenShareQuality);
   const voiceDisconnect = useVoiceStore((s) => s.disconnect);
 
   const joinVoiceChannel = useCallback(
@@ -68,26 +73,80 @@ export function useVoiceActions() {
     gw.send(OpCode.VOICE_STATE_UPDATE, {
       selfMute: newMuted,
       selfDeaf: selfDeafened,
+      selfVideo: cameraEnabled,
     });
-  }, [selfMuted, selfDeafened, setSelfMuted]);
+  }, [selfMuted, selfDeafened, cameraEnabled, setSelfMuted]);
 
   const toggleDeafen = useCallback(() => {
     const newDeafened = !selfDeafened;
     setSelfDeafened(newDeafened);
-    // Deafening → auto-mute, un-deafening → auto-unmute
     const newMuted = newDeafened ? true : false;
     setSelfMuted(newMuted);
     const gw = getGatewayClient();
     gw.send(OpCode.VOICE_STATE_UPDATE, {
       selfMute: newMuted,
       selfDeaf: newDeafened,
+      selfVideo: cameraEnabled,
     });
-  }, [selfDeafened, setSelfDeafened, setSelfMuted]);
+  }, [selfDeafened, cameraEnabled, setSelfDeafened, setSelfMuted]);
+
+  const toggleCamera = useCallback(() => {
+    if (!currentChannelId) return;
+    const newEnabled = !cameraEnabled;
+    setCameraEnabled(newEnabled);
+    const gw = getGatewayClient();
+    gw.send(OpCode.VOICE_STATE_UPDATE, {
+      selfMute: selfMuted,
+      selfDeaf: selfDeafened,
+      selfVideo: newEnabled,
+    });
+  }, [currentChannelId, cameraEnabled, selfMuted, selfDeafened, setCameraEnabled]);
+
+  const toggleScreenShare = useCallback((quality?: ScreenShareQuality) => {
+    if (!currentChannelId) return;
+
+    // If a quality is explicitly passed while already sharing, stop then restart
+    // with the new quality (screen share requires re-prompting the picker).
+    if (quality && screenShareEnabled) {
+      // Stop current share first
+      setScreenShareEnabled(false);
+      setScreenShareQuality(quality);
+      // Re-enable in next tick so the effect fires with new quality
+      setTimeout(() => {
+        useVoiceStore.getState().setScreenShareEnabled(true);
+        const gw = getGatewayClient();
+        gw.send(OpCode.DISPATCH, {
+          t: ClientEventType.SCREEN_SHARE_START,
+          d: { channelId: currentChannelId, quality },
+        });
+      }, 100);
+      return;
+    }
+
+    const newEnabled = !screenShareEnabled;
+    if (quality) setScreenShareQuality(quality);
+    setScreenShareEnabled(newEnabled);
+
+    const gw = getGatewayClient();
+    if (newEnabled) {
+      gw.send(OpCode.DISPATCH, {
+        t: ClientEventType.SCREEN_SHARE_START,
+        d: { channelId: currentChannelId, quality: quality ?? useVoiceStore.getState().screenShareQuality },
+      });
+    } else {
+      gw.send(OpCode.DISPATCH, {
+        t: ClientEventType.SCREEN_SHARE_STOP,
+        d: {},
+      });
+    }
+  }, [currentChannelId, screenShareEnabled, setScreenShareEnabled, setScreenShareQuality]);
 
   return {
     joinVoiceChannel,
     leaveVoiceChannel,
     toggleMute,
     toggleDeafen,
+    toggleCamera,
+    toggleScreenShare,
   };
 }

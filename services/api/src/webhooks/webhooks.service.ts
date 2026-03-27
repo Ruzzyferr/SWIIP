@@ -4,6 +4,7 @@ import {
   ForbiddenException,
   Logger,
 } from '@nestjs/common';
+import { timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PermissionsService, Permissions } from '../permissions/permissions.service';
@@ -170,6 +171,19 @@ export class WebhooksService {
       throw new ForbiddenException('Missing MANAGE_WEBHOOKS permission');
     }
 
+    // Prevent moving webhook to a channel in a different guild
+    if (dto.channelId) {
+      const targetChannel = await this.prisma.channel.findUnique({
+        where: { id: dto.channelId },
+        select: { guildId: true },
+      });
+      if (!targetChannel || targetChannel.guildId !== webhook.guildId) {
+        throw new ForbiddenException(
+          'Target channel must belong to the same guild as the webhook',
+        );
+      }
+    }
+
     const updated = await this.prisma.webhook.update({
       where: { id: webhookId },
       data: {
@@ -245,7 +259,16 @@ export class WebhooksService {
       },
     });
 
-    if (!webhook || webhook.token !== token) {
+    if (!webhook) {
+      throw new ForbiddenException('Invalid webhook token');
+    }
+
+    const tokenBuffer = Buffer.from(token);
+    const webhookTokenBuffer = Buffer.from(webhook.token);
+    if (
+      tokenBuffer.length !== webhookTokenBuffer.length ||
+      !timingSafeEqual(tokenBuffer, webhookTokenBuffer)
+    ) {
       throw new ForbiddenException('Invalid webhook token');
     }
 

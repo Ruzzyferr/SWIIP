@@ -92,7 +92,7 @@ export class UsersController {
     @Query('type') type?: string,
   ) {
     if (type === 'block') {
-      await this.usersService.blockUser(user.userId, targetId);
+      await this.usersService.unblockUser(user.userId, targetId);
     } else {
       await this.usersService.removeFriend(user.userId, targetId);
     }
@@ -101,7 +101,7 @@ export class UsersController {
   @Get('users/:id')
   @ApiOperation({ summary: 'Get user by ID' })
   async getUser(@Param('id') id: string, @CurrentUser() user: AuthUser) {
-    return this.usersService.findById(id);
+    return this.usersService.findByIdPublic(id);
   }
 
   @Get('users/:id/profile')
@@ -127,6 +127,8 @@ export class UsersController {
   async getPresence(
     @Body() body: { userIds: string[] },
   ) {
-    return this.usersService.getPresence(body.userIds);
+    // Limit to 200 user IDs to prevent abuse
+    const ids = Array.isArray(body.userIds) ? body.userIds.slice(0, 200) : [];
+    return this.usersService.getPresence(ids);
   }
 }

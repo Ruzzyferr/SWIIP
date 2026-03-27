@@ -29,7 +29,8 @@ async function bootstrap() {
 
   const app = await NestFactory.create<NestFastifyApplication>(
     MediaModule,
-    new FastifyAdapter(),
+    new FastifyAdapter({ bodyLimit: 1_048_576 }),
+    { rawBody: true },
   );
 
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));

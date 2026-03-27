@@ -407,7 +407,7 @@ model Message {
   updatedAt           DateTime    @updatedAt
 
   channel    Channel    @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  author     User       @relation(fields: [authorId], references: [id])
+  author     User       @relation(fields: [authorId], references: [id], onDelete: Cascade)
   attachments Attachment[]
   reactions  Reaction[]
   revisions  MessageRevision[]
@@ -501,7 +501,7 @@ model Pin {
 
   message  Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
   channel  Channel @relation(fields: [channelId], references: [id], onDelete: Cascade)
-  pinnedBy User    @relation("PinnedBy", fields: [pinnedById], references: [id])
+  pinnedBy User    @relation("PinnedBy", fields: [pinnedById], references: [id], onDelete: Cascade)
 
   @@unique([messageId, channelId])
   @@index([channelId])
@@ -553,8 +553,8 @@ model Invite {
   createdAt DateTime  @default(now())
 
   guild   Guild   @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  channel Channel? @relation(fields: [channelId], references: [id])
-  inviter User?   @relation(fields: [inviterId], references: [id])
+  channel Channel? @relation(fields: [channelId], references: [id], onDelete: SetNull)
+  inviter User?   @relation(fields: [inviterId], references: [id], onDelete: SetNull)
 
   @@index([guildId])
   @@index([code])
@@ -574,7 +574,7 @@ model AuditLog {
   createdAt  DateTime       @default(now())
 
   guild Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  actor User  @relation("AuditLogActor", fields: [actorId], references: [id])
+  actor User  @relation("AuditLogActor", fields: [actorId], references: [id], onDelete: Cascade)
 
   @@index([guildId])
   @@index([actorId])
@@ -593,8 +593,8 @@ model ModerationAction {
   createdAt DateTime            @default(now())
 
   guild  Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
-  target User  @relation("ModerationTarget", fields: [targetId], references: [id])
-  actor  User  @relation("ModerationActor", fields: [actorId], references: [id])
+  target User  @relation("ModerationTarget", fields: [targetId], references: [id], onDelete: Cascade)
+  actor  User  @relation("ModerationActor", fields: [actorId], references: [id], onDelete: Cascade)
 
   @@index([guildId])
   @@index([targetId])
@@ -632,7 +632,7 @@ model Report {
   resolvedAt   DateTime?
   createdAt    DateTime         @default(now())
 
-  reporter User @relation("ReportReporter", fields: [reporterId], references: [id])
+  reporter User @relation("ReportReporter", fields: [reporterId], references: [id], onDelete: Cascade)
 
   @@index([reporterId])
   @@index([status])

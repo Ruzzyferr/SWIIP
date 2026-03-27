@@ -1,5 +1,6 @@
 'use client';
 
+import { useMemo, useRef } from 'react';
 import { MicOff, EarOff } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { useVoiceStore, type VoiceParticipant } from '@/stores/voice.store';
@@ -78,7 +79,23 @@ function ParticipantRow({ participant, guildId }: { participant: VoiceParticipan
 }
 
 export function VoiceChannelUsers({ channelId, guildId }: VoiceChannelUsersProps) {
-  const participants = useVoiceStore((s) => s.getChannelParticipants(channelId));
+  // Stable selector: avoid creating a new array on every unrelated store change
+  const participantsRaw = useVoiceStore((s) => s.participants);
+  const prevRef = useRef<VoiceParticipant[]>([]);
+  const participants = useMemo(() => {
+    const filtered = Object.values(participantsRaw).filter(
+      (p) => p.channelId === channelId,
+    );
+    const prev = prevRef.current;
+    if (
+      prev.length === filtered.length &&
+      prev.every((p, i) => p === filtered[i])
+    ) {
+      return prev;
+    }
+    prevRef.current = filtered;
+    return filtered;
+  }, [participantsRaw, channelId]);
 
   if (participants.length === 0) return null;
 

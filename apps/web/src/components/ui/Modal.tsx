@@ -11,6 +11,11 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
+// ---------------------------------------------------------------------------
+// Module-level counter so stacked modals don't prematurely restore scroll.
+// ---------------------------------------------------------------------------
+let modalOpenCount = 0;
+
 interface ModalProps {
   open: boolean;
   onClose: () => void;
@@ -78,12 +83,17 @@ export function Modal({
     }
   }, [open]);
 
-  // Prevent body scroll
+  // Prevent body scroll (ref-counted so stacked modals work correctly)
   useEffect(() => {
     if (open) {
+      modalOpenCount += 1;
       document.body.style.overflow = 'hidden';
       return () => {
-        document.body.style.overflow = '';
+        modalOpenCount -= 1;
+        if (modalOpenCount <= 0) {
+          modalOpenCount = 0; // clamp to 0 as safety
+          document.body.style.overflow = '';
+        }
       };
     }
   }, [open]);

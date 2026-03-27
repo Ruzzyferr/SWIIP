@@ -63,7 +63,7 @@ function MemberItem({
 export function MemberSidebar({ guildId }: MemberSidebarProps) {
   const members = useGuildsStore((s) => s.members[guildId] ?? {});
   const roles = useGuildsStore((s) => s.roles);
-  const getPresence = usePresenceStore((s) => s.getPresence);
+  const presenceUsers = usePresenceStore((s) => s.users);
   const guild = useGuildsStore((s) => s.guilds[guildId]);
   const currentUserId = useAuthStore((s) => s.user?.id);
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -78,6 +78,7 @@ export function MemberSidebar({ guildId }: MemberSidebarProps) {
   // Group members by their highest hoisted role
   const grouped = useMemo(() => {
     const memberList = Object.values(members);
+    const getUserPresence = (userId: string) => presenceUsers[userId]?.status ?? 'offline';
 
     // Collect hoisted roles for this guild, sorted by position desc
     const guildRoles = Object.values(roles)
@@ -89,7 +90,7 @@ export function MemberSidebar({ guildId }: MemberSidebarProps) {
 
     for (const role of guildRoles) {
       const roleMembers = memberList.filter(
-        (m) => m.roles.includes(role.id) && !assigned.has(m.userId)
+        (m) => m.roles.includes(role.id) && !assigned.has(m.userId) && getUserPresence(m.userId) !== 'offline'
       );
       if (roleMembers.length > 0) {
         roleMembers.forEach((m) => assigned.add(m.userId));
@@ -99,15 +100,15 @@ export function MemberSidebar({ guildId }: MemberSidebarProps) {
 
     // Online members without a hoisted role
     const onlineOther = memberList.filter(
-      (m) => !assigned.has(m.userId) && getPresence(m.userId) !== 'offline'
+      (m) => !assigned.has(m.userId) && getUserPresence(m.userId) !== 'offline'
     );
     if (onlineOther.length > 0) {
       groups.push({ role: null, members: onlineOther });
     }
 
-    // Offline members
+    // Offline members (including those with hoisted roles who are offline)
     const offline = memberList.filter(
-      (m) => !assigned.has(m.userId) && getPresence(m.userId) === 'offline'
+      (m) => !assigned.has(m.userId) && getUserPresence(m.userId) === 'offline'
     );
     if (offline.length > 0) {
       groups.push({
@@ -117,7 +118,7 @@ export function MemberSidebar({ guildId }: MemberSidebarProps) {
     }
 
     return groups;
-  }, [members, roles, guildId, getPresence]);
+  }, [members, roles, guildId, presenceUsers]);
 
   return (
     <aside

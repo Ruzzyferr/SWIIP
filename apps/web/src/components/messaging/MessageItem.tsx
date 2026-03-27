@@ -527,19 +527,6 @@ export function MessageItem({
                     {formatDistanceToNow(timestamp, { addSuffix: true })}
                   </time>
                 </Tooltip>
-                {editedAt && (
-                  <Tooltip
-                    content={`Edited ${new Date(editedAt).toLocaleString()}`}
-                    placement="top"
-                  >
-                    <span
-                      className="text-xs cursor-default"
-                      style={{ color: 'var(--color-text-disabled)' }}
-                    >
-                      (edited)
-                    </span>
-                  </Tooltip>
-                )}
               </div>
             )}
 
@@ -611,7 +598,7 @@ export function MessageItem({
                     style={{ color: 'var(--color-text-primary)', wordBreak: 'break-word' }}
                   >
                     {renderContent(message.content)}
-                    {editedAt && !isGrouped && (
+                    {editedAt && (
                       <span
                         className="text-xs ml-1"
                         style={{ color: 'var(--color-text-disabled)' }}
@@ -620,7 +607,7 @@ export function MessageItem({
                       </span>
                     )}
                   </p>
-                ) : editedAt && !isGrouped ? (
+                ) : editedAt ? (
                   <span
                     className="text-xs"
                     style={{ color: 'var(--color-text-disabled)' }}
@@ -664,7 +651,7 @@ export function MessageItem({
                             {(att as any).originalFilename ?? att.filename}
                           </p>
                           <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-                            {(att.size / 1024).toFixed(1)} KB
+                            {(Number(att.size) / 1024).toFixed(1)} KB
                           </p>
                         </div>
                       </div>

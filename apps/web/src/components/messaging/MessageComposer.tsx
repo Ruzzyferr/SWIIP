@@ -29,7 +29,7 @@ import { EmojiPicker } from '@/components/ui/EmojiPicker';
 import { sendMessage, requestAttachmentUpload, uploadFileToPresignedUrl } from '@/lib/api/messages.api';
 import { triggerTyping } from '@/lib/api/channels.api';
 import { useMessagesStore } from '@/stores/messages.store';
-import { formatFileSize, debounce } from '@/lib/utils';
+import { formatFileSize } from '@/lib/utils';
 import { toastError } from '@/lib/toast';
 import type { MessagePayload, AttachmentRef } from '@constchat/protocol';
 
@@ -226,15 +226,32 @@ export function MessageComposer({
     ta.style.height = `${Math.min(ta.scrollHeight, window.innerHeight * 0.5)}px`;
   }, [content]);
 
-  // Debounced typing indicator
-  const emitTyping = useCallback(
-    debounce(async () => {
-      try {
-        await triggerTyping(channelId);
-      } catch {}
-    }, TYPING_DEBOUNCE_MS),
-    [channelId]
-  );
+  // Typing indicator: fire immediately on first keystroke, then debounce
+  const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const canFireRef = useRef(true);
+  const emitTyping = useCallback(() => {
+    if (canFireRef.current) {
+      canFireRef.current = false;
+      triggerTyping(channelId).catch(() => {});
+    }
+    if (typingTimerRef.current) {
+      clearTimeout(typingTimerRef.current);
+    }
+    typingTimerRef.current = setTimeout(() => {
+      canFireRef.current = true;
+    }, TYPING_DEBOUNCE_MS);
+  }, [channelId]);
+
+  // Clear typing debounce timer when channel changes
+  useEffect(() => {
+    return () => {
+      if (typingTimerRef.current) {
+        clearTimeout(typingTimerRef.current);
+        typingTimerRef.current = null;
+      }
+      canFireRef.current = true;
+    };
+  }, [channelId]);
 
   const handleContentChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
     const val = e.target.value;

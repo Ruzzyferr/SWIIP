@@ -49,6 +49,7 @@ export const useUIStore = create<UIState>()(
     setActiveGuild: (guildId) =>
       set((state) => {
         state.activeGuildId = guildId;
+        state.activeChannelId = null;
         state.activeDMId = null;
       }),
 

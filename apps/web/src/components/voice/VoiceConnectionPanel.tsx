@@ -10,6 +10,10 @@ import {
   SignalLow,
   Loader2,
   AlertTriangle,
+  Video,
+  VideoOff,
+  Monitor,
+  MonitorOff,
 } from 'lucide-react';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useVoiceStore } from '@/stores/voice.store';
@@ -25,11 +29,13 @@ export function VoiceConnectionPanel() {
   const currentChannelId = useVoiceStore((s) => s.currentChannelId);
   const selfMuted = useVoiceStore((s) => s.selfMuted);
   const selfDeafened = useVoiceStore((s) => s.selfDeafened);
+  const cameraEnabled = useVoiceStore((s) => s.cameraEnabled);
+  const screenShareEnabled = useVoiceStore((s) => s.screenShareEnabled);
   const error = useVoiceStore((s) => s.error);
   const channel = useGuildsStore((s) =>
     currentChannelId ? s.channels[currentChannelId] : null
   );
-  const { leaveVoiceChannel, toggleMute, toggleDeafen } = useVoiceActions();
+  const { leaveVoiceChannel, toggleMute, toggleDeafen, toggleCamera, toggleScreenShare } = useVoiceActions();
 
   if (connectionState === 'disconnected' && !currentChannelId) return null;
 
@@ -138,6 +144,42 @@ export function VoiceConnectionPanel() {
             aria-label={selfDeafened ? 'Undeafen' : 'Deafen'}
           >
             {selfDeafened ? <EarOff size={15} /> : <Headphones size={15} />}
+          </button>
+        </Tooltip>
+
+        <Tooltip content={cameraEnabled ? 'Turn Off Camera' : 'Turn On Camera'} placement="top">
+          <button
+            onClick={toggleCamera}
+            className={btnClass}
+            style={{
+              color: cameraEnabled
+                ? 'var(--color-success-default)'
+                : 'var(--color-text-secondary)',
+              background: cameraEnabled
+                ? 'var(--color-success-muted, rgba(87, 242, 135, 0.15))'
+                : 'var(--color-surface-overlay)',
+            }}
+            aria-label={cameraEnabled ? 'Turn Off Camera' : 'Turn On Camera'}
+          >
+            {cameraEnabled ? <Video size={15} /> : <VideoOff size={15} />}
+          </button>
+        </Tooltip>
+
+        <Tooltip content={screenShareEnabled ? 'Stop Sharing' : 'Share Screen'} placement="top">
+          <button
+            onClick={() => toggleScreenShare()}
+            className={btnClass}
+            style={{
+              color: screenShareEnabled
+                ? 'var(--color-danger-default)'
+                : 'var(--color-text-secondary)',
+              background: screenShareEnabled
+                ? 'var(--color-danger-muted)'
+                : 'var(--color-surface-overlay)',
+            }}
+            aria-label={screenShareEnabled ? 'Stop Screen Share' : 'Share Screen'}
+          >
+            {screenShareEnabled ? <MonitorOff size={15} /> : <Monitor size={15} />}
           </button>
         </Tooltip>
 

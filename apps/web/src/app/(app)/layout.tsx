@@ -24,7 +24,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <AppProvider>
-      <div className="flex h-screen w-screen overflow-hidden">
+      <div className="flex h-screen w-screen overflow-hidden" style={{ height: '100dvh' }}>
         {/* Server rail — fixed left column */}
         {(!isMobile || isMobileNavOpen) && (
           <ServerRail />

@@ -48,7 +48,8 @@ export default function LoginPage() {
 function LoginContent() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const redirectTo = searchParams.get('redirect');
+  const rawRedirect = searchParams.get('redirect');
+  const redirectTo = rawRedirect && rawRedirect.startsWith('/') && !rawRedirect.startsWith('//') ? rawRedirect : null;
   const setUser = useAuthStore((s) => s.setUser);
   const setTokens = useAuthStore((s) => s.setTokens);
   const [showPassword, setShowPassword] = useState(false);
@@ -358,43 +359,33 @@ function LoginContent() {
           <div className="grid grid-cols-2 gap-2.5">
             <button
               type="button"
-              className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-medium transition-all duration-fast"
+              disabled
+              className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-medium opacity-50 cursor-not-allowed"
               style={{
                 background: 'var(--color-surface-raised)',
                 border: '1px solid var(--color-border-default)',
                 color: 'var(--color-text-secondary)',
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--color-border-strong)';
-                e.currentTarget.style.color = 'var(--color-text-primary)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--color-border-default)';
-                e.currentTarget.style.color = 'var(--color-text-secondary)';
-              }}
+              title="Coming soon"
             >
               <Github size={15} />
               GitHub
+              <span className="text-xs">(Coming soon)</span>
             </button>
             <button
               type="button"
-              className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-medium transition-all duration-fast"
+              disabled
+              className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-medium opacity-50 cursor-not-allowed"
               style={{
                 background: 'var(--color-surface-raised)',
                 border: '1px solid var(--color-border-default)',
                 color: 'var(--color-text-secondary)',
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--color-border-strong)';
-                e.currentTarget.style.color = 'var(--color-text-primary)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--color-border-default)';
-                e.currentTarget.style.color = 'var(--color-text-secondary)';
-              }}
+              title="Coming soon"
             >
               <Chrome size={15} />
               Google
+              <span className="text-xs">(Coming soon)</span>
             </button>
           </div>
         </motion.div>

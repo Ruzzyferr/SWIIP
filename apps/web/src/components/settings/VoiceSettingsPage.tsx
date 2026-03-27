@@ -48,6 +48,7 @@ function MicTest() {
   const [testing, setTesting] = useState(false);
   const [level, setLevel] = useState(0);
   const streamRef = useRef<MediaStream | null>(null);
+  const ctxRef = useRef<AudioContext | null>(null);
   const animRef = useRef<number>(0);
   const inputDeviceId = useVoiceStore((s) => s.settings.inputDeviceId);
   const inputVolume = useVoiceStore((s) => s.settings.inputVolume);
@@ -59,6 +60,7 @@ function MicTest() {
       });
       streamRef.current = stream;
       const ctx = new AudioContext();
+      ctxRef.current = ctx;
       const source = ctx.createMediaStreamSource(stream);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
@@ -82,6 +84,8 @@ function MicTest() {
     cancelAnimationFrame(animRef.current);
     streamRef.current?.getTracks().forEach((t) => t.stop());
     streamRef.current = null;
+    ctxRef.current?.close().catch(() => {});
+    ctxRef.current = null;
     setLevel(0);
     setTesting(false);
   }, []);
@@ -90,6 +94,7 @@ function MicTest() {
     return () => {
       cancelAnimationFrame(animRef.current);
       streamRef.current?.getTracks().forEach((t) => t.stop());
+      ctxRef.current?.close().catch(() => {});
     };
   }, []);
 
@@ -247,6 +252,36 @@ export function VoiceSettingsPage() {
           max={100}
           onChange={(v) => updateSettings({ outputVolume: v })}
         />
+      </section>
+
+      <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />
+
+      {/* Noise suppression */}
+      <section className="flex items-center justify-between">
+        <div>
+          <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+            Noise Suppression
+          </p>
+          <p className="text-xs" style={{ color: 'var(--color-text-disabled)' }}>
+            Filter background noise from your microphone
+          </p>
+        </div>
+        <button
+          onClick={() => updateSettings({ noiseSuppression: !settings.noiseSuppression })}
+          className="relative w-11 h-6 rounded-full transition-colors duration-200"
+          style={{
+            background: settings.noiseSuppression
+              ? 'var(--color-success-default)'
+              : 'var(--color-surface-base)',
+          }}
+        >
+          <div
+            className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200"
+            style={{
+              transform: settings.noiseSuppression ? 'translateX(22px)' : 'translateX(2px)',
+            }}
+          />
+        </button>
       </section>
 
       <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />

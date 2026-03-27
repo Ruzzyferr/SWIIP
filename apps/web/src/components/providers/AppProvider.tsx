@@ -1,23 +1,48 @@
 'use client';
 
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useMemo, useState, type ReactNode } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth.store';
 import { setAccessToken } from '@/lib/api/client';
 import { getCurrentUser, refreshTokens } from '@/lib/api/auth.api';
 import { useGatewayBridge } from '@/hooks/useGatewayBridge';
 import { useLiveKitRoom } from '@/hooks/useLiveKitRoom';
+import { LiveKitContext } from '@/contexts/LiveKitContext';
 import { Spinner } from '@/components/ui/Spinner';
+
+// ---------------------------------------------------------------------------
+// Inner shell: only mounts after auth is fully validated so hooks
+// (gateway, LiveKit) never fire with stale or missing credentials.
+// ---------------------------------------------------------------------------
+
+function AuthenticatedShell({ children }: { children: ReactNode }) {
+  // Connect gateway (has internal accessToken guard, but now also can't
+  // run before auth completes because this component doesn't mount until ready)
+  useGatewayBridge();
+
+  // Manage LiveKit room lifecycle (connects when voice credentials arrive)
+  const { videoTracks } = useLiveKitRoom();
+
+  const liveKitContextValue = useMemo(() => ({ videoTracks }), [videoTracks]);
+
+  return (
+    <LiveKitContext.Provider value={liveKitContextValue}>
+      {children}
+    </LiveKitContext.Provider>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// AppProvider — outer shell that handles auth hydration and loading state.
+// ---------------------------------------------------------------------------
 
 /**
  * Wraps the authenticated portion of the app.
  * - Checks auth state on mount and redirects to /login if needed.
- * - Bootstraps the gateway connection via useGatewayBridge.
+ * - Bootstraps the gateway connection via useGatewayBridge (deferred until auth ready).
  */
 export function AppProvider({ children }: { children: ReactNode }) {
   const router = useRouter();
-  const accessToken = useAuthStore((s) => s.accessToken);
-  const user = useAuthStore((s) => s.user);
   const setUser = useAuthStore((s) => s.setUser);
   const setLoading = useAuthStore((s) => s.setLoading);
   const isLoading = useAuthStore((s) => s.isLoading);
@@ -85,12 +110,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
     hydrate();
   }, []);
 
-  // Connect gateway
-  useGatewayBridge();
-
-  // Manage LiveKit room lifecycle (connects when voice credentials arrive)
-  useLiveKitRoom();
-
   if (!ready || isLoading) {
     return (
       <div
@@ -110,5 +129,5 @@ export function AppProvider({ children }: { children: ReactNode }) {
     );
   }
 
-  return <>{children}</>;
+  return <AuthenticatedShell>{children}</AuthenticatedShell>;
 }

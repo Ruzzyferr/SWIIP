@@ -1,21 +1,33 @@
 'use client';
 
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import {
   Room,
   RoomEvent,
   ParticipantEvent,
   ConnectionState,
   Track,
+  VideoPresets,
   type RemoteParticipant,
   type RemoteTrack,
   type RemoteTrackPublication,
   type LocalParticipant,
+  type LocalTrackPublication,
   type Participant,
 } from 'livekit-client';
+import { OpCode, ClientEventType } from '@constchat/protocol';
+import { getGatewayClient } from '@/lib/gateway/GatewayClient';
 import { useVoiceStore } from '@/stores/voice.store';
 import { useAuthStore } from '@/stores/auth.store';
-import { playJoinSound, playLeaveSound, playDisconnectSound } from '@/lib/sounds';
+import { playJoinSound, playLeaveSound } from '@/lib/sounds';
+
+/** Map of participantIdentity → { camera?: MediaStreamTrack, screen?: MediaStreamTrack } */
+export interface VideoTrackMap {
+  [participantId: string]: {
+    camera?: MediaStreamTrack;
+    screen?: MediaStreamTrack;
+  };
+}
 
 /** How long to wait for LiveKit credentials after VOICE_JOIN before giving up */
 const CREDENTIAL_TIMEOUT_MS = 12_000;
@@ -29,6 +41,8 @@ export function useLiveKitRoom() {
   const roomRef = useRef<Room | null>(null);
   const credentialTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+  const trackOwnerRef = useRef<Map<string, string>>(new Map()); // trackSid -> userId
+  const [videoTracks, setVideoTracks] = useState<VideoTrackMap>({});
 
   const livekitToken = useVoiceStore((s) => s.livekitToken);
   const livekitUrl = useVoiceStore((s) => s.livekitUrl);
@@ -36,16 +50,41 @@ export function useLiveKitRoom() {
   const connectionState = useVoiceStore((s) => s.connectionState);
   const selfMuted = useVoiceStore((s) => s.selfMuted);
   const selfDeafened = useVoiceStore((s) => s.selfDeafened);
+  const cameraEnabled = useVoiceStore((s) => s.cameraEnabled);
+  const screenShareEnabled = useVoiceStore((s) => s.screenShareEnabled);
   const inputDeviceId = useVoiceStore((s) => s.settings.inputDeviceId);
   const outputDeviceId = useVoiceStore((s) => s.settings.outputDeviceId);
+  const videoDeviceId = useVoiceStore((s) => s.settings.videoDeviceId);
   const outputVolume = useVoiceStore((s) => s.settings.outputVolume);
+  const noiseSuppression = useVoiceStore((s) => s.settings.noiseSuppression);
   const setConnectionState = useVoiceStore((s) => s.setConnectionState);
   const setSpeaking = useVoiceStore((s) => s.setSpeaking);
   const setParticipant = useVoiceStore((s) => s.setParticipant);
+  const setParticipantVideo = useVoiceStore((s) => s.setParticipantVideo);
+  const setParticipantScreenShare = useVoiceStore((s) => s.setParticipantScreenShare);
   const removeParticipant = useVoiceStore((s) => s.removeParticipant);
   const setError = useVoiceStore((s) => s.setError);
   const disconnect = useVoiceStore((s) => s.disconnect);
   const userId = useAuthStore((s) => s.user?.id);
+
+  // Helper to update video track map
+  const updateVideoTrack = useCallback((
+    participantId: string,
+    type: 'camera' | 'screen',
+    track: MediaStreamTrack | undefined,
+  ) => {
+    setVideoTracks((prev) => {
+      const entry = prev[participantId] ?? {};
+      const updated = { ...entry, [type]: track };
+      // Remove entry entirely if both tracks are gone
+      if (!updated.camera && !updated.screen) {
+        const next = { ...prev };
+        delete next[participantId];
+        return next;
+      }
+      return { ...prev, [participantId]: updated };
+    });
+  }, []);
 
   // Timeout: if we're in "connecting" state but credentials never arrive, bail out
   useEffect(() => {
@@ -103,6 +142,7 @@ export function useLiveKitRoom() {
           // ignore cleanup failures
         }
         audioElementsRef.current.delete(trackSid);
+        trackOwnerRef.current.delete(trackSid);
       }
     };
 
@@ -114,7 +154,9 @@ export function useLiveKitRoom() {
       element.autoplay = true;
       element.setAttribute('playsinline', 'true');
       element.muted = false;
-      element.volume = selfDeafened ? 0 : 1;
+      const currentDeafened = useVoiceStore.getState().selfDeafened;
+      const currentOutputVol = useVoiceStore.getState().settings.outputVolume;
+      element.volume = currentDeafened ? 0 : Math.min(currentOutputVol / 100, 1);
       document.body.appendChild(element);
       audioElementsRef.current.set(trackSid, element);
       try {
@@ -169,6 +211,8 @@ export function useLiveKitRoom() {
         serverMute: false,
         serverDeaf: false,
         speaking: participant.isSpeaking,
+        selfVideo: participant.isCameraEnabled,
+        screenSharing: participant.isScreenShareEnabled,
       });
       bindSpeakingListener(participant);
       const vs = useVoiceStore.getState();
@@ -188,15 +232,71 @@ export function useLiveKitRoom() {
 
     room.on(
       RoomEvent.TrackSubscribed,
-      async (track: RemoteTrack, _publication: RemoteTrackPublication, _participant: RemoteParticipant) => {
+      async (track: RemoteTrack, publication: RemoteTrackPublication, participant: RemoteParticipant) => {
+        if (track.kind === Track.Kind.Audio && track.sid) {
+          trackOwnerRef.current.set(track.sid, participant.identity);
+        }
+        if (track.kind === Track.Kind.Video) {
+          const isScreen = publication.source === Track.Source.ScreenShare;
+          updateVideoTrack(
+            participant.identity,
+            isScreen ? 'screen' : 'camera',
+            track.mediaStreamTrack,
+          );
+          if (currentChannelId) {
+            if (isScreen) {
+              setParticipantScreenShare(currentChannelId, participant.identity, true);
+            } else {
+              setParticipantVideo(currentChannelId, participant.identity, true);
+            }
+          }
+        }
         await attachAudio(track);
       },
     );
 
-    room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack) => {
-      if (track.kind !== Track.Kind.Audio) return;
-      if (track.sid) {
-        detachAudio(track.sid);
+    room.on(RoomEvent.TrackUnsubscribed, (track: RemoteTrack, publication: RemoteTrackPublication, participant: RemoteParticipant) => {
+      if (track.kind === Track.Kind.Audio) {
+        if (track.sid) detachAudio(track.sid);
+      }
+      if (track.kind === Track.Kind.Video) {
+        const isScreen = publication.source === Track.Source.ScreenShare;
+        updateVideoTrack(
+          participant.identity,
+          isScreen ? 'screen' : 'camera',
+          undefined,
+        );
+        if (currentChannelId) {
+          if (isScreen) {
+            setParticipantScreenShare(currentChannelId, participant.identity, false);
+          } else {
+            setParticipantVideo(currentChannelId, participant.identity, false);
+          }
+        }
+      }
+    });
+
+    // Track local participant video publications (camera + screen share)
+    room.on(RoomEvent.LocalTrackPublished, (publication: LocalTrackPublication, participant: LocalParticipant) => {
+      const track = publication.track;
+      if (!track || track.kind !== Track.Kind.Video) return;
+      const isScreen = publication.source === Track.Source.ScreenShare;
+      updateVideoTrack(
+        participant.identity,
+        isScreen ? 'screen' : 'camera',
+        track.mediaStreamTrack,
+      );
+    });
+
+    room.on(RoomEvent.LocalTrackUnpublished, (publication: LocalTrackPublication, participant: LocalParticipant) => {
+      if (publication.source === Track.Source.Camera) {
+        updateVideoTrack(participant.identity, 'camera', undefined);
+      } else if (publication.source === Track.Source.ScreenShare) {
+        updateVideoTrack(participant.identity, 'screen', undefined);
+        // If screen share was stopped externally (e.g. browser "Stop sharing"), sync store + notify gateway
+        useVoiceStore.getState().setScreenShareEnabled(false);
+        const gw = getGatewayClient();
+        gw.send(OpCode.DISPATCH, { t: ClientEventType.SCREEN_SHARE_STOP, d: {} });
       }
     });
 
@@ -216,8 +316,13 @@ export function useLiveKitRoom() {
         await room.startAudio().catch(() => {});
 
         // Try to publish microphone — handle permission denial gracefully
+        const noiseSuppressionEnabled = useVoiceStore.getState().settings.noiseSuppression;
         try {
-          await room.localParticipant.setMicrophoneEnabled(true);
+          await room.localParticipant.setMicrophoneEnabled(true, {
+            noiseSuppression: noiseSuppressionEnabled,
+            echoCancellation: true,
+            autoGainControl: true,
+          });
         } catch (micErr) {
           console.warn('[LiveKit] Microphone access denied or failed — joining muted', micErr);
           // Still connected, just muted
@@ -235,6 +340,8 @@ export function useLiveKitRoom() {
             serverMute: false,
             serverDeaf: false,
             speaking: false,
+            selfVideo: false,
+            screenSharing: false,
           });
           bindSpeakingListener(room.localParticipant);
         }
@@ -250,6 +357,8 @@ export function useLiveKitRoom() {
               serverMute: false,
               serverDeaf: false,
               speaking: participant.isSpeaking,
+              selfVideo: participant.isCameraEnabled,
+              screenSharing: participant.isScreenShareEnabled,
             });
             bindSpeakingListener(participant);
           }
@@ -273,6 +382,7 @@ export function useLiveKitRoom() {
         detachAudio(sid);
       }
       roomRef.current = null;
+      setVideoTracks({});
     };
   }, [livekitToken, livekitUrl, currentChannelId]);
 
@@ -283,16 +393,37 @@ export function useLiveKitRoom() {
     room.localParticipant.setMicrophoneEnabled(!selfMuted).catch(console.error);
   }, [selfMuted]);
 
-  // Sync deafen state + output volume — adjust all remote audio elements
-  useEffect(() => {
+  // Sync deafen state + output volume + per-user volume — adjust all remote audio elements
+  const applyVolumes = useCallback(() => {
     const room = roomRef.current;
     if (!room || room.state !== ConnectionState.Connected) return;
 
-    const vol = selfDeafened ? 0 : Math.min(outputVolume / 100, 1);
-    for (const audioElement of audioElementsRef.current.values()) {
-      audioElement.volume = vol;
+    const state = useVoiceStore.getState();
+    const globalVol = state.selfDeafened ? 0 : Math.min(state.settings.outputVolume / 100, 1);
+
+    for (const [trackSid, audioElement] of audioElementsRef.current.entries()) {
+      const ownerId = trackOwnerRef.current.get(trackSid);
+      const userVol = ownerId ? (state.userVolumes[ownerId] ?? 100) / 100 : 1;
+      audioElement.volume = Math.min(globalVol * userVol, 1);
     }
-  }, [selfDeafened, outputVolume]);
+  }, []);
+
+  // React to deafen/volume changes
+  useEffect(() => {
+    applyVolumes();
+  }, [selfDeafened, outputVolume, applyVolumes]);
+
+  // Subscribe to per-user volume changes (not reactive via hook)
+  useEffect(() => {
+    let prev = useVoiceStore.getState().userVolumes;
+    const unsub = useVoiceStore.subscribe((state) => {
+      if (state.userVolumes !== prev) {
+        prev = state.userVolumes;
+        applyVolumes();
+      }
+    });
+    return unsub;
+  }, [applyVolumes]);
 
   // Sync input device to LiveKit
   useEffect(() => {
@@ -313,6 +444,79 @@ export function useLiveKitRoom() {
     }
   }, [outputDeviceId]);
 
+  // Toggle noise suppression at runtime
+  useEffect(() => {
+    const room = roomRef.current;
+    if (!room || room.state !== ConnectionState.Connected) return;
+    const micTrack = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+    const track = micTrack?.track;
+    if (track && track.mediaStreamTrack) {
+      track.mediaStreamTrack.applyConstraints({
+        noiseSuppression,
+        echoCancellation: true,
+        autoGainControl: true,
+      }).catch(console.error);
+    }
+  }, [noiseSuppression]);
+
+  // Sync camera enabled state to LiveKit
+  useEffect(() => {
+    const room = roomRef.current;
+    if (!room || room.state !== ConnectionState.Connected) return;
+    room.localParticipant.setCameraEnabled(cameraEnabled, {
+      resolution: VideoPresets.h720.resolution,
+      deviceId: videoDeviceId !== 'default' ? videoDeviceId : undefined,
+    }).catch((err) => {
+      console.warn('[LiveKit] Camera toggle failed:', err);
+      useVoiceStore.getState().setCameraEnabled(false);
+    });
+  }, [cameraEnabled]); // videoDeviceId is handled by switchActiveDevice below
+
+  // Sync screen share state to LiveKit
+  // Note: screenShareQuality is read from store at start time, NOT in deps.
+  // Changing quality requires stopping and restarting the share.
+  useEffect(() => {
+    const room = roomRef.current;
+    if (!room || room.state !== ConnectionState.Connected) return;
+
+    if (screenShareEnabled) {
+      // Read quality from store at start time (not reactive — avoids re-prompting)
+      const quality = useVoiceStore.getState().screenShareQuality;
+      const presets = {
+        '720p30': { width: 1280, height: 720, fps: 30, maxBitrate: 3_000_000 },
+        '1080p30': { width: 1920, height: 1080, fps: 30, maxBitrate: 5_000_000 },
+        '1080p60': { width: 1920, height: 1080, fps: 60, maxBitrate: 8_000_000 },
+      } as const;
+      const preset = presets[quality as keyof typeof presets] ?? presets['1080p30'];
+
+      room.localParticipant.setScreenShareEnabled(true, {
+        resolution: { width: preset.width, height: preset.height, frameRate: preset.fps },
+        contentHint: preset.fps >= 60 ? 'motion' : 'detail',
+        video: {
+          // @ts-expect-error -- scalabilityMode is valid for VP9 SVC
+          scalabilityMode: preset.fps >= 60 ? 'L3T3' : 'L1T3',
+        },
+      }, {
+        selfBrowserSurface: 'include',
+      }).catch((err) => {
+        console.warn('[LiveKit] Screen share failed:', err);
+        useVoiceStore.getState().setScreenShareEnabled(false);
+      });
+    } else {
+      room.localParticipant.setScreenShareEnabled(false).catch(console.error);
+    }
+  }, [screenShareEnabled]);
+
+  // Sync video device change
+  useEffect(() => {
+    const room = roomRef.current;
+    if (!room || room.state !== ConnectionState.Connected) return;
+    if (!cameraEnabled) return;
+    if (videoDeviceId && videoDeviceId !== 'default') {
+      room.switchActiveDevice('videoinput', videoDeviceId).catch(console.error);
+    }
+  }, [videoDeviceId, cameraEnabled]);
+
   const disconnectRoom = useCallback(() => {
     if (credentialTimeoutRef.current) {
       clearTimeout(credentialTimeoutRef.current);
@@ -331,10 +535,12 @@ export function useLiveKitRoom() {
         }
       }
       audioElementsRef.current.clear();
+      trackOwnerRef.current.clear();
       roomRef.current = null;
     }
+    setVideoTracks({});
     disconnect();
   }, [disconnect]);
 
-  return { room: roomRef, disconnectRoom };
+  return { room: roomRef, disconnectRoom, videoTracks };
 }

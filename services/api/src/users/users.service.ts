@@ -51,6 +51,25 @@ export class UsersService {
     createdAt: true,
   };
 
+  async findByIdPublic(id: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id },
+      select: {
+        ...this.PUBLIC_SELECT,
+        presenceState: {
+          select: {
+            status: true,
+            customStatusText: true,
+            customStatusEmoji: true,
+            lastSeenAt: true,
+          },
+        },
+      },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    return user;
+  }
+
   async findById(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
@@ -261,7 +280,7 @@ export class UsersService {
         throw new ConflictException('Friend request already sent');
       }
 
-      if (existing.type === 'PENDING_INCOMING' && existing.targetId === requesterId) {
+      if (existing.type === 'PENDING_OUTGOING' && existing.requesterId === target.id) {
         return this.acceptFriendRequest(requesterId, target.id);
       }
     }
@@ -399,10 +418,17 @@ export class UsersService {
     // Check Redis for more recent presence updates
     const presenceMap = new Map(presences.map((p: any) => [p.userId, p]));
 
-    for (const userId of userIds) {
-      const redisPresence = await this.redis.getJson<any>(`presence:${userId}`);
-      if (redisPresence) {
-        presenceMap.set(userId, redisPresence);
+    // Batch Redis lookups with MGET instead of N individual calls
+    const redisKeys = userIds.map((id) => `presence:${id}`);
+    const redisValues = await this.redis.mget(...redisKeys);
+    for (let i = 0; i < userIds.length; i++) {
+      const raw = redisValues[i];
+      if (raw) {
+        try {
+          presenceMap.set(userIds[i]!, JSON.parse(raw));
+        } catch {
+          // ignore malformed Redis presence
+        }
       }
     }
 

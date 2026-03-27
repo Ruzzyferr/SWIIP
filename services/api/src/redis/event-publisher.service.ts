@@ -438,15 +438,17 @@ export class EventPublisherService implements OnModuleInit {
   @OnEvent('moderation.action')
   async onModerationAction(payload: {
     guildId: string;
-    targetUserId: string;
-    action: string;
-    reason?: string;
+    actorId: string;
+    targetId: string;
+    type: string;
+    actionId: string;
   }): Promise<void> {
     await this.publishGuildEvent(payload.guildId, 'MODERATION_ACTION', {
       guildId: payload.guildId,
-      targetUserId: payload.targetUserId,
-      action: payload.action,
-      reason: payload.reason,
+      actorId: payload.actorId,
+      targetId: payload.targetId,
+      type: payload.type,
+      actionId: payload.actionId,
     });
   }
 }

@@ -13,6 +13,7 @@ import {
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { IsString, IsEnum, IsOptional, IsBoolean } from 'class-validator';
 import { RoomsService, QualityProfile } from './rooms.service';
+import { InternalTokenGuard } from '../guards/internal-token.guard';
 
 class JoinRoomDto {
   @IsString() userId!: string;
@@ -38,6 +39,7 @@ export class RoomsController {
 
   @Post(':guildId/:channelId/join')
   @HttpCode(HttpStatus.OK)
+  @UseGuards(InternalTokenGuard)
   @ApiOperation({ summary: 'Get a LiveKit token to join a voice/video channel' })
   async join(
     @Param('guildId') guildId: string,
@@ -83,6 +85,7 @@ export class RoomsController {
 
   @Delete(':guildId/:channelId/participants/:userId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(InternalTokenGuard)
   @ApiOperation({ summary: 'Remove a participant (mod action)' })
   async removeParticipant(
     @Param('guildId') guildId: string,

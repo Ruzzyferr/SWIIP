@@ -21,6 +21,8 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthUser } from '../auth/auth.service';
 import { PrismaService } from '../prisma/prisma.service';
+import { PermissionsService, Permissions } from '../permissions/permissions.service';
+import { ForbiddenException, NotFoundException } from '@nestjs/common';
 
 class FilePresignRequest {
   @IsString()
@@ -50,6 +52,7 @@ export class UploadsController {
   constructor(
     private readonly uploadsService: UploadsService,
     private readonly prisma: PrismaService,
+    private readonly permissionsService: PermissionsService,
   ) {}
 
   @Post('avatars')
@@ -120,6 +123,11 @@ export class UploadsController {
     )
     file: Express.Multer.File,
   ) {
+    const perms = await this.permissionsService.computePermissionsForUser(user.userId, guildId);
+    if (!this.permissionsService.isAdministrator(perms) && !this.permissionsService.hasPermission(perms, Permissions.MANAGE_GUILD)) {
+      throw new ForbiddenException('You need MANAGE_GUILD permission to upload a guild icon');
+    }
+
     const result = await this.uploadsService.uploadGuildIcon(guildId, file);
     await this.prisma.guild.update({
       where: { id: guildId },
@@ -136,6 +144,22 @@ export class UploadsController {
     @CurrentUser() user: AuthUser,
     @Body() dto: PresignAttachmentsDto,
   ) {
+    const channel = await this.prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { guildId: true },
+    });
+    if (!channel) {
+      throw new NotFoundException('Channel not found');
+    }
+    if (channel.guildId) {
+      const member = await this.prisma.guildMember.findUnique({
+        where: { guildId_userId: { guildId: channel.guildId, userId: user.userId } },
+      });
+      if (!member) {
+        throw new ForbiddenException('You are not a member of this guild');
+      }
+    }
+
     const results = await Promise.all(
       dto.files.map(async (file) => {
         const presigned = await this.uploadsService.createPresignedUpload(

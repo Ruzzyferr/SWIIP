@@ -47,6 +47,62 @@ export class RolesService {
     private readonly permissionsService: PermissionsService,
   ) {}
 
+  /**
+   * Ensures the actor's highest role position is above the target role's position.
+   * Guild owners bypass this check. Throws ForbiddenException if hierarchy is violated.
+   */
+  private async assertRoleHierarchy(
+    actorId: string,
+    guildId: string,
+    targetRolePosition: number,
+  ): Promise<void> {
+    const guild = await this.prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { ownerId: true },
+    });
+
+    if (!guild) throw new NotFoundException('Guild not found');
+
+    // Guild owner bypasses hierarchy checks
+    if (guild.ownerId === actorId) return;
+
+    // Get the actor's member record to find their roles
+    const member = await this.prisma.guildMember.findUnique({
+      where: { guildId_userId: { guildId, userId: actorId } },
+      select: { roles: true },
+    });
+
+    if (!member || member.roles.length === 0) {
+      throw new ForbiddenException(
+        'You do not have any roles with a high enough position to perform this action',
+      );
+    }
+
+    // Get the highest position among the actor's roles
+    const actorRoles = await this.prisma.role.findMany({
+      where: { id: { in: member.roles }, guildId },
+      select: { position: true },
+      orderBy: { position: 'desc' },
+      take: 1,
+    });
+
+    const actorHighestPosition = actorRoles.length > 0 ? actorRoles[0]!.position : 0;
+
+    if (targetRolePosition >= actorHighestPosition) {
+      throw new ForbiddenException(
+        'You cannot manage a role that is equal to or higher than your highest role',
+      );
+    }
+  }
+
+  private parseBigIntPermissions(value: string): bigint {
+    try {
+      return BigInt(value);
+    } catch {
+      throw new BadRequestException('Invalid permissions value');
+    }
+  }
+
   async create(guildId: string, actorId: string, dto: CreateRoleDto) {
     const perms = await this.permissionsService.computePermissionsForUser(actorId, guildId);
     if (
@@ -61,6 +117,11 @@ export class RolesService {
       _max: { position: true },
     });
 
+    const newPosition = (maxPosition._max.position ?? 0) + 1;
+
+    // Ensure the actor's highest role is above the new role's position
+    await this.assertRoleHierarchy(actorId, guildId, newPosition);
+
     const role = await this.prisma.role.create({
       data: {
         guildId,
@@ -68,8 +129,8 @@ export class RolesService {
         color: dto.color ?? 0,
         hoist: dto.hoist ?? false,
         mentionable: dto.mentionable ?? false,
-        permissionsInteger: dto.permissions ? BigInt(dto.permissions) : 0n,
-        position: (maxPosition._max.position ?? 0) + 1,
+        permissionsInteger: dto.permissions ? this.parseBigIntPermissions(dto.permissions) : 0n,
+        position: newPosition,
       },
     });
 
@@ -99,6 +160,9 @@ export class RolesService {
       throw new ForbiddenException('Missing MANAGE_ROLES permission');
     }
 
+    // Enforce role hierarchy: actor's highest role must be above the target role
+    await this.assertRoleHierarchy(actorId, guildId, role.position);
+
     const updated = await this.prisma.role.update({
       where: { id: roleId },
       data: {
@@ -106,7 +170,7 @@ export class RolesService {
         ...(dto.color !== undefined && { color: dto.color }),
         ...(dto.hoist !== undefined && { hoist: dto.hoist }),
         ...(dto.mentionable !== undefined && { mentionable: dto.mentionable }),
-        ...(dto.permissions !== undefined && { permissionsInteger: BigInt(dto.permissions) }),
+        ...(dto.permissions !== undefined && { permissionsInteger: this.parseBigIntPermissions(dto.permissions) }),
         ...(dto.icon !== undefined && { icon: dto.icon }),
         ...(dto.unicodeEmoji !== undefined && { unicodeEmoji: dto.unicodeEmoji }),
       },
@@ -140,6 +204,9 @@ export class RolesService {
     ) {
       throw new ForbiddenException('Missing MANAGE_ROLES permission');
     }
+
+    // Enforce role hierarchy: actor's highest role must be above the target role
+    await this.assertRoleHierarchy(actorId, guildId, role.position);
 
     await this.prisma.role.delete({ where: { id: roleId } });
 
@@ -193,6 +260,9 @@ export class RolesService {
       throw new ForbiddenException('Missing MANAGE_ROLES permission');
     }
 
+    // Enforce role hierarchy: actor's highest role must be above the assigned role
+    await this.assertRoleHierarchy(actorId, guildId, role.position);
+
     const member = await this.prisma.guildMember.findUnique({
       where: { guildId_userId: { guildId, userId: memberId } },
     });
@@ -222,6 +292,9 @@ export class RolesService {
   }
 
   async removeMemberRole(guildId: string, memberId: string, roleId: string, actorId: string) {
+    const role = await this.prisma.role.findFirst({ where: { id: roleId, guildId } });
+    if (!role) throw new NotFoundException('Role not found');
+
     const perms = await this.permissionsService.computePermissionsForUser(actorId, guildId);
     if (
       !this.permissionsService.isAdministrator(perms) &&
@@ -229,6 +302,9 @@ export class RolesService {
     ) {
       throw new ForbiddenException('Missing MANAGE_ROLES permission');
     }
+
+    // Enforce role hierarchy: actor's highest role must be above the removed role
+    await this.assertRoleHierarchy(actorId, guildId, role.position);
 
     const member = await this.prisma.guildMember.findUnique({
       where: { guildId_userId: { guildId, userId: memberId } },

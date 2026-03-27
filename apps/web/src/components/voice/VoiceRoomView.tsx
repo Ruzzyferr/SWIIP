@@ -1,5 +1,6 @@
 'use client';
 
+import { useCallback, useMemo, useRef } from 'react';
 import {
   Mic,
   MicOff,
@@ -9,17 +10,65 @@ import {
   Loader2,
   AlertTriangle,
   Phone,
+  Volume2,
+  Video,
+  VideoOff,
+  Monitor,
+  MonitorOff,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Avatar } from '@/components/ui/Avatar';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
+import { VideoTile } from './VideoTile';
 import { useVoiceStore, type VoiceParticipant } from '@/stores/voice.store';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { useVoiceActions } from '@/hooks/useVoiceActions';
+import { useLiveKitContext } from '@/contexts/LiveKitContext';
 
 // ---------------------------------------------------------------------------
-// Participant Tile
+// Per-user volume slider (used inside context menu)
+// ---------------------------------------------------------------------------
+
+function UserVolumeSlider({ userId }: { userId: string }) {
+  const volume = useVoiceStore((s) => s.userVolumes[userId] ?? 100);
+  const setUserVolume = useVoiceStore((s) => s.setUserVolume);
+
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setUserVolume(userId, Number(e.target.value));
+    },
+    [userId, setUserVolume],
+  );
+
+  return (
+    <div className="flex flex-col gap-1.5 min-w-[160px]">
+      <div className="flex items-center gap-2">
+        <Volume2 size={14} style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} />
+        <span className="text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+          User Volume
+        </span>
+        <span className="text-xs ml-auto tabular-nums" style={{ color: 'var(--color-text-tertiary)' }}>
+          {volume}%
+        </span>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={200}
+        step={1}
+        value={volume}
+        onChange={handleChange}
+        className="w-full accent-[var(--color-accent-primary)] h-1.5"
+        style={{ cursor: 'pointer' }}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Participant Tile (audio-only mode — no video)
 // ---------------------------------------------------------------------------
 
 function ParticipantTile({
@@ -43,7 +92,18 @@ function ParticipantTile({
     ? 'var(--color-voice-deafened)'
     : 'transparent';
 
-  return (
+  const contextItems: ContextMenuItem[] = isCurrentUser
+    ? []
+    : [
+        { type: 'label', label: displayName },
+        { type: 'separator' },
+        {
+          type: 'custom',
+          customContent: <UserVolumeSlider userId={participant.userId} />,
+        },
+      ];
+
+  const tile = (
     <motion.div
       layout
       initial={{ opacity: 0, scale: 0.9 }}
@@ -91,6 +151,19 @@ function ParticipantTile({
             )}
           </div>
         )}
+
+        {/* Video indicator badge */}
+        {participant.selfVideo && (
+          <div
+            className="absolute -bottom-1 -left-1 w-6 h-6 rounded-full flex items-center justify-center"
+            style={{
+              background: 'var(--color-surface-overlay)',
+              border: '2px solid var(--color-surface-raised)',
+            }}
+          >
+            <Video size={12} style={{ color: 'var(--color-success-default)' }} />
+          </div>
+        )}
       </div>
 
       {/* Name */}
@@ -109,6 +182,200 @@ function ParticipantTile({
       </span>
     </motion.div>
   );
+
+  if (isCurrentUser) return tile;
+
+  return (
+    <ContextMenu items={contextItems}>
+      {tile}
+    </ContextMenu>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Video Grid
+// ---------------------------------------------------------------------------
+
+function VideoGrid({
+  participants,
+  guildId,
+}: {
+  participants: VoiceParticipant[];
+  guildId: string;
+}) {
+  const { videoTracks } = useLiveKitContext();
+  const pinnedId = useVoiceStore((s) => s.pinnedParticipantId);
+  const setPinnedParticipant = useVoiceStore((s) => s.setPinnedParticipant);
+  const members = useGuildsStore((s) => s.members[guildId]);
+  const userId = useAuthStore((s) => s.user?.id);
+
+  // Build list of video tiles (camera + screen shares)
+  const tiles = useMemo(() => {
+    const result: {
+      key: string;
+      participantId: string;
+      displayName: string;
+      avatarUrl?: string;
+      track?: MediaStreamTrack;
+      isScreen: boolean;
+      isMuted: boolean;
+      isSpeaking: boolean;
+    }[] = [];
+
+    for (const p of participants) {
+      const member = members?.[p.userId];
+      const name = member?.nick ?? member?.user?.globalName ?? member?.user?.username ?? p.userId;
+      const avatar = member?.user?.avatar ?? (member?.user as { avatarId?: string } | undefined)?.avatarId;
+      const tracks = videoTracks[p.userId];
+
+      // Screen share tile (always shown first / pinned by default)
+      if (tracks?.screen) {
+        result.push({
+          key: `${p.userId}-screen`,
+          participantId: p.userId,
+          displayName: name,
+          avatarUrl: avatar,
+          track: tracks.screen,
+          isScreen: true,
+          isMuted: p.selfMute,
+          isSpeaking: p.speaking && !p.selfMute,
+        });
+      }
+
+      // Camera tile
+      if (tracks?.camera || p.selfVideo) {
+        result.push({
+          key: `${p.userId}-camera`,
+          participantId: p.userId,
+          displayName: name + (p.userId === userId ? ' (you)' : ''),
+          avatarUrl: avatar,
+          track: tracks?.camera,
+          isScreen: false,
+          isMuted: p.selfMute,
+          isSpeaking: p.speaking && !p.selfMute,
+        });
+      }
+    }
+
+    return result;
+  }, [participants, videoTracks, members, userId]);
+
+  if (tiles.length === 0) return null;
+
+  // Find pinned tile
+  const pinnedTile = pinnedId
+    ? tiles.find((t) => t.key === `${pinnedId}-screen` || t.key === `${pinnedId}-camera`)
+    : tiles.find((t) => t.isScreen); // Auto-pin first screen share
+
+  const otherTiles = pinnedTile
+    ? tiles.filter((t) => t.key !== pinnedTile.key)
+    : tiles;
+
+  // Grid column count based on tile count
+  const gridCols = otherTiles.length <= 1 ? 1 : otherTiles.length <= 4 ? 2 : 3;
+
+  return (
+    <div className="w-full max-w-5xl flex flex-col gap-3">
+      {/* Spotlight / pinned view */}
+      {pinnedTile && (
+        <div className="w-full">
+          <VideoTile
+            participantId={pinnedTile.participantId}
+            displayName={pinnedTile.displayName}
+            avatarUrl={pinnedTile.avatarUrl}
+            track={pinnedTile.track}
+            isScreen={pinnedTile.isScreen}
+            isMuted={pinnedTile.isMuted}
+            isSpeaking={pinnedTile.isSpeaking}
+            isPinned
+            onPin={() => setPinnedParticipant(pinnedTile.participantId)}
+          />
+        </div>
+      )}
+
+      {/* Other tiles in grid */}
+      {otherTiles.length > 0 && (
+        <div
+          className="grid gap-3"
+          style={{
+            gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
+          }}
+        >
+          {otherTiles.map((tile) => (
+            <VideoTile
+              key={tile.key}
+              participantId={tile.participantId}
+              displayName={tile.displayName}
+              avatarUrl={tile.avatarUrl}
+              track={tile.track}
+              isScreen={tile.isScreen}
+              isMuted={tile.isMuted}
+              isSpeaking={tile.isSpeaking}
+              isPinned={false}
+              onPin={() => setPinnedParticipant(tile.participantId)}
+              compact={!!pinnedTile}
+            />
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Screen Share Quality Selector (right-click for quality options)
+// ---------------------------------------------------------------------------
+
+function ScreenShareButton() {
+  const screenShareEnabled = useVoiceStore((s) => s.screenShareEnabled);
+  const screenShareQuality = useVoiceStore((s) => s.screenShareQuality);
+  const { toggleScreenShare } = useVoiceActions();
+
+  const btnClass =
+    'w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200';
+
+  const contextItems: ContextMenuItem[] = [
+    { type: 'label', label: 'Screen Share Quality' },
+    { type: 'separator' },
+    {
+      label: `720p 30fps${screenShareQuality === '720p30' ? ' ✓' : ''}`,
+      onClick: () => toggleScreenShare('720p30'),
+    },
+    {
+      label: `1080p 30fps${screenShareQuality === '1080p30' ? ' ✓' : ''}`,
+      onClick: () => toggleScreenShare('1080p30'),
+    },
+    {
+      label: `1080p 60fps (Source)${screenShareQuality === '1080p60' ? ' ✓' : ''}`,
+      onClick: () => toggleScreenShare('1080p60'),
+    },
+  ];
+
+  return (
+    <ContextMenu items={contextItems}>
+      <Tooltip content={screenShareEnabled ? 'Stop Sharing' : 'Share Screen'} placement="top">
+        <button
+          onClick={() => toggleScreenShare()}
+          className={btnClass}
+          style={{
+            color: screenShareEnabled ? '#fff' : 'var(--color-text-primary)',
+            background: screenShareEnabled
+              ? 'var(--color-danger-default)'
+              : 'var(--color-surface-raised)',
+          }}
+          onMouseEnter={(e) => {
+            if (!screenShareEnabled) e.currentTarget.style.background = 'var(--color-surface-overlay)';
+          }}
+          onMouseLeave={(e) => {
+            if (!screenShareEnabled) e.currentTarget.style.background = 'var(--color-surface-raised)';
+          }}
+          aria-label={screenShareEnabled ? 'Stop Screen Share' : 'Share Screen'}
+        >
+          {screenShareEnabled ? <MonitorOff size={20} /> : <Monitor size={20} />}
+        </button>
+      </Tooltip>
+    </ContextMenu>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -125,26 +392,56 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
   const currentChannelId = useVoiceStore((s) => s.currentChannelId);
   const selfMuted = useVoiceStore((s) => s.selfMuted);
   const selfDeafened = useVoiceStore((s) => s.selfDeafened);
+  const cameraEnabled = useVoiceStore((s) => s.cameraEnabled);
   const error = useVoiceStore((s) => s.error);
-  const participants = useVoiceStore((s) => s.getChannelParticipants(channelId));
+  // Stable selector: avoid creating new array on every unrelated store change
+  const participantsRaw = useVoiceStore((s) => s.participants);
+  const prevParticipantsRef = useRef<VoiceParticipant[]>([]);
+  const participants = useMemo(() => {
+    const filtered = Object.values(participantsRaw).filter(
+      (p) => p.channelId === channelId,
+    );
+    // Shallow-compare to avoid new reference when content hasn't changed
+    const prev = prevParticipantsRef.current;
+    if (
+      prev.length === filtered.length &&
+      prev.every((p, i) => p === filtered[i])
+    ) {
+      return prev;
+    }
+    prevParticipantsRef.current = filtered;
+    return filtered;
+  }, [participantsRaw, channelId]);
   const channel = useGuildsStore((s) => s.channels[channelId]);
   const userId = useAuthStore((s) => s.user?.id);
-  const { joinVoiceChannel, leaveVoiceChannel, toggleMute, toggleDeafen } =
-    useVoiceActions();
+  const { videoTracks } = useLiveKitContext();
+  const {
+    joinVoiceChannel,
+    leaveVoiceChannel,
+    toggleMute,
+    toggleDeafen,
+    toggleCamera,
+  } = useVoiceActions();
 
   const isInThisChannel = currentChannelId === channelId;
-  const isConnected = isInThisChannel && connectionState === 'connected';
   const isConnecting =
     isInThisChannel &&
     (connectionState === 'connecting' || connectionState === 'reconnecting');
   const hasError = isInThisChannel && connectionState === 'error';
+
+  // Check if any participant has video/screen active
+  const hasAnyVideo = useMemo(() => {
+    return participants.some(
+      (p) => p.selfVideo || p.screenSharing || videoTracks[p.userId]?.camera || videoTracks[p.userId]?.screen,
+    );
+  }, [participants, videoTracks]);
 
   const btnClass =
     'w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200';
 
   return (
     <div
-      className="flex-1 flex flex-col items-center justify-center gap-6 p-8"
+      className="flex-1 flex flex-col items-center justify-center gap-6 p-8 overflow-y-auto"
       style={{ background: 'var(--color-surface-base)' }}
     >
       {/* Channel name */}
@@ -189,8 +486,13 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
         </div>
       )}
 
-      {/* Participant grid */}
-      {participants.length > 0 && (
+      {/* Video grid (when any participant has video/screen) */}
+      {hasAnyVideo && (
+        <VideoGrid participants={participants} guildId={guildId} />
+      )}
+
+      {/* Audio-only participant grid (when no video active) */}
+      {!hasAnyVideo && participants.length > 0 && (
         <div className="flex flex-wrap gap-4 justify-center max-w-3xl">
           <AnimatePresence mode="popLayout">
             {participants.map((p) => (
@@ -242,14 +544,13 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
           </button>
         ) : (
           <>
+            {/* Mute */}
             <Tooltip content={selfMuted ? 'Unmute' : 'Mute'} placement="top">
               <button
                 onClick={toggleMute}
                 className={btnClass}
                 style={{
-                  color: selfMuted
-                    ? '#fff'
-                    : 'var(--color-text-primary)',
+                  color: selfMuted ? '#fff' : 'var(--color-text-primary)',
                   background: selfMuted
                     ? 'var(--color-danger-default)'
                     : 'var(--color-surface-raised)',
@@ -266,14 +567,13 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
               </button>
             </Tooltip>
 
+            {/* Deafen */}
             <Tooltip content={selfDeafened ? 'Undeafen' : 'Deafen'} placement="top">
               <button
                 onClick={toggleDeafen}
                 className={btnClass}
                 style={{
-                  color: selfDeafened
-                    ? '#fff'
-                    : 'var(--color-text-primary)',
+                  color: selfDeafened ? '#fff' : 'var(--color-text-primary)',
                   background: selfDeafened
                     ? 'var(--color-danger-default)'
                     : 'var(--color-surface-raised)',
@@ -290,6 +590,33 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
               </button>
             </Tooltip>
 
+            {/* Camera */}
+            <Tooltip content={cameraEnabled ? 'Turn Off Camera' : 'Turn On Camera'} placement="top">
+              <button
+                onClick={toggleCamera}
+                className={btnClass}
+                style={{
+                  color: cameraEnabled ? '#fff' : 'var(--color-text-primary)',
+                  background: cameraEnabled
+                    ? 'var(--color-success-default)'
+                    : 'var(--color-surface-raised)',
+                }}
+                onMouseEnter={(e) => {
+                  if (!cameraEnabled) e.currentTarget.style.background = 'var(--color-surface-overlay)';
+                }}
+                onMouseLeave={(e) => {
+                  if (!cameraEnabled) e.currentTarget.style.background = 'var(--color-surface-raised)';
+                }}
+                aria-label={cameraEnabled ? 'Turn Off Camera' : 'Turn On Camera'}
+              >
+                {cameraEnabled ? <Video size={20} /> : <VideoOff size={20} />}
+              </button>
+            </Tooltip>
+
+            {/* Screen Share */}
+            <ScreenShareButton />
+
+            {/* Disconnect */}
             <Tooltip content="Disconnect" placement="top">
               <button
                 onClick={leaveVoiceChannel}

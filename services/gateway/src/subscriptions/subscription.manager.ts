@@ -125,10 +125,12 @@ export class SubscriptionManager {
         if (result === 0) {
           // Backpressure: message is buffered by uWS, will be sent on drain
           log.debug({ sessionId, topic }, 'Message buffered due to backpressure');
+          sent++;
         } else if (result === -1) {
           log.warn({ sessionId, topic }, 'Send failed: socket backpressure full, message dropped');
+        } else {
+          sent++;
         }
-        sent++;
       } catch (err) {
         log.error({ err, sessionId, topic }, 'Error sending to session');
       }
@@ -214,29 +216,37 @@ export class SubscriptionManager {
     const sessions = this.topicSessions.get(topic);
     if (!sessions || sessions.size === 0) return;
 
-    for (const sessionId of sessions) {
-      const ws = this.sessionSockets.get(sessionId);
-      if (!ws) continue;
+    if (event.op === OpCode.DISPATCH) {
+      // Serialize the base payload once, then inject per-session sequence number.
+      // This avoids O(N) JSON.stringify for N subscribers.
+      const base = JSON.stringify({ op: event.op, t: event.t, d: event.d, s: 0 });
+      // The trailing `"s":0}` is a stable suffix we can replace cheaply.
+      const prefix = base.slice(0, -2); // everything before `0}`
 
-      try {
-        if (event.op === OpCode.DISPATCH) {
-          // For DISPATCH events, assign an incrementing per-session sequence number
+      for (const sessionId of sessions) {
+        const ws = this.sessionSockets.get(sessionId);
+        if (!ws) continue;
+        try {
           const userData = ws.getUserData();
           if (userData) {
             userData.sequence += 1;
-            const withSeq = JSON.stringify({
-              op: event.op,
-              t: event.t,
-              d: event.d,
-              s: userData.sequence,
-            });
-            ws.send(withSeq);
+            ws.send(prefix + userData.sequence + '}');
           }
-        } else {
-          ws.send(JSON.stringify({ op: event.op, t: event.t, d: event.d }));
+        } catch (err) {
+          log.error({ err, sessionId, topic }, 'Failed to forward Redis event to client');
         }
-      } catch (err) {
-        log.error({ err, sessionId, topic }, 'Failed to forward Redis event to client');
+      }
+    } else {
+      // Non-DISPATCH: serialize once and broadcast the same string.
+      const serialized = JSON.stringify({ op: event.op, t: event.t, d: event.d });
+      for (const sessionId of sessions) {
+        const ws = this.sessionSockets.get(sessionId);
+        if (!ws) continue;
+        try {
+          ws.send(serialized);
+        } catch (err) {
+          log.error({ err, sessionId, topic }, 'Failed to forward Redis event to client');
+        }
       }
     }
   }

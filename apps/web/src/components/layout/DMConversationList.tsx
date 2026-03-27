@@ -30,16 +30,16 @@ function DMItem({
 }) {
   const [hovered, setHovered] = useState(false);
   const otherUser = dm.recipients.find((r) => r.id !== currentUserId) ?? dm.recipients[0];
-  const presences = usePresenceStore((s) => s.users);
-
   const isGroup = dm.type === ChannelType.GROUP_DM;
+
   const displayName = isGroup
     ? (dm.name ?? dm.recipients.map((r) => r.globalName ?? r.username).join(', '))
     : (otherUser?.globalName ?? otherUser?.username ?? 'Unknown');
 
-  const status = otherUser && !isGroup
-    ? (presences[otherUser.id]?.status ?? 'offline')
-    : null;
+  const otherUserId = otherUser?.id;
+  const status = usePresenceStore((s) =>
+    otherUserId && !isGroup ? (s.users[otherUserId]?.status ?? 'offline') : null
+  );
 
   return (
     <button

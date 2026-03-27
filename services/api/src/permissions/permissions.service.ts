@@ -100,6 +100,7 @@ export class PermissionsService {
       allow: bigint;
       deny: bigint;
     }>,
+    guildId?: string,
   ): bigint {
     if (this.isAdministrator(basePerms)) {
       return basePerms;
@@ -107,9 +108,9 @@ export class PermissionsService {
 
     let permissions = basePerms;
 
-    // Apply @everyone overwrite first
+    // Apply @everyone overwrite first (the @everyone role ID equals the guild ID)
     const everyoneOverwrite = overwrites.find(
-      (o) => o.targetType === 'ROLE' && o.targetId === 'everyone',
+      (o) => o.targetType === 'ROLE' && guildId && o.targetId === guildId,
     );
     if (everyoneOverwrite) {
       permissions &= ~everyoneOverwrite.deny;
@@ -193,6 +194,7 @@ export class PermissionsService {
         allow: o.allow,
         deny: o.deny,
       })),
+      guildId,
     );
   }
 

@@ -44,6 +44,8 @@ type GatewayEventMap = {
 
   voice_state_update: [Extract<ServerEvent, { t: ServerEventType.VOICE_STATE_UPDATE }>['d']];
   voice_server_update: [Extract<ServerEvent, { t: ServerEventType.VOICE_SERVER_UPDATE }>['d']];
+  screen_share_started: [Extract<ServerEvent, { t: ServerEventType.SCREEN_SHARE_STARTED }>['d']];
+  screen_share_stopped: [Extract<ServerEvent, { t: ServerEventType.SCREEN_SHARE_STOPPED }>['d']];
 
   read_state_update: [Extract<ServerEvent, { t: ServerEventType.READ_STATE_UPDATE }>['d']];
   notification: [Extract<ServerEvent, { t: ServerEventType.NOTIFICATION }>['d']];
@@ -484,6 +486,14 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
 
       case ServerEventType.VOICE_SERVER_UPDATE:
         this.emit('voice_server_update', event.d);
+        break;
+
+      case ServerEventType.SCREEN_SHARE_STARTED:
+        this.emit('screen_share_started', event.d);
+        break;
+
+      case ServerEventType.SCREEN_SHARE_STOPPED:
+        this.emit('screen_share_stopped', event.d);
         break;
 
       case ServerEventType.READ_STATE_UPDATE:

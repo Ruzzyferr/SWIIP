@@ -65,12 +65,13 @@ export class SearchService implements OnModuleInit {
     limit = 25,
     offset = 0,
   ): Promise<{ results: MessageSearchResult[]; total: number }> {
-    const filterParts: string[] = [`guildId = "${guildId}"`];
+    const sanitize = (val: string) => val.replace(/"/g, '');
+    const filterParts: string[] = [`guildId = "${sanitize(guildId)}"`];
 
-    if (filters.channelId) filterParts.push(`channelId = "${filters.channelId}"`);
-    if (filters.authorId) filterParts.push(`authorId = "${filters.authorId}"`);
-    if (filters.after) filterParts.push(`timestamp > "${filters.after}"`);
-    if (filters.before) filterParts.push(`timestamp < "${filters.before}"`);
+    if (filters.channelId) filterParts.push(`channelId = "${sanitize(filters.channelId)}"`);
+    if (filters.authorId) filterParts.push(`authorId = "${sanitize(filters.authorId)}"`);
+    if (filters.after) filterParts.push(`timestamp > "${sanitize(filters.after)}"`);
+    if (filters.before) filterParts.push(`timestamp < "${sanitize(filters.before)}"`);
 
     try {
       const result = await this.client
@@ -118,7 +119,7 @@ export class SearchService implements OnModuleInit {
   async searchUsers(guildId: string, query: string, limit = 10): Promise<any[]> {
     try {
       const result = await this.client.index('users').search(query, {
-        filter: `guildId = "${guildId}"`,
+        filter: `guildId = "${guildId.replace(/"/g, '')}"`,
         limit,
       });
       return result.hits;

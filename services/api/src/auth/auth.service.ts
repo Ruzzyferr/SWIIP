@@ -16,6 +16,7 @@ import * as bcrypt from 'bcryptjs';
 import { authenticator } from 'otplib';
 import * as QRCode from 'qrcode';
 import { nanoid } from 'nanoid';
+import { randomInt } from 'crypto';
 import { RegisterDto } from './dto/auth.dto';
 
 export interface TokenPair {
@@ -92,7 +93,7 @@ export class AuthService {
     });
 
     // Generate 6-digit verification code and send email
-    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const code = String(randomInt(100000, 1000000));
     await this.redis.setex(
       `email:verify:code:${user.id}`,
       this.EMAIL_VERIFY_TTL,
@@ -192,7 +193,7 @@ export class AuthService {
 
     // If the user hasn't verified their email yet, send a fresh verification code
     if (!user.verified) {
-      const code = String(Math.floor(100000 + Math.random() * 900000));
+      const code = String(randomInt(100000, 1000000));
       await this.redis.setex(
         `email:verify:code:${user.id}`,
         this.EMAIL_VERIFY_TTL,
@@ -263,6 +264,20 @@ export class AuthService {
     );
 
     return newTokens;
+  }
+
+  async revokeSessionForUser(userId: string, sessionId: string): Promise<void> {
+    const session = await this.prisma.session.findUnique({
+      where: { id: sessionId },
+      select: { userId: true },
+    });
+    if (!session) {
+      throw new NotFoundException('Session not found');
+    }
+    if (session.userId !== userId) {
+      throw new UnauthorizedException('Cannot revoke a session that does not belong to you');
+    }
+    await this.logout(sessionId);
   }
 
   async logout(sessionId: string): Promise<void> {
@@ -378,7 +393,7 @@ export class AuthService {
       throw new BadRequestException('Please wait before requesting a new code');
     }
 
-    const code = String(Math.floor(100000 + Math.random() * 900000));
+    const code = String(randomInt(100000, 1000000));
     await this.redis.setex(`email:verify:code:${userId}`, this.EMAIL_VERIFY_TTL, code);
     await this.redis.setex(`email:verify:attempts:${userId}`, this.EMAIL_VERIFY_TTL, '0');
     await this.redis.setex(`email:verify:cooldown:${userId}`, this.EMAIL_RESEND_COOLDOWN, '1');

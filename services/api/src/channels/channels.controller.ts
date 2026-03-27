@@ -19,8 +19,11 @@ import {
   CreateChannelInviteDto,
 } from './channels.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { GuildPermissionGuard } from '../auth/guards/guild-permission.guard';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthUser } from '../auth/auth.service';
+import { Permissions } from '../permissions/permissions.service';
 
 @ApiTags('Channels')
 @ApiBearerAuth()
@@ -31,6 +34,8 @@ export class ChannelsController {
 
   @Post('guilds/:guildId/channels')
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.MANAGE_CHANNELS)
   @ApiOperation({ summary: 'Create a channel in a guild' })
   async create(
     @Param('guildId') guildId: string,
@@ -56,6 +61,8 @@ export class ChannelsController {
   }
 
   @Patch('channels/:id')
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.MANAGE_CHANNELS)
   @ApiOperation({ summary: 'Update a channel' })
   async update(
     @Param('id') id: string,
@@ -67,6 +74,8 @@ export class ChannelsController {
 
   @Delete('channels/:id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.MANAGE_CHANNELS)
   @ApiOperation({ summary: 'Delete a channel' })
   async delete(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     await this.channelsService.delete(id, user.userId);
@@ -74,6 +83,8 @@ export class ChannelsController {
 
   @Put('channels/:id/permissions/:overwriteId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.MANAGE_ROLES)
   @ApiOperation({ summary: 'Update channel permission overwrite' })
   async updatePermissionOverwrite(
     @Param('id') channelId: string,
@@ -93,6 +104,8 @@ export class ChannelsController {
 
   @Delete('channels/:id/permissions/:overwriteId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.MANAGE_ROLES)
   @ApiOperation({ summary: 'Delete channel permission overwrite' })
   async deletePermissionOverwrite(
     @Param('id') channelId: string,

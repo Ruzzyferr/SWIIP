@@ -35,6 +35,10 @@ export interface ClientSession {
   authenticated: boolean;
   /** IP address extracted at upgrade time. */
   remoteAddress: string;
+  /** Guild ID the user is currently in voice for (null if not in voice). */
+  voiceGuildId: string | null;
+  /** Channel ID the user is currently in voice for (null if not in voice). */
+  voiceChannelId: string | null;
 }
 
 /**

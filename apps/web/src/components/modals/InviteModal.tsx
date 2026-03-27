@@ -43,19 +43,19 @@ export function InviteModal() {
   const [expiresIn, setExpiresIn] = useState(86400);
   const [maxUses, setMaxUses] = useState(0);
 
-  // Auto-generate invite on open
+  // Auto-generate invite on open and when settings change
   useEffect(() => {
     if (guildId && channelId) {
       generateInvite();
     }
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [guildId, channelId, expiresIn, maxUses]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const generateInvite = async () => {
     setLoading(true);
     try {
       const result = await createInvite(guildId, channelId, {
-        maxAge: expiresIn || undefined,
-        maxUses: maxUses || undefined,
+        maxAge: expiresIn ?? undefined,
+        maxUses: maxUses ?? undefined,
       });
       setInvite(result);
     } catch (err: any) {
@@ -65,7 +65,7 @@ export function InviteModal() {
     }
   };
 
-  const inviteUrl = invite
+  const inviteUrl = invite && typeof window !== 'undefined'
     ? `${window.location.origin}/invite/${invite.code}`
     : '';
 

@@ -151,6 +151,18 @@ export class InvitesService {
       return { message: 'Already a member', guild: invite.guild };
     }
 
+    const activeBan = await this.prisma.moderationAction.findFirst({
+      where: {
+        guildId: invite.guildId,
+        targetId: userId,
+        type: 'BAN',
+        active: true,
+      },
+    });
+    if (activeBan) {
+      throw new ForbiddenException('You are banned from this guild');
+    }
+
     const everyoneRole = await this.prisma.role.findFirst({
       where: { guildId: invite.guildId, name: '@everyone' },
     });
@@ -169,12 +181,12 @@ export class InvitesService {
         data: { memberCount: { increment: 1 } },
       });
 
-      await tx.invite.update({
+      const updatedInvite = await tx.invite.update({
         where: { code },
         data: { uses: { increment: 1 } },
       });
 
-      if (invite.maxUses > 0 && invite.uses + 1 >= invite.maxUses) {
+      if (updatedInvite.maxUses > 0 && updatedInvite.uses >= updatedInvite.maxUses) {
         await tx.invite.delete({ where: { code } });
       }
     });

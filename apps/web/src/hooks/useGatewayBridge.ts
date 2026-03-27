@@ -101,6 +101,26 @@ export function useGatewayBridge() {
       }
       setGatewayStatus('connected');
 
+      // Populate voice store with initial voice states from READY
+      if (data.voiceStates && Array.isArray(data.voiceStates)) {
+        const voiceStore = useVoiceStore.getState();
+        for (const vs of data.voiceStates) {
+          if (vs.channelId) {
+            voiceStore.setParticipant({
+              userId: vs.userId,
+              channelId: vs.channelId,
+              selfMute: vs.selfMute,
+              selfDeaf: vs.selfDeaf,
+              serverMute: vs.serverMute,
+              serverDeaf: vs.serverDeaf,
+              speaking: vs.speaking,
+              selfVideo: vs.selfVideo ?? false,
+              screenSharing: vs.screenShare ?? false,
+            });
+          }
+        }
+      }
+
       // Ensure member maps are loaded even if READY payload omits full members.
       for (const guild of data.guilds) {
         getGuildMembers(guild.id)
@@ -210,6 +230,8 @@ export function useGatewayBridge() {
           serverMute: data.serverMute,
           serverDeaf: data.serverDeaf,
           speaking: data.speaking,
+          selfVideo: data.selfVideo ?? false,
+          screenSharing: data.screenShare ?? false,
         });
       } else {
         // User left voice — remove from all channels
@@ -226,6 +248,20 @@ export function useGatewayBridge() {
       console.debug('[Gateway] voice_server_update received', { endpoint: data.endpoint, hasToken: !!data.token });
       const voiceStore = useVoiceStore.getState();
       voiceStore.setLivekitCredentials(data.token, data.endpoint);
+    });
+
+    gw.on('screen_share_started', (data) => {
+      const voiceStore = useVoiceStore.getState();
+      if (data.channelId) {
+        voiceStore.setParticipantScreenShare(data.channelId, data.userId, true);
+      }
+    });
+
+    gw.on('screen_share_stopped', (data) => {
+      const voiceStore = useVoiceStore.getState();
+      if (data.channelId) {
+        voiceStore.setParticipantScreenShare(data.channelId, data.userId, false);
+      }
     });
 
     // --- Error ---

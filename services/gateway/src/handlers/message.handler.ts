@@ -148,7 +148,7 @@ export async function handleMessage(
 
       case OpCode.VOICE_STATE_UPDATE: {
         if (!session.authenticated || !session.userId) return;
-        const d = envelope.d as { selfMute: boolean; selfDeaf: boolean };
+        const d = envelope.d as { selfMute: boolean; selfDeaf: boolean; selfVideo?: boolean };
         await handleVoiceStateUpdate(ws, d, context);
         break;
       }
@@ -231,11 +231,39 @@ async function handlePresenceUpdate(
  */
 async function handleVoiceStateUpdate(
   ws: UWSWebSocket,
-  data: { selfMute: boolean; selfDeaf: boolean },
+  data: { selfMute: boolean; selfDeaf: boolean; selfVideo?: boolean },
   context: GatewayContext,
 ): Promise<void> {
   const session = ws.getUserData();
   const userId = session.userId!;
+  const selfMute = data.selfMute ?? false;
+  const selfDeaf = data.selfDeaf ?? false;
+  const selfVideo = data.selfVideo ?? false;
+  const guildId = session.voiceGuildId;
+
+  // Update persistent voice state in Redis for the guild the user is in voice for
+  if (guildId) {
+    try {
+      const redis = context.pubsub.getPublisher();
+      const existing = await redis.hget(`swiip:voice_states:${guildId}`, userId);
+      if (existing) {
+        const state = JSON.parse(existing);
+        state.selfMute = selfMute;
+        state.selfDeaf = selfDeaf;
+        state.selfVideo = selfVideo;
+        await redis.hset(`swiip:voice_states:${guildId}`, userId, JSON.stringify(state));
+
+        // Broadcast to guild members
+        await context.pubsub.publish(`guild:${guildId}`, {
+          op: OpCode.DISPATCH,
+          t: ServerEventType.VOICE_STATE_UPDATE,
+          d: state,
+        });
+      }
+    } catch {
+      // Non-fatal
+    }
+  }
 
   // Publish to media signalling service via pub/sub
   await context.pubsub.publish(`voice:user:${userId}`, {
@@ -243,9 +271,10 @@ async function handleVoiceStateUpdate(
     t: ServerEventType.VOICE_STATE_UPDATE,
     d: {
       userId,
-      channelId: null,
-      selfMute: data.selfMute ?? false,
-      selfDeaf: data.selfDeaf ?? false,
+      channelId: session.voiceChannelId ?? null,
+      selfMute,
+      selfDeaf,
+      selfVideo,
       serverMute: false,
       serverDeaf: false,
       speaking: false,
@@ -436,20 +465,35 @@ async function handleClientDispatch(
           'VOICE_JOIN: token issued, sending VOICE_SERVER_UPDATE',
         );
 
-        // 3. Send VOICE_SERVER_UPDATE with LiveKit credentials
+        // 3. Persist voice state to Redis so new clients see it on READY
+        const voiceState = {
+          userId: session.userId,
+          channelId: d.channelId,
+          guildId: channelData.guildId,
+          selfMute: false,
+          selfDeaf: false,
+          selfVideo: false,
+          screenShare: false,
+          serverMute: false,
+          serverDeaf: false,
+          speaking: false,
+        };
+        // Track voice channel on session
+        session.voiceGuildId = channelData.guildId;
+        session.voiceChannelId = d.channelId;
+
+        const redis = context.pubsub.getPublisher();
+        await redis.hset(
+          `swiip:voice_states:${channelData.guildId}`,
+          session.userId,
+          JSON.stringify(voiceState),
+        );
+
+        // 4. Broadcast VOICE_STATE_UPDATE to guild
         await context.pubsub.publish(`guild:${channelData.guildId}`, {
           op: OpCode.DISPATCH,
           t: ServerEventType.VOICE_STATE_UPDATE,
-          d: {
-            userId: session.userId,
-            channelId: d.channelId,
-            guildId: channelData.guildId,
-            selfMute: false,
-            selfDeaf: false,
-            serverMute: false,
-            serverDeaf: false,
-            speaking: false,
-          },
+          d: voiceState,
         });
 
         ws.send(
@@ -477,16 +521,24 @@ async function handleClientDispatch(
       // The LiveKit webhook (participant_left) handles cleanup.
       // We just publish the intent so the gateway can optimistically update.
       const userId = session.userId!;
-      const guildIds = [...session.subscribedGuilds];
-      for (const guildId of guildIds) {
+      const voiceGuildId = session.voiceGuildId;
+
+      // Clear session voice tracking
+      session.voiceGuildId = null;
+      session.voiceChannelId = null;
+
+      if (voiceGuildId) {
         try {
-          await context.pubsub.publish(`guild:${guildId}`, {
+          const leaveRedis = context.pubsub.getPublisher();
+          await leaveRedis.hdel(`swiip:voice_states:${voiceGuildId}`, userId);
+
+          await context.pubsub.publish(`guild:${voiceGuildId}`, {
             op: OpCode.DISPATCH,
             t: ServerEventType.VOICE_STATE_UPDATE,
             d: {
               userId,
               channelId: null,
-              guildId,
+              guildId: voiceGuildId,
               selfMute: false,
               selfDeaf: false,
               serverMute: false,
@@ -496,10 +548,71 @@ async function handleClientDispatch(
           });
         } catch (err) {
           log.warn(
-            { err, guildId, userId },
-            'VOICE_LEAVE: failed to publish voice state update for guild',
+            { err, guildId: voiceGuildId, userId },
+            'VOICE_LEAVE: failed to publish voice state update',
           );
         }
+      }
+      break;
+    }
+
+    case ClientEventType.SCREEN_SHARE_START: {
+      const d = data as { channelId: string; quality?: '720p30' | '1080p30' | '1080p60' };
+      const userId = session.userId!;
+      const guildId = session.voiceGuildId;
+      if (!guildId || !d.channelId) return;
+
+      try {
+        const redis = context.pubsub.getPublisher();
+        const existing = await redis.hget(`swiip:voice_states:${guildId}`, userId);
+        if (existing) {
+          const state = JSON.parse(existing);
+          state.screenShare = true;
+          await redis.hset(`swiip:voice_states:${guildId}`, userId, JSON.stringify(state));
+        }
+
+        await context.pubsub.publish(`guild:${guildId}`, {
+          op: OpCode.DISPATCH,
+          t: ServerEventType.SCREEN_SHARE_STARTED,
+          d: {
+            userId,
+            channelId: d.channelId,
+            guildId,
+            quality: d.quality ?? '1080p30',
+          },
+        });
+      } catch (err) {
+        log.warn({ err, userId }, 'SCREEN_SHARE_START: failed');
+      }
+      break;
+    }
+
+    case ClientEventType.SCREEN_SHARE_STOP: {
+      const userId = session.userId!;
+      const guildId = session.voiceGuildId;
+      const channelId = session.voiceChannelId;
+      if (!guildId) return;
+
+      try {
+        const redis = context.pubsub.getPublisher();
+        const existing = await redis.hget(`swiip:voice_states:${guildId}`, userId);
+        if (existing) {
+          const state = JSON.parse(existing);
+          state.screenShare = false;
+          await redis.hset(`swiip:voice_states:${guildId}`, userId, JSON.stringify(state));
+        }
+
+        await context.pubsub.publish(`guild:${guildId}`, {
+          op: OpCode.DISPATCH,
+          t: ServerEventType.SCREEN_SHARE_STOPPED,
+          d: {
+            userId,
+            channelId: channelId ?? '',
+            guildId,
+          },
+        });
+      } catch (err) {
+        log.warn({ err, userId }, 'SCREEN_SHARE_STOP: failed');
       }
       break;
     }
@@ -507,16 +620,32 @@ async function handleClientDispatch(
     case ClientEventType.TYPING_START: {
       const d = data as { channelId: string };
       if (!d.channelId) return;
-      // Publish typing event to the channel topic
-      await context.pubsub.publish(`channel:${d.channelId}`, {
-        op: OpCode.DISPATCH,
-        t: ServerEventType.TYPING_START,
-        d: {
-          channelId: d.channelId,
-          userId: session.userId,
-          timestamp: Date.now(),
-        },
-      });
+      // Publish typing event to all subscribed guilds that may contain this channel
+      // Clients filter by channelId, so broadcasting to guild topics ensures delivery
+      for (const guildId of session.subscribedGuilds) {
+        await context.pubsub.publish(`guild:${guildId}`, {
+          op: OpCode.DISPATCH,
+          t: ServerEventType.TYPING_START,
+          d: {
+            channelId: d.channelId,
+            userId: session.userId,
+            timestamp: Date.now(),
+            guildId,
+          },
+        });
+      }
+      // Also publish to DM topic if the channel is a subscribed DM
+      if (session.subscribedDMs.has(d.channelId)) {
+        await context.pubsub.publish(`dm:${d.channelId}`, {
+          op: OpCode.DISPATCH,
+          t: ServerEventType.TYPING_START,
+          d: {
+            channelId: d.channelId,
+            userId: session.userId,
+            timestamp: Date.now(),
+          },
+        });
+      }
       break;
     }
 

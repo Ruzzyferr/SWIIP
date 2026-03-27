@@ -126,11 +126,15 @@ apiClient.interceptors.response.use(
 
         return apiClient(originalRequest);
       } catch {
-        // Refresh failed — force logout
+        // Refresh failed — force logout, preserving current path as redirect
         if (typeof window !== 'undefined') {
           const { useAuthStore } = await import('@/stores/auth.store');
           useAuthStore.getState().logout();
-          window.location.href = '/login';
+          const currentPath = window.location.pathname + window.location.search;
+          const redirectParam = currentPath && currentPath !== '/login'
+            ? `?redirect=${encodeURIComponent(currentPath)}`
+            : '';
+          window.location.href = `/login${redirectParam}`;
         }
         return Promise.reject(error);
       }

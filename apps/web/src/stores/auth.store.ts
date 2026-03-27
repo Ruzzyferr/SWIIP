@@ -75,6 +75,11 @@ export const useAuthStore = create<AuthState>()(
         sessionId: state.sessionId,
         user: state.user,
       }),
+      onRehydrateStorage: () => (state) => {
+        if (state) {
+          state.isAuthenticated = !!state.accessToken && !!state.user;
+        }
+      },
     }
   )
 );

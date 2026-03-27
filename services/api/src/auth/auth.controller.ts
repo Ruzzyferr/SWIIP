@@ -186,9 +186,8 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout all sessions except current' })
-  async logoutAll(@CurrentUser() user: AuthUser, @Res({ passthrough: true }) reply: any) {
+  async logoutAll(@CurrentUser() user: AuthUser) {
     await this.authService.revokeAllSessions(user.userId, user.sessionId);
-    this.clearRefreshCookie(reply);
   }
 
   @Get('sessions')
@@ -206,7 +205,7 @@ export class AuthController {
     @CurrentUser() user: AuthUser,
     @Param('sessionId') sessionId: string,
   ) {
-    await this.authService.logout(sessionId);
+    await this.authService.revokeSessionForUser(user.userId, sessionId);
   }
 
   @Post('mfa/setup')

@@ -14,10 +14,24 @@ interface IdentifyData {
   largeThreshold?: number;
 }
 
+interface VoiceStatePayload {
+  userId: string;
+  channelId: string;
+  guildId: string;
+  selfMute: boolean;
+  selfDeaf: boolean;
+  selfVideo?: boolean;
+  screenShare?: boolean;
+  serverMute: boolean;
+  serverDeaf: boolean;
+  speaking: boolean;
+}
+
 interface ReadyPayload {
   user: UserPayload;
   guilds: GuildPayload[];
   dms: DMChannelPayload[];
+  voiceStates: VoiceStatePayload[];
   sessionId: string;
   resumeUrl: string;
 }
@@ -156,54 +170,76 @@ async function fetchReadyPayload(
   const redis = context.pubsub.getPublisher();
   const cacheKey = `swiip:ready_cache:${userId}`;
 
-  // Try Redis cache (populated by the API service after login)
+  // Try Redis cache for user/guild/dm data (populated by the API service after login)
+  let body: { user: UserPayload; guilds: GuildPayload[]; dms: DMChannelPayload[] };
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
-      const parsed = JSON.parse(cached) as ReadyPayload;
-      // Refresh sessionId in the returned payload
-      parsed.sessionId = sessionId;
-      parsed.resumeUrl = buildResumeUrl(context);
-      return parsed;
+      const parsed = JSON.parse(cached);
+      body = { user: parsed.user, guilds: parsed.guilds, dms: parsed.dms };
+    } else {
+      throw new Error('cache miss');
     }
   } catch {
-    // Cache miss – fall through to API call
+    // Fall back to internal API
+    const url = `${context.apiBaseUrl}/internal/ready/${userId}`;
+    const response = await fetch(url, {
+      headers: {
+        'X-Internal-Token': context.config.JWT_SECRET,
+        'Content-Type': 'application/json',
+      },
+      signal: AbortSignal.timeout(5_000),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Internal API returned ${response.status} for ready payload`);
+    }
+
+    body = (await response.json()) as typeof body;
+
+    // Cache user/guild/dm data for 30s (voice states are always fetched fresh)
+    try {
+      await redis.set(cacheKey, JSON.stringify(body), 'EX', 30);
+    } catch {
+      // Non-fatal
+    }
   }
 
-  // Fall back to internal API
-  const url = `${context.apiBaseUrl}/internal/ready/${userId}`;
-  const response = await fetch(url, {
-    headers: {
-      'X-Internal-Token': context.config.JWT_SECRET,
-      'Content-Type': 'application/json',
-    },
-    signal: AbortSignal.timeout(5_000),
-  });
-
-  if (!response.ok) {
-    throw new Error(`Internal API returned ${response.status} for ready payload`);
+  // Always fetch voice states fresh from Redis (not cached)
+  const voiceStates: VoiceStatePayload[] = [];
+  try {
+    if (body.guilds.length > 0) {
+      const pipeline = redis.pipeline();
+      for (const guild of body.guilds) {
+        pipeline.hgetall(`swiip:voice_states:${guild.id}`);
+      }
+      const results = await pipeline.exec();
+      if (results) {
+        for (const [err, result] of results) {
+          if (err || !result) continue;
+          const hash = result as Record<string, string>;
+          for (const value of Object.values(hash)) {
+            try {
+              voiceStates.push(JSON.parse(value));
+            } catch {
+              // skip malformed entries
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    // Non-fatal — voice states just won't be pre-populated
   }
-
-  const body = (await response.json()) as {
-    user: UserPayload;
-    guilds: GuildPayload[];
-    dms: DMChannelPayload[];
-  };
 
   const payload: ReadyPayload = {
     user: body.user,
     guilds: body.guilds,
     dms: body.dms,
+    voiceStates,
     sessionId,
     resumeUrl: buildResumeUrl(context),
   };
-
-  // Cache for 30s to handle rapid reconnects
-  try {
-    await redis.set(cacheKey, JSON.stringify(payload), 'EX', 30);
-  } catch {
-    // Non-fatal
-  }
 
   return payload;
 }

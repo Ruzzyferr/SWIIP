@@ -312,6 +312,8 @@ export enum ClientEventType {
   VOICE_JOIN = 'VOICE_JOIN',
   VOICE_LEAVE = 'VOICE_LEAVE',
   VOICE_STATE_UPDATE = 'VOICE_STATE_UPDATE',
+  SCREEN_SHARE_START = 'SCREEN_SHARE_START',
+  SCREEN_SHARE_STOP = 'SCREEN_SHARE_STOP',
   READ_STATE_UPDATE = 'READ_STATE_UPDATE',
   GUILD_MEMBER_UPDATE = 'GUILD_MEMBER_UPDATE',
   REQUEST_GUILD_MEMBERS = 'REQUEST_GUILD_MEMBERS',
@@ -371,8 +373,13 @@ export type ClientEvent =
   | { t: ClientEventType.VOICE_LEAVE; d: Record<string, never> }
   | {
       t: ClientEventType.VOICE_STATE_UPDATE;
-      d: { selfMute: boolean; selfDeaf: boolean };
+      d: { selfMute: boolean; selfDeaf: boolean; selfVideo?: boolean };
     }
+  | {
+      t: ClientEventType.SCREEN_SHARE_START;
+      d: { channelId: string; quality?: '720p30' | '1080p30' | '1080p60' };
+    }
+  | { t: ClientEventType.SCREEN_SHARE_STOP; d: Record<string, never> }
   | {
       t: ClientEventType.READ_STATE_UPDATE;
       d: { channelId: string; lastReadMessageId: string };
@@ -418,6 +425,8 @@ export enum ServerEventType {
   REACTION_REMOVE = 'REACTION_REMOVE',
   VOICE_STATE_UPDATE = 'VOICE_STATE_UPDATE',
   VOICE_SERVER_UPDATE = 'VOICE_SERVER_UPDATE',
+  SCREEN_SHARE_STARTED = 'SCREEN_SHARE_STARTED',
+  SCREEN_SHARE_STOPPED = 'SCREEN_SHARE_STOPPED',
   READ_STATE_UPDATE = 'READ_STATE_UPDATE',
   NOTIFICATION = 'NOTIFICATION',
   ERROR = 'ERROR',
@@ -435,6 +444,18 @@ export type ServerEvent =
         user: UserPayload;
         guilds: GuildPayload[];
         dms: DMChannelPayload[];
+        voiceStates?: Array<{
+          userId: string;
+          channelId: string;
+          guildId: string;
+          selfMute: boolean;
+          selfDeaf: boolean;
+          serverMute: boolean;
+          serverDeaf: boolean;
+          speaking: boolean;
+          selfVideo?: boolean;
+          screenShare?: boolean;
+        }>;
         sessionId: string;
         resumeUrl: string;
       };
@@ -518,12 +539,22 @@ export type ServerEvent =
         serverMute: boolean;
         serverDeaf: boolean;
         speaking: boolean;
+        selfVideo?: boolean;
+        screenShare?: boolean;
         guildId?: string;
       };
     }
   | {
       t: ServerEventType.VOICE_SERVER_UPDATE;
       d: { guildId: string; token: string; endpoint: string };
+    }
+  | {
+      t: ServerEventType.SCREEN_SHARE_STARTED;
+      d: { userId: string; channelId: string; guildId: string; quality: string };
+    }
+  | {
+      t: ServerEventType.SCREEN_SHARE_STOPPED;
+      d: { userId: string; channelId: string; guildId: string };
     }
   | {
       t: ServerEventType.READ_STATE_UPDATE;

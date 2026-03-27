@@ -113,15 +113,14 @@ export class MessagesService {
     }
 
     // Check slowmode
-    if (channel.slowmode > 0) {
-      const lastMessageKey = `slowmode:${channelId}:${userId}`;
-      const lastMessage = await this.redis.get(lastMessageKey);
+    const slowmodeKey = channel.slowmode > 0 ? `slowmode:${channelId}:${userId}` : null;
+    if (slowmodeKey) {
+      const lastMessage = await this.redis.get(slowmodeKey);
       if (lastMessage) {
         throw new BadRequestException(
           `Slowmode active. Wait ${channel.slowmode} seconds between messages.`,
         );
       }
-      await this.redis.setex(lastMessageKey, channel.slowmode, '1');
     }
 
     const message = await this.prisma.message.create({
@@ -136,6 +135,12 @@ export class MessagesService {
       },
       include: this.MESSAGE_INCLUDE,
     });
+
+    // Set slowmode AFTER successful message creation (not before, to avoid
+    // rate-limiting the user if the DB write fails)
+    if (slowmodeKey) {
+      await this.redis.setex(slowmodeKey, channel.slowmode, '1');
+    }
 
     // Link pending attachments to this message
     if (dto.attachmentIds && dto.attachmentIds.length > 0) {

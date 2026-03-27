@@ -303,7 +303,7 @@ export class DMsService {
 
     const limit = Math.min(options.limit ?? 50, 100);
 
-    return this.prisma.message.findMany({
+    const messages = await this.prisma.message.findMany({
       where: {
         channelId: conversationId,
         deletedAt: null,
@@ -326,5 +326,7 @@ export class DMsService {
       orderBy: { createdAt: 'desc' },
       take: limit,
     });
+
+    return messages.reverse();
   }
 }

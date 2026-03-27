@@ -79,10 +79,16 @@ export const useMessagesStore = create<MessagesState>()(
           state.channels[channelId] = defaultChannelState();
         }
         const ch = state.channels[channelId];
-        // Avoid duplicates
-        const exists = ch.messages.some((m) => m.id === message.id);
+        // Avoid duplicates — check last few messages (messages arrive in order,
+        // so duplicates are almost always near the end)
+        const msgs = ch.messages;
+        const len = msgs.length;
+        let exists = false;
+        for (let i = len - 1; i >= Math.max(0, len - 10); i--) {
+          if (msgs[i]!.id === message.id) { exists = true; break; }
+        }
         if (!exists) {
-          ch.messages.push(message);
+          msgs.push(message);
         }
       }),
 

@@ -31,17 +31,26 @@ export function DMChatView({ conversationId }: DMChatViewProps) {
 
   const [replyTo, setReplyTo] = useState<MessagePayload | null>(null);
   const [editingMessage, setEditingMessage] = useState<MessagePayload | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
 
   const dm = conversations[conversationId];
 
   // Fetch DM if not in store
   useEffect(() => {
-    if (!dm) {
+    if (!dm && !fetchError) {
       getDMChannel(conversationId)
         .then(addConversation)
-        .catch(console.error);
+        .catch((err) => {
+          console.error(err);
+          setFetchError(err?.message ?? 'Failed to load conversation');
+        });
     }
-  }, [conversationId, dm, addConversation]);
+  }, [conversationId, dm, addConversation, fetchError]);
+
+  // Reset error state when conversation changes
+  useEffect(() => {
+    setFetchError(null);
+  }, [conversationId]);
 
   // Sync active DM
   useEffect(() => {

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Hash,
@@ -335,29 +335,39 @@ export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
     openModal('create-channel', { guildId, categoryId });
   };
 
-  // Get channels for this guild
-  const guildChannels = Object.values(channels).filter(
-    (ch) => (ch as ChannelPayload & { guildId?: string }).guildId === guildId
-  );
+  // Get channels for this guild, grouped in a single pass
+  const { guildChannels, categories, uncategorized, channelsByCategory } = useMemo(() => {
+    const _guildChannels: ChannelPayload[] = [];
+    const _categories: ChannelPayload[] = [];
+    const _uncategorized: ChannelPayload[] = [];
+    const _channelsByCategory: Record<string, ChannelPayload[]> = {};
 
-  // Separate categories from channels
-  const categories = guildChannels.filter((ch) => ch.type === ChannelType.CATEGORY);
-  const textChannels = guildChannels.filter(
-    (ch) => ch.type === ChannelType.TEXT || ch.type === ChannelType.ANNOUNCEMENT
-  );
-  const voiceChannels = guildChannels.filter((ch) => ch.type === ChannelType.VOICE);
-  const uncategorized = guildChannels.filter(
-    (ch) =>
-      ch.type !== ChannelType.CATEGORY &&
-      !(ch as ChannelPayload & { categoryId?: string }).categoryId
-  );
+    for (const ch of Object.values(channels)) {
+      if ((ch as ChannelPayload & { guildId?: string }).guildId !== guildId) continue;
+      _guildChannels.push(ch);
+
+      if (ch.type === ChannelType.CATEGORY) {
+        _categories.push(ch);
+      } else {
+        const catId = (ch as ChannelPayload & { categoryId?: string }).categoryId;
+        if (catId) {
+          if (!_channelsByCategory[catId]) _channelsByCategory[catId] = [];
+          _channelsByCategory[catId].push(ch);
+        } else {
+          _uncategorized.push(ch);
+        }
+      }
+    }
+
+    return { guildChannels: _guildChannels, categories: _categories, uncategorized: _uncategorized, channelsByCategory: _channelsByCategory };
+  }, [channels, guildId]);
 
   const handleChannelClick = (channelId: string) => {
     setActiveChannel(channelId);
     if (guildId) {
       router.push(`/channels/${guildId}/${channelId}`);
       // On mobile, close the channel menu after navigating.
-      if (typeof window !== 'undefined' && window.matchMedia('(max-width: 767px)').matches) {
+      if (isMobile) {
         setMobileNavOpen(false);
       }
     }
@@ -410,24 +420,18 @@ export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
             )}
 
             {/* Categorized sections */}
-            {categories.map((cat) => {
-              const catChannels = guildChannels.filter(
-                (ch) =>
-                  (ch as ChannelPayload & { categoryId?: string }).categoryId === cat.id
-              );
-              return (
+            {categories.map((cat) => (
                 <CategorySection
                   key={cat.id}
                   name={cat.name}
                   categoryId={cat.id}
-                  channels={catChannels}
+                  channels={channelsByCategory[cat.id] ?? []}
                   activeChannelId={activeChannelId}
                   onChannelClick={handleChannelClick}
                   guildId={guildId}
                   onCreateChannel={handleCreateChannel}
                 />
-              );
-            })}
+            ))}
 
             {/* Empty state */}
             {guildChannels.length === 0 && (

@@ -37,19 +37,22 @@ async function bootstrap() {
     credentials: true,
   });
 
-  const swaggerConfig = new DocumentBuilder()
-    .setTitle('Swiip API')
-    .setDescription('Swiip REST API')
-    .setVersion('1.0')
-    .addBearerAuth()
-    .build();
-  const document = SwaggerModule.createDocument(app, swaggerConfig);
-  SwaggerModule.setup('api/docs', app, document);
+  // Only expose Swagger in non-production environments
+  if (config.NODE_ENV !== 'production') {
+    const swaggerConfig = new DocumentBuilder()
+      .setTitle('Swiip API')
+      .setDescription('Swiip REST API')
+      .setVersion('1.0')
+      .addBearerAuth()
+      .build();
+    const document = SwaggerModule.createDocument(app, swaggerConfig);
+    SwaggerModule.setup('api/docs', app, document);
+    logger.log(`Swagger docs at http://0.0.0.0:${config.PORT}/api/docs`);
+  }
 
   const port = config.PORT;
   await app.listen(port, '0.0.0.0');
   logger.log(`API running on http://0.0.0.0:${port}`);
-  logger.log(`Swagger docs at http://0.0.0.0:${port}/api/docs`);
 }
 
 bootstrap();

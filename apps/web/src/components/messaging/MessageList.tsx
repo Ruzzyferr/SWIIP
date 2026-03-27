@@ -63,15 +63,15 @@ function MessageSkeleton({ grouped = false }: { grouped?: boolean }) {
         <div
           className="h-3 rounded"
           style={{
-            width: `${40 + Math.random() * 50}%`,
+            width: grouped ? '65%' : '80%',
             background: 'var(--color-surface-raised)',
           }}
         />
-        {Math.random() > 0.5 && (
+        {!grouped && (
           <div
             className="h-3 rounded"
             style={{
-              width: `${20 + Math.random() * 40}%`,
+              width: '45%',
               background: 'var(--color-surface-raised)',
             }}
           />
@@ -241,10 +241,20 @@ export function MessageList({ channelId, lastReadMessageId, onReply }: MessageLi
               return <DateSeparator date={item.date} />;
             }
 
+            // Show unread separator BEFORE the first unread message
+            // (i.e., on the message right after the last-read one)
+            const prevMessageItem = (() => {
+              for (let i = index - 1; i >= 0; i--) {
+                const prev = listItems[i];
+                if (prev && prev.kind === 'message') return prev;
+              }
+              return null;
+            })();
             const isUnreadSeparator =
               lastReadMessageId != null &&
-              item.message.id === lastReadMessageId &&
-              index < listItems.length - 1;
+              prevMessageItem != null &&
+              prevMessageItem.kind === 'message' &&
+              prevMessageItem.message.id === lastReadMessageId;
 
             return (
               <MessageItem

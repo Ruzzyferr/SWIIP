@@ -24,6 +24,7 @@ import {
   HttpCode,
   HttpStatus,
   Logger,
+  RawBodyRequest,
   Req,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -90,9 +91,13 @@ export class WebhooksController {
   @ApiExcludeEndpoint()
   async handleLiveKitWebhook(
     @Headers('authorization') authHeader: string,
-    @Req() req: FastifyRequest,
+    @Req() req: RawBodyRequest<FastifyRequest>,
   ) {
-    const rawBody = (req as any).rawBody as Buffer;
+    const rawBody = req.rawBody;
+    if (!rawBody) {
+      this.logger.warn('LiveKit webhook: rawBody is not available — ensure rawBody is enabled');
+      return { ok: false };
+    }
 
     let event: any;
     try {
@@ -262,6 +267,20 @@ export class WebhooksController {
       }
       pipeline.del(roomKey);
       await pipeline.exec();
+
+      // Notify clients that all participants have left
+      for (const userId of members) {
+        await this.publishVoiceStateUpdate(guildId, {
+          userId,
+          channelId: null,
+          guildId,
+          selfMute: false,
+          selfDeaf: false,
+          serverMute: false,
+          serverDeaf: false,
+          speaking: false,
+        });
+      }
     }
   }
 

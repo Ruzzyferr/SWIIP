@@ -53,6 +53,7 @@ export async function sendMessage(
       nonce: data.nonce,
       referencedMessageId: data.replyToId,
       attachmentIds: data.attachmentIds,
+      mentionedUserIds: data.mentionedUserIds,
     }
   );
   return res.data;

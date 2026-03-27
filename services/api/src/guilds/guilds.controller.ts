@@ -20,8 +20,11 @@ import {
   UpdateMemberDto,
 } from './guilds.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { GuildPermissionGuard } from '../auth/guards/guild-permission.guard';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthUser } from '../auth/auth.service';
+import { Permissions } from '../permissions/permissions.service';
 
 @ApiTags('Guilds')
 @ApiBearerAuth()
@@ -44,6 +47,8 @@ export class GuildsController {
   }
 
   @Patch(':id')
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.MANAGE_GUILD)
   @ApiOperation({ summary: 'Update guild settings' })
   async update(
     @Param('id') id: string,
@@ -55,6 +60,8 @@ export class GuildsController {
 
   @Delete(':id')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.MANAGE_GUILD)
   @ApiOperation({ summary: 'Delete guild (owner only)' })
   async delete(@Param('id') id: string, @CurrentUser() user: AuthUser) {
     await this.guildsService.delete(id, user.userId);
@@ -79,6 +86,8 @@ export class GuildsController {
   }
 
   @Patch(':id/members/:userId')
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.MANAGE_ROLES)
   @ApiOperation({ summary: 'Update guild member' })
   async updateMember(
     @Param('id') guildId: string,
@@ -91,6 +100,8 @@ export class GuildsController {
 
   @Delete(':id/members/:userId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.KICK_MEMBERS)
   @ApiOperation({ summary: 'Kick guild member' })
   async removeMember(
     @Param('id') guildId: string,
@@ -102,6 +113,8 @@ export class GuildsController {
   }
 
   @Get(':id/bans')
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.BAN_MEMBERS)
   @ApiOperation({ summary: 'Get guild bans' })
   async getBans(@Param('id') id: string) {
     return this.guildsService.getBans(id);
@@ -109,6 +122,8 @@ export class GuildsController {
 
   @Put(':id/bans/:userId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.BAN_MEMBERS)
   @ApiOperation({ summary: 'Ban a user from the guild' })
   async banMember(
     @Param('id') guildId: string,
@@ -127,6 +142,8 @@ export class GuildsController {
 
   @Delete(':id/bans/:userId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.BAN_MEMBERS)
   @ApiOperation({ summary: 'Unban a user' })
   async unbanMember(
     @Param('id') guildId: string,

@@ -15,8 +15,11 @@ import {
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
 import { RolesService, CreateRoleDto, UpdateRoleDto } from './roles.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { GuildPermissionGuard } from '../auth/guards/guild-permission.guard';
+import { RequirePermissions } from '../auth/decorators/permissions.decorator';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthUser } from '../auth/auth.service';
+import { Permissions } from '../permissions/permissions.service';
 
 @ApiTags('Roles')
 @ApiBearerAuth()
@@ -33,6 +36,8 @@ export class RolesController {
 
   @Post()
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.MANAGE_ROLES)
   @ApiOperation({ summary: 'Create a role' })
   async create(
     @Param('guildId') guildId: string,
@@ -43,6 +48,8 @@ export class RolesController {
   }
 
   @Patch(':roleId')
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.MANAGE_ROLES)
   @ApiOperation({ summary: 'Update a role' })
   async update(
     @Param('guildId') guildId: string,
@@ -55,6 +62,8 @@ export class RolesController {
 
   @Delete(':roleId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.MANAGE_ROLES)
   @ApiOperation({ summary: 'Delete a role' })
   async delete(
     @Param('guildId') guildId: string,
@@ -65,6 +74,8 @@ export class RolesController {
   }
 
   @Patch()
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.MANAGE_ROLES)
   @ApiOperation({ summary: 'Reorder roles' })
   async reorder(
     @Param('guildId') guildId: string,
@@ -76,6 +87,8 @@ export class RolesController {
 
   @Put(':roleId/members/:memberId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.MANAGE_ROLES)
   @ApiOperation({ summary: 'Add role to member' })
   async addMemberRole(
     @Param('guildId') guildId: string,
@@ -88,6 +101,8 @@ export class RolesController {
 
   @Delete(':roleId/members/:memberId')
   @HttpCode(HttpStatus.NO_CONTENT)
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.MANAGE_ROLES)
   @ApiOperation({ summary: 'Remove role from member' })
   async removeMemberRole(
     @Param('guildId') guildId: string,
