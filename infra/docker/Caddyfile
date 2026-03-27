@@ -17,7 +17,7 @@ swiip.app {
     }
 
     # WebSocket gateway
-    handle /gateway {
+    handle /gateway* {
         reverse_proxy gateway:4001
     }
 

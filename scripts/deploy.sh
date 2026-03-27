@@ -103,6 +103,7 @@ health_check() {
     case "$service" in
         api)     container="swiip-api";     url="http://localhost:4000/health" ;;
         gateway) container="swiip-gateway"; url="http://localhost:4001/health" ;;
+        media-signalling) container="swiip-media-signalling"; url="http://localhost:4002/docs" ;;
         web)     container="swiip-web";     url="http://localhost:3000" ;;
         *)       warn "No health check defined for $service"; return 0 ;;
     esac
@@ -129,6 +130,31 @@ health_check() {
 
     err "$service failed health check after ${HEALTH_TIMEOUT}s"
     return 1
+}
+
+post_deploy_smoke() {
+    log "Running external smoke checks..."
+    local checks=(
+      "https://swiip.app/login"
+      "https://swiip.app/terms"
+      "https://swiip.app/privacy"
+      "https://swiip.app/forgot-password"
+      "https://swiip.app/api/health"
+    )
+
+    local failed=0
+    for url in "${checks[@]}"; do
+      local code
+      code=$(curl -s -o /dev/null -w "%{http_code}" "$url" || echo "000")
+      if [ "$code" = "200" ]; then
+        ok "Smoke check passed: $url"
+      else
+        err "Smoke check failed: $url (HTTP $code)"
+        failed=$((failed + 1))
+      fi
+    done
+
+    return "$failed"
 }
 
 # ─── Rollback ────────────────────────────────────────────────────────────────
@@ -231,6 +257,12 @@ deploy() {
         warn "Run: ./scripts/deploy.sh --rollback"
         exit 1
     else
+        if ! post_deploy_smoke; then
+            header "Deploy Complete (smoke check issues)"
+            warn "Services are healthy but smoke checks failed"
+            warn "Run: ./scripts/deploy.sh --logs web"
+            exit 1
+        fi
         header "Deploy Successful"
         ok "All ${#services[@]} service(s) healthy"
         ok "Commit: ${new_commit:0:8}"

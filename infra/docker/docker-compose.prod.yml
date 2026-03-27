@@ -51,6 +51,9 @@ services:
       NODE_ENV: production
       REDIS_URL: ${REDIS_URL}
       JWT_SECRET: ${JWT_SECRET}
+      API_INTERNAL_URL: http://api:4000
+      MEDIA_SIGNALLING_URL: http://media-signalling:4002
+      GATEWAY_PUBLIC_URL: ${PUBLIC_GATEWAY_URL:-wss://swiip.app/gateway}
       PORT: 4001
       MAX_CONNECTIONS: ${MAX_CONNECTIONS:-10000}
     ports:
@@ -78,6 +81,28 @@ services:
     depends_on:
       - api
       - gateway
+
+  media-signalling:
+    profiles: ["voice"]
+    build:
+      context: ../..
+      dockerfile: services/media-signalling/Dockerfile
+    container_name: swiip-media-signalling
+    restart: unless-stopped
+    environment:
+      NODE_ENV: production
+      PORT: 4002
+      REDIS_URL: ${REDIS_URL}
+      JWT_SECRET: ${JWT_SECRET}
+      CORS_ORIGIN: ${CORS_ORIGIN}
+      LIVEKIT_URL: ${LIVEKIT_URL}
+      LIVEKIT_WS_URL: ${LIVEKIT_WS_URL}
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+    ports:
+      - '4002:4002'
+    depends_on:
+      - redis
 
   workers:
     build:
