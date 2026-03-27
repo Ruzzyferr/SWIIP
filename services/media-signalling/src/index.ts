@@ -25,7 +25,7 @@ import { parseMediaSignallingConfig } from '@constchat/config';
 
 async function bootstrap() {
   const logger = new Logger('MediaSignalling');
-  const config = parseMediaSignallingConfig(process.env);
+  const runtimeConfig = parseMediaSignallingConfig(process.env);
 
   const app = await NestFactory.create<NestFastifyApplication>(
     MediaModule,
@@ -35,19 +35,19 @@ async function bootstrap() {
   app.useGlobalPipes(new ValidationPipe({ transform: true, whitelist: true }));
 
   app.enableCors({
-    origin: config.CORS_ORIGIN.split(','),
+    origin: runtimeConfig.CORS_ORIGIN.split(','),
     credentials: true,
   });
 
-  const config = new DocumentBuilder()
+  const swaggerConfig = new DocumentBuilder()
     .setTitle('Swiip Media Signalling')
     .setVersion('1.0')
     .addBearerAuth()
     .build();
-  const document = SwaggerModule.createDocument(app, config);
+  const document = SwaggerModule.createDocument(app, swaggerConfig);
   SwaggerModule.setup('docs', app, document);
 
-  const port = config.PORT;
+  const port = runtimeConfig.PORT;
   await app.listen(port, '0.0.0.0');
   logger.log(`Media Signalling running on :${port}`);
 }
