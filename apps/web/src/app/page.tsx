@@ -85,7 +85,7 @@ export default function LandingPage() {
           {/* CTA Buttons */}
           <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
             <a
-              href="/downloads/Swiip-Setup-0.1.0.exe"
+              href="/downloads/Swiip-Setup-latest.exe"
               className="group flex items-center gap-3 px-8 py-4 rounded-xl text-white font-semibold text-base transition-all hover:scale-[1.02] active:scale-[0.98]"
               style={{ background: 'linear-gradient(135deg, var(--color-accent-primary), #7c3aed)', boxShadow: 'var(--shadow-glow)' }}
             >
@@ -226,7 +226,7 @@ export default function LandingPage() {
             </p>
             <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
               <a
-                href="/downloads/Swiip-Setup-0.1.0.exe"
+                href="/downloads/Swiip-Setup-latest.exe"
                 className="flex items-center gap-2 px-6 py-3 rounded-xl text-white font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
                 style={{ background: 'linear-gradient(135deg, var(--color-accent-primary), #7c3aed)', boxShadow: 'var(--shadow-glow)' }}>
                 <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">

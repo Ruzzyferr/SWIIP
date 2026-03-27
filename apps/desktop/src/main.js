@@ -1,5 +1,6 @@
-const { app, BrowserWindow, shell, Menu, Tray, nativeImage, ipcMain, session } = require('electron');
+const { app, BrowserWindow, shell, Menu, Tray, nativeImage, ipcMain, session, dialog } = require('electron');
 const path = require('path');
+const { autoUpdater } = require('electron-updater');
 
 // Move userData out of OneDrive to avoid cache permission errors on Windows
 app.setPath('userData', path.join(process.env.LOCALAPPDATA || app.getPath('appData'), 'Swiip'));
@@ -212,6 +213,55 @@ function setupAppMenu() {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template));
 }
 
+// ── Auto-updater ──────────────────────────────────────────────────────────
+function setupAutoUpdater() {
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+
+  autoUpdater.on('update-available', (info) => {
+    dialog
+      .showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Update Available',
+        message: `Swiip v${info.version} is available. Download now?`,
+        buttons: ['Download', 'Later'],
+        defaultId: 0,
+      })
+      .then(({ response }) => {
+        if (response === 0) {
+          autoUpdater.downloadUpdate();
+        }
+      });
+  });
+
+  autoUpdater.on('update-downloaded', () => {
+    dialog
+      .showMessageBox(mainWindow, {
+        type: 'info',
+        title: 'Update Ready',
+        message: 'Update downloaded. Swiip will restart to apply the update.',
+        buttons: ['Restart Now', 'Later'],
+        defaultId: 0,
+      })
+      .then(({ response }) => {
+        if (response === 0) {
+          isQuitting = true;
+          autoUpdater.quitAndInstall();
+        }
+      });
+  });
+
+  autoUpdater.on('error', (err) => {
+    console.error('[AutoUpdater] Error:', err.message);
+  });
+
+  // Check for updates every 4 hours
+  autoUpdater.checkForUpdates().catch(() => {});
+  setInterval(() => {
+    autoUpdater.checkForUpdates().catch(() => {});
+  }, 4 * 60 * 60 * 1000);
+}
+
 // Prevent multiple instances
 const gotLock = app.requestSingleInstanceLock();
 if (!gotLock) {
@@ -238,6 +288,10 @@ app.on('ready', () => {
   setupAppMenu();
   createWindow();
   createTray();
+
+  if (!isDev) {
+    setupAutoUpdater();
+  }
 });
 
 app.on('window-all-closed', () => {

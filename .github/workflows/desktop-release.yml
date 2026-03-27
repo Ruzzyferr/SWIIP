@@ -105,12 +105,29 @@ jobs:
           INSTALLER_PATH="$(ls dist/Swiip-Setup-*.exe | head -n 1)"
           scp -P "$PORT" "$INSTALLER_PATH" "${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}:/opt/ConstChat/infra/docker/downloads/Swiip-Setup-${VERSION}.exe"
 
-      - name: Promote latest installer atomically
+      - name: Promote latest installer and generate update manifest
         run: |
           set -euo pipefail
           PORT="${SSH_PORT:-22}"
-          ssh -p "$PORT" "${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}" \
-            "set -euo pipefail && cd /opt/ConstChat/infra/docker/downloads && cp -f Swiip-Setup-${VERSION}.exe Swiip-Setup-latest.exe && sha256sum Swiip-Setup-latest.exe | awk '{print \$1}' > Swiip-Setup-latest.exe.sha256"
+          INSTALLER="Swiip-Setup-${VERSION}.exe"
+          ssh -p "$PORT" "${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}" bash -s <<REMOTE_EOF
+            set -euo pipefail
+            cd /opt/ConstChat/infra/docker/downloads
+            cp -f "${INSTALLER}" Swiip-Setup-latest.exe
+            sha256sum Swiip-Setup-latest.exe | awk '{print \$1}' > Swiip-Setup-latest.exe.sha256
+            SIZE=\$(stat -c%s "${INSTALLER}")
+            SHA512=\$(sha512sum "${INSTALLER}" | awk '{print \$1}')
+            cat > latest.yml <<YML
+          version: ${VERSION}
+          files:
+            - url: Swiip-Setup-${VERSION}.exe
+              sha512: \${SHA512}
+              size: \${SIZE}
+          path: Swiip-Setup-${VERSION}.exe
+          sha512: \${SHA512}
+          releaseDate: $(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+          YML
+          REMOTE_EOF
 
       - name: Verify remote hash matches build hash
         run: |
