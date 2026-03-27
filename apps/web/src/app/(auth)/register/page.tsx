@@ -124,7 +124,7 @@ export default function RegisterPage() {
         password: data.password,
       });
       setUser(res.user);
-      setTokens(res.tokens.accessToken);
+      setTokens(res.tokens.accessToken, res.tokens.refreshToken);
       setAccessToken(res.tokens.accessToken);
       setRegisteredEmail(data.email);
       setResendCooldown(60);

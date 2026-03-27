@@ -102,12 +102,18 @@ apiClient.interceptors.response.use(
       try {
         // Serialize concurrent refresh calls into one
         if (!_refreshPromise) {
-          _refreshPromise = apiClient
-            .post<{ accessToken: string }>('/auth/refresh')
-            .then((res) => res.data.accessToken)
-            .finally(() => {
-              _refreshPromise = null;
-            });
+          _refreshPromise = (async () => {
+            const { useAuthStore } = await import('@/stores/auth.store');
+            const refreshToken = useAuthStore.getState().refreshToken;
+            if (!refreshToken) throw new Error('No refresh token');
+            const res = await apiClient.post<{ accessToken: string }>(
+              '/auth/refresh',
+              { refreshToken }
+            );
+            return res.data.accessToken;
+          })().finally(() => {
+            _refreshPromise = null;
+          });
         }
 
         const newToken = await _refreshPromise;

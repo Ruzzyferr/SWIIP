@@ -6,13 +6,14 @@ import type { UserPayload } from '@constchat/protocol';
 interface AuthState {
   user: UserPayload | null;
   accessToken: string | null;
+  refreshToken: string | null;
   sessionId: string | null;
   isAuthenticated: boolean;
   isLoading: boolean;
 
   // Actions
   setUser: (user: UserPayload) => void;
-  setTokens: (accessToken: string, sessionId?: string) => void;
+  setTokens: (accessToken: string, refreshToken?: string, sessionId?: string) => void;
   setSessionId: (sessionId: string) => void;
   logout: () => void;
   updateUser: (partial: Partial<UserPayload>) => void;
@@ -24,6 +25,7 @@ export const useAuthStore = create<AuthState>()(
     immer((set) => ({
       user: null,
       accessToken: null,
+      refreshToken: null,
       sessionId: null,
       isAuthenticated: false,
       isLoading: false,
@@ -34,9 +36,12 @@ export const useAuthStore = create<AuthState>()(
           state.isAuthenticated = true;
         }),
 
-      setTokens: (accessToken, sessionId) =>
+      setTokens: (accessToken, refreshToken, sessionId) =>
         set((state) => {
           state.accessToken = accessToken;
+          if (refreshToken !== undefined) {
+            state.refreshToken = refreshToken;
+          }
           if (sessionId !== undefined) {
             state.sessionId = sessionId;
           }
@@ -52,6 +57,7 @@ export const useAuthStore = create<AuthState>()(
         set((state) => {
           state.user = null;
           state.accessToken = null;
+          state.refreshToken = null;
           state.sessionId = null;
           state.isAuthenticated = false;
         }),
@@ -72,6 +78,7 @@ export const useAuthStore = create<AuthState>()(
       name: 'constchat-auth',
       partialize: (state) => ({
         accessToken: state.accessToken,
+        refreshToken: state.refreshToken,
         user: state.user,
       }),
     }
