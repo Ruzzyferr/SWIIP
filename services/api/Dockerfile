@@ -51,4 +51,4 @@ COPY --from=builder --chown=constchat:constchat /app/deploy ./
 USER constchat
 EXPOSE 4000
 
-CMD ["node", "dist/main.js"]
+CMD ["node", "dist/src/main.js"]

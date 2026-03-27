@@ -31,11 +31,11 @@ RUN pnpm --filter @constchat/gateway deploy --prod /app/deploy
 RUN cp -r /app/services/gateway/dist /app/deploy/dist
 
 # ── Stage 3: runner ──────────────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:20-slim AS runner
 WORKDIR /app
 
-RUN addgroup --system --gid 1001 constchat
-RUN adduser --system --uid 1001 constchat
+RUN groupadd --system --gid 1001 constchat
+RUN useradd --system --uid 1001 --gid constchat constchat
 
 COPY --from=builder --chown=constchat:constchat /app/deploy ./
 
