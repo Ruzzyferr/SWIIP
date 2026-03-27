@@ -82,6 +82,19 @@ docker compose -f infra/docker/docker-compose.prod.yml \
 kubectl apply -f infra/k8s/
 ```
 
+### Desktop Installer Auto-Update
+
+Production installer delivery is automated and versioned:
+
+- GitHub workflow builds `Swiip-Setup-<version>.exe` on Windows
+- Artifact is uploaded to `/opt/ConstChat/infra/docker/downloads/`
+- `Swiip-Setup-latest.exe` is refreshed atomically on each publish
+- Deploy smoke checks verify both URL health and SHA256 integrity
+
+Primary user-facing installer URL:
+
+- `https://swiip.app/downloads/Swiip-Setup-latest.exe`
+
 ---
 
 ## Nginx Configuration

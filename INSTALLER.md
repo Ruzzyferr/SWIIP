@@ -12,6 +12,16 @@ apps/desktop/dist/
 
 Send either `.exe` to friends. The portable version runs from any folder.
 
+## Official Download URL
+
+Users should always download the latest installer from:
+
+- `https://swiip.app/downloads/Swiip-Setup-latest.exe`
+
+Version-pinned files are also published and kept for rollback/debug:
+
+- `https://swiip.app/downloads/Swiip-Setup-<version>.exe`
+
 ## How It Works
 
 The desktop app is an Electron shell that loads the hosted ConstChat web app.
@@ -63,6 +73,25 @@ npx electron-builder --win portable --publish never
 ```
 
 Output appears in `apps/desktop/dist/`.
+
+## Automated Production Publish
+
+Installer publishing is automated via GitHub Actions:
+
+- Workflow: `.github/workflows/desktop-release.yml`
+- Trigger: pushes to `master` affecting `apps/desktop/**` (or manual dispatch)
+- Flow:
+  1. Build `Swiip-Setup-<version>.exe` on `windows-latest`
+  2. Upload to production `/opt/ConstChat/infra/docker/downloads/`
+  3. Promote atomically to `Swiip-Setup-latest.exe`
+  4. Verify SHA256 and smoke-check latest URL
+
+Required repository secrets:
+
+- `PROD_SSH_HOST`
+- `PROD_SSH_USER`
+- `PROD_SSH_KEY`
+- `PROD_SSH_PORT` (optional, defaults to `22`)
 
 ### Development Mode
 

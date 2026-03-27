@@ -5,7 +5,16 @@ www.swiip.app {
 
 swiip.app {
     # Static downloads (desktop app installer)
+    @latestInstaller path /downloads/Swiip-Setup-latest.exe /downloads/Swiip-Setup-latest.exe.sha256
+    handle @latestInstaller {
+        header Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
+        header Pragma "no-cache"
+        root * /srv
+        file_server
+    }
+
     handle /downloads/* {
+        header Cache-Control "public, max-age=31536000, immutable"
         root * /srv
         file_server
     }

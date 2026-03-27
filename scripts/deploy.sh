@@ -61,6 +61,26 @@ voice_env_ready() {
     [ $missing -eq 0 ]
 }
 
+publish_latest_installer() {
+    local downloads_dir="$REPO_DIR/infra/docker/downloads"
+    local latest_versioned=""
+
+    if [ ! -d "$downloads_dir" ]; then
+        warn "Installer downloads directory missing: $downloads_dir"
+        return 0
+    fi
+
+    latest_versioned=$(ls -1 "$downloads_dir"/Swiip-Setup-*.exe 2>/dev/null | grep -v 'Swiip-Setup-latest\.exe$' | sort -V | tail -n 1 || true)
+    if [ -z "$latest_versioned" ]; then
+        warn "No versioned installer found; skipping latest installer publish"
+        return 0
+    fi
+
+    cp -f "$latest_versioned" "$downloads_dir/Swiip-Setup-latest.exe"
+    sha256sum "$downloads_dir/Swiip-Setup-latest.exe" | awk '{print $1}' > "$downloads_dir/Swiip-Setup-latest.exe.sha256"
+    ok "Installer latest alias updated from $(basename "$latest_versioned")"
+}
+
 # ─── Pre-flight checks ──────────────────────────────────────────────────────
 preflight() {
     log "Running pre-flight checks..."
@@ -154,6 +174,7 @@ post_deploy_smoke() {
       "https://swiip.app/privacy"
       "https://swiip.app/forgot-password"
       "https://swiip.app/api/health"
+      "https://swiip.app/downloads/Swiip-Setup-latest.exe"
     )
 
     local failed=0
@@ -167,6 +188,23 @@ post_deploy_smoke() {
         failed=$((failed + 1))
       fi
     done
+
+    local latest_hash_file="$REPO_DIR/infra/docker/downloads/Swiip-Setup-latest.exe.sha256"
+    if [ -f "$latest_hash_file" ]; then
+      local expected_sha
+      local actual_sha
+      expected_sha=$(cat "$latest_hash_file")
+      actual_sha=$(curl -fsSL "https://swiip.app/downloads/Swiip-Setup-latest.exe" | sha256sum | awk '{print $1}' || echo "")
+
+      if [ -n "$actual_sha" ] && [ "$actual_sha" = "$expected_sha" ]; then
+        ok "Installer hash check passed for Swiip-Setup-latest.exe"
+      else
+        err "Installer hash mismatch (expected $expected_sha got ${actual_sha:-unavailable})"
+        failed=$((failed + 1))
+      fi
+    else
+      warn "Installer hash file missing, skipping installer hash smoke check"
+    fi
 
     return "$failed"
 }
@@ -258,6 +296,8 @@ deploy() {
     else
         dc up -d --build "${services[@]}"
     fi
+
+    publish_latest_installer
 
     # Health checks
     echo ""

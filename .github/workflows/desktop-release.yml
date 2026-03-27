@@ -1,0 +1,126 @@
+name: Desktop Release
+
+on:
+  push:
+    branches: [master]
+    paths:
+      - 'apps/desktop/**'
+      - '.github/workflows/desktop-release.yml'
+  workflow_dispatch:
+
+jobs:
+  build-installer:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install dependencies
+        working-directory: apps/desktop
+        run: npm install
+
+      - name: Build NSIS installer
+        working-directory: apps/desktop
+        run: npm run build:installer
+
+      - name: Compute installer metadata
+        id: metadata
+        shell: pwsh
+        run: |
+          $pkg = Get-Content "apps/desktop/package.json" | ConvertFrom-Json
+          $version = $pkg.version
+          $artifact = "apps/desktop/dist/Swiip-Setup-$version.exe"
+          if (!(Test-Path $artifact)) {
+            throw "Installer not found at $artifact"
+          }
+          $sha = (Get-FileHash -Path $artifact -Algorithm SHA256).Hash.ToLower()
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "artifact_path=$artifact" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+          "sha256=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
+
+      - name: Upload installer artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-installer
+          path: ${{ steps.metadata.outputs.artifact_path }}
+          if-no-files-found: error
+
+      - name: Upload metadata artifact
+        shell: pwsh
+        run: |
+          $content = @"
+          VERSION=${{ steps.metadata.outputs.version }}
+          SHA256=${{ steps.metadata.outputs.sha256 }}
+          "@
+          $content | Out-File -FilePath "installer-metadata.env" -Encoding ascii
+      - name: Upload metadata artifact file
+        uses: actions/upload-artifact@v4
+        with:
+          name: desktop-installer-metadata
+          path: installer-metadata.env
+          if-no-files-found: error
+
+  publish-installer:
+    runs-on: ubuntu-latest
+    needs: build-installer
+    env:
+      SSH_PORT: ${{ secrets.PROD_SSH_PORT }}
+    steps:
+      - name: Download installer artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-installer
+          path: dist
+
+      - name: Download metadata artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: desktop-installer-metadata
+          path: dist
+
+      - name: Load metadata
+        run: |
+          set -euo pipefail
+          source dist/installer-metadata.env
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "EXPECTED_SHA256=$SHA256" >> "$GITHUB_ENV"
+
+      - name: Prepare SSH key
+        run: |
+          set -euo pipefail
+          install -m 700 -d ~/.ssh
+          printf "%s" "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H "${{ secrets.PROD_SSH_HOST }}" >> ~/.ssh/known_hosts
+
+      - name: Upload installer to production downloads
+        run: |
+          set -euo pipefail
+          PORT="${SSH_PORT:-22}"
+          INSTALLER_PATH="$(ls dist/Swiip-Setup-*.exe | head -n 1)"
+          scp -P "$PORT" "$INSTALLER_PATH" "${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}:/opt/ConstChat/infra/docker/downloads/Swiip-Setup-${VERSION}.exe"
+
+      - name: Promote latest installer atomically
+        run: |
+          set -euo pipefail
+          PORT="${SSH_PORT:-22}"
+          ssh -p "$PORT" "${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}" \
+            "set -euo pipefail && cd /opt/ConstChat/infra/docker/downloads && cp -f Swiip-Setup-${VERSION}.exe Swiip-Setup-latest.exe && sha256sum Swiip-Setup-latest.exe | awk '{print \$1}' > Swiip-Setup-latest.exe.sha256"
+
+      - name: Verify remote hash matches build hash
+        run: |
+          set -euo pipefail
+          PORT="${SSH_PORT:-22}"
+          REMOTE_SHA="$(ssh -p "$PORT" "${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}" "cat /opt/ConstChat/infra/docker/downloads/Swiip-Setup-latest.exe.sha256")"
+          test "$REMOTE_SHA" = "$EXPECTED_SHA256"
+
+      - name: Smoke check latest installer URL
+        run: |
+          set -euo pipefail
+          STATUS="$(curl -s -o /dev/null -w "%{http_code}" https://swiip.app/downloads/Swiip-Setup-latest.exe)"
+          test "$STATUS" = "200"
