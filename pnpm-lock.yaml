@@ -198,6 +198,9 @@ importers:
 
   services/api:
     dependencies:
+      '@constchat/config':
+        specifier: workspace:*
+        version: link:../../packages/config
       '@fastify/static':
         specifier: ^7.0.4
         version: 7.0.4

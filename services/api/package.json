@@ -17,6 +17,7 @@
     "db:studio": "prisma studio"
   },
   "dependencies": {
+    "@constchat/config": "workspace:*",
     "@fastify/static": "^7.0.4",
     "@nestjs/common": "^10.3",
     "@nestjs/config": "^3.2",
