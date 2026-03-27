@@ -233,7 +233,10 @@ export class GuildsService {
     guildId: string,
     options: { limit?: number; after?: string } = {},
   ) {
-    const limit = Math.min(options.limit ?? 100, 1000);
+    const parsedLimit = Number(options.limit);
+    const limit = Number.isFinite(parsedLimit) && parsedLimit > 0
+      ? Math.min(Math.floor(parsedLimit), 1000)
+      : 100;
 
     return this.prisma.guildMember.findMany({
       where: {
