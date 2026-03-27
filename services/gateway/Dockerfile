@@ -1,5 +1,5 @@
 # ── Stage 1: deps ────────────────────────────────────────────────────────────
-FROM node:22-slim AS deps
+FROM node:22-trixie-slim AS deps
 WORKDIR /app
 RUN npm install -g pnpm
 
@@ -11,7 +11,7 @@ COPY services/gateway/package.json ./services/gateway/
 RUN pnpm install --frozen-lockfile --filter @constchat/gateway...
 
 # ── Stage 2: builder ─────────────────────────────────────────────────────────
-FROM node:22-slim AS builder
+FROM node:22-trixie-slim AS builder
 WORKDIR /app
 RUN npm install -g pnpm
 
@@ -31,7 +31,7 @@ RUN pnpm --filter @constchat/gateway deploy --prod /app/deploy
 RUN cp -r /app/services/gateway/dist /app/deploy/dist
 
 # ── Stage 3: runner ──────────────────────────────────────────────────────────
-FROM node:22-slim AS runner
+FROM node:22-trixie-slim AS runner
 WORKDIR /app
 
 RUN groupadd --system --gid 1001 swiip

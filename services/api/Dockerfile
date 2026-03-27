@@ -31,12 +31,11 @@ RUN cd services/api && npx prisma generate
 
 # Create flat deployment with resolved node_modules (no pnpm symlinks)
 RUN pnpm --filter @constchat/api deploy --prod /app/deploy
-# Copy built artifacts and prisma into deploy dir
+# Copy built artifacts and prisma schema into deploy dir
 RUN cp -r /app/services/api/dist /app/deploy/dist
 RUN cp -r /app/services/api/prisma /app/deploy/prisma
-# Copy prisma client generated output
-RUN cp -r /app/services/api/node_modules/.prisma /app/deploy/node_modules/.prisma 2>/dev/null || true
-RUN cp -r /app/node_modules/.prisma /app/deploy/node_modules/.prisma 2>/dev/null || true
+# Re-generate Prisma client inside deploy dir so engine binaries match the runner
+RUN cd /app/deploy && npx prisma generate --schema=prisma/schema.prisma
 
 # ── Stage 3: runner ──────────────────────────────────────────────────────────
 FROM node:20-slim AS runner
