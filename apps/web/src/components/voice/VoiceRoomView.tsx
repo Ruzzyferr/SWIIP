@@ -667,7 +667,7 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
 
   return (
     <div
-      className="flex-1 flex flex-col items-center gap-4 p-6 overflow-hidden"
+      className="flex-1 flex flex-col items-center gap-4 p-4 sm:p-6 overflow-y-auto overflow-x-hidden"
       style={{ background: 'var(--color-surface-base)' }}
     >
       {/* Channel header */}
@@ -718,8 +718,8 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
         )}
       </AnimatePresence>
 
-      {/* Main content area — flex-1 to fill available space */}
-      <div className="flex-1 flex items-center justify-center w-full min-h-0 overflow-hidden">
+      {/* Main content area — grows but shrinks to keep controls visible */}
+      <div className="flex-1 flex items-center justify-center w-full min-h-0 overflow-hidden shrink">
         {participants.length > 0 ? (
           <VoiceRoomContent
             participants={participants}
@@ -745,9 +745,9 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
         ) : null}
       </div>
 
-      {/* Controls bar — always at bottom */}
+      {/* Controls bar — always at bottom, never hidden */}
       <motion.div
-        className="flex items-center gap-3 shrink-0"
+        className="flex items-center gap-3 shrink-0 pb-2 sm:pb-0"
         layout
       >
         {!isInThisChannel ? (

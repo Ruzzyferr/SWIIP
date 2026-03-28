@@ -30,6 +30,8 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     <AppProvider>
       <div className="flex flex-col h-screen w-screen overflow-hidden">
         <DesktopTitleBar />
+        {/* Spacer for fixed-positioned title bar (32px) */}
+        {isDesktop && <div className="shrink-0" style={{ height: 32 }} />}
         {isDesktop && <UpdateBanner />}
         <div
           className="flex flex-1 overflow-hidden"

@@ -18,10 +18,20 @@ import {
   type TrackPublication,
 } from 'livekit-client';
 import { OpCode, ClientEventType } from '@constchat/protocol';
+import { KrispNoiseFilter, type KrispNoiseFilterProcessor } from '@livekit/krisp-noise-filter';
 import { getGatewayClient } from '@/lib/gateway/GatewayClient';
 import { useVoiceStore } from '@/stores/voice.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { playJoinSound, playLeaveSound } from '@/lib/sounds';
+
+// Singleton Krisp processor — reused across reconnections
+let krispProcessor: KrispNoiseFilterProcessor | null = null;
+function getKrispProcessor(): KrispNoiseFilterProcessor {
+  if (!krispProcessor) {
+    krispProcessor = KrispNoiseFilter(); // factory function, no `new`
+  }
+  return krispProcessor;
+}
 
 /** Map of participantIdentity → { camera?: MediaStreamTrack, screen?: MediaStreamTrack } */
 export interface VideoTrackMap {
@@ -125,12 +135,12 @@ export function useLiveKitRoom() {
 
     console.debug('[LiveKit] Credentials received, connecting to', livekitUrl);
 
+    const krispEnabled = useVoiceStore.getState().settings.noiseSuppression;
     const room = new Room({
       adaptiveStream: true,
       dynacast: true,
       publishDefaults: {
         // Disable simulcast for screen share — send one high-quality stream
-        // Without this, adaptiveStream may subscribe to a low-res layer, causing cropping
         screenShareSimulcastLayers: [],
         screenShareEncoding: {
           maxBitrate: 8_000_000,
@@ -139,8 +149,11 @@ export function useLiveKitRoom() {
       },
       audioCaptureDefaults: {
         echoCancellation: true,
-        noiseSuppression: true,
+        // Browser-level NS disabled — Krisp handles it
+        noiseSuppression: false,
         autoGainControl: true,
+        // Pass Krisp processor directly in capture defaults
+        processor: krispEnabled ? getKrispProcessor() : undefined,
       },
     });
 
@@ -435,10 +448,10 @@ export function useLiveKitRoom() {
         await room.startAudio().catch(() => {});
 
         // Try to publish microphone — handle permission denial gracefully
-        const noiseSuppressionEnabled = useVoiceStore.getState().settings.noiseSuppression;
         try {
           await room.localParticipant.setMicrophoneEnabled(true, {
-            noiseSuppression: noiseSuppressionEnabled,
+            // Browser-level NS disabled — Krisp processor handles noise suppression
+            noiseSuppression: false,
             echoCancellation: true,
             autoGainControl: true,
           });
@@ -581,20 +594,34 @@ export function useLiveKitRoom() {
     }
   }, [outputDeviceId]);
 
-  // Toggle noise suppression at runtime — restart mic to apply new constraints
+  // Toggle Krisp noise suppression at runtime
   useEffect(() => {
     const room = roomRef.current;
     if (!room || room.state !== ConnectionState.Connected) return;
-    const isMuted = useVoiceStore.getState().selfMuted;
-    if (isMuted) return; // No active mic to restart
-    // Restart mic with new noise suppression setting
-    room.localParticipant.setMicrophoneEnabled(false).then(() => {
-      return room.localParticipant.setMicrophoneEnabled(true, {
-        noiseSuppression,
-        echoCancellation: true,
-        autoGainControl: true,
+
+    const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+    const localAudioTrack = micPub?.audioTrack;
+    if (!localAudioTrack) return;
+
+    if (noiseSuppression) {
+      const krisp = getKrispProcessor();
+      localAudioTrack.setProcessor(krisp).then(() => {
+        console.debug('[LiveKit] Krisp noise filter enabled');
+      }).catch((err) => {
+        console.warn('[LiveKit] Krisp enable failed:', err);
       });
-    }).catch(console.error);
+    } else {
+      // Stop processor — destroy and recreate next time
+      const existing = localAudioTrack.getProcessor();
+      if (existing) {
+        existing.destroy().then(() => {
+          krispProcessor = null; // reset singleton so a fresh one is created next enable
+          console.debug('[LiveKit] Krisp noise filter disabled');
+        }).catch((err) => {
+          console.warn('[LiveKit] Krisp disable failed:', err);
+        });
+      }
+    }
   }, [noiseSuppression]);
 
   // Sync camera enabled state to LiveKit

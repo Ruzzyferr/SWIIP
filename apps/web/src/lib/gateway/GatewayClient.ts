@@ -75,8 +75,10 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
   private heartbeatTimer: ReturnType<typeof setInterval> | null = null;
   private jitterTimeout: ReturnType<typeof setTimeout> | null = null;
   private heartbeatAckPending: boolean = false;
+  /** Number of consecutive missed heartbeat ACKs. Allows up to 2 before declaring zombie. */
+  private missedHeartbeats: number = 0;
   private reconnectAttempts: number = 0;
-  private readonly maxReconnectAttempts = 10;
+  private readonly maxReconnectAttempts = 15;
   private reconnectDelay: number = 1000;
   private token: string | null = null;
   private resumeUrl: string | null = null;
@@ -88,6 +90,10 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
   private helloTimeout: ReturnType<typeof setTimeout> | null = null;
   /** Timestamp of the last successful READY/RESUMED — used for time-based backoff reset (discord.py pattern). */
   private lastStableAt: number = 0;
+  /** Timestamp of last heartbeat ACK — used to detect zombie with tolerance. */
+  private lastAckAt: number = 0;
+  /** Bound visibility change handler for cleanup. */
+  private _onVisibilityChange: (() => void) | null = null;
 
   constructor(gatewayUrl?: string) {
     super();
@@ -243,6 +249,9 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
   private _startHeartbeat(interval: number): void {
     this._clearHeartbeat();
     this.heartbeatInterval = interval;
+    this.missedHeartbeats = 0;
+    this.lastAckAt = Date.now();
+
     // Jitter: start first beat at a random offset ≤ interval
     const jitter = Math.random() * interval;
     this.jitterTimeout = setTimeout(() => {
@@ -250,18 +259,55 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
       this._sendHeartbeat();
       this.heartbeatTimer = setInterval(() => this._sendHeartbeat(), interval);
     }, jitter);
+
+    // Handle Page Visibility API — browsers throttle timers in background tabs.
+    // When user returns, send an immediate heartbeat to keep the connection alive
+    // instead of letting the zombie detector kill it.
+    this._removeVisibilityListener();
+    if (typeof document !== 'undefined') {
+      this._onVisibilityChange = () => {
+        if (!document.hidden && this.ws?.readyState === WebSocket.OPEN) {
+          // Tab is visible again — check how long we were away
+          const elapsed = Date.now() - this.lastAckAt;
+          if (elapsed > interval * 1.5) {
+            // We likely missed beats while backgrounded — send immediate heartbeat
+            // Reset missed counter since the missed beats were due to throttling, not a dead server
+            this.missedHeartbeats = 0;
+            this.heartbeatAckPending = false;
+            this._sendHeartbeat();
+            console.debug('[Gateway] Tab restored — sent immediate heartbeat after', Math.round(elapsed / 1000), 's');
+          }
+        }
+      };
+      document.addEventListener('visibilitychange', this._onVisibilityChange);
+    }
   }
 
   private _sendHeartbeat(): void {
-    if (this.heartbeatAckPending) {
-      // Server didn't ack last heartbeat — zombie connection
-      console.warn('[Gateway] Heartbeat ACK not received — reconnecting');
-      this._clearHeartbeat();
-      this.ws?.close(4000, 'Zombie connection');
-      return;
+    // If tab is hidden, skip zombie detection — browsers throttle timers
+    const isHidden = typeof document !== 'undefined' && document.hidden;
+
+    if (this.heartbeatAckPending && !isHidden) {
+      this.missedHeartbeats++;
+      // Tolerate up to 2 missed ACKs before declaring zombie.
+      // Discord's client also allows some tolerance for network jitter.
+      if (this.missedHeartbeats >= 2) {
+        console.warn(`[Gateway] ${this.missedHeartbeats} heartbeat ACKs missed — zombie connection`);
+        this._clearHeartbeat();
+        this.ws?.close(4000, 'Zombie connection');
+        return;
+      }
+      console.debug(`[Gateway] Heartbeat ACK pending (miss ${this.missedHeartbeats}/2) — sending another`);
     }
     this.heartbeatAckPending = true;
     this.send(OpCode.HEARTBEAT, this.sequence);
+  }
+
+  private _removeVisibilityListener(): void {
+    if (this._onVisibilityChange) {
+      document.removeEventListener('visibilitychange', this._onVisibilityChange);
+      this._onVisibilityChange = null;
+    }
   }
 
   private _clearHeartbeat(): void {
@@ -273,6 +319,7 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
       clearInterval(this.heartbeatTimer);
       this.heartbeatTimer = null;
     }
+    this._removeVisibilityListener();
   }
 
   // ---------------------------------------------------------------------------
@@ -308,7 +355,7 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
           this._identify();
         }
 
-        // Start a 15s timeout for READY/RESUMED (discord.js PR #8759 pattern).
+        // Start a 30s timeout for READY/RESUMED.
         // If the server doesn't respond after IDENTIFY/RESUME, close and retry.
         this._clearHelloTimeout();
         this.helloTimeout = setTimeout(() => {
@@ -322,12 +369,14 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
             this.resumeUrl = null;
           }
           this.ws?.close(4000, 'READY timeout');
-        }, 15_000);
+        }, 30_000);
         break;
       }
 
       case OpCode.HEARTBEAT_ACK: {
         this.heartbeatAckPending = false;
+        this.missedHeartbeats = 0;
+        this.lastAckAt = Date.now();
         break;
       }
 
@@ -410,6 +459,8 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
 
       case ServerEventType.HEARTBEAT_ACK:
         this.heartbeatAckPending = false;
+        this.missedHeartbeats = 0;
+        this.lastAckAt = Date.now();
         break;
 
       case ServerEventType.INVALID_SESSION:
@@ -572,7 +623,9 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
   private _onSessionEstablished(): void {
     this.reconnectAttempts = 0;
     this.reconnectDelay = 1000;
+    this.missedHeartbeats = 0;
     this.lastStableAt = Date.now();
+    this.lastAckAt = Date.now();
     this._clearHelloTimeout();
   }
 

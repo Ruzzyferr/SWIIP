@@ -11,7 +11,9 @@ import { ChannelsModule } from './channels/channels.module';
 import { MessagesModule } from './messages/messages.module';
 import { InvitesModule } from './invites/invites.module';
 import { RolesModule } from './roles/roles.module';
-// UploadsModule excluded: requires @nestjs/platform-express (incompatible with Fastify adapter)
+// Full UploadsModule excluded: avatar/banner endpoints require @nestjs/platform-express (incompatible with Fastify).
+// PresignUploadsModule provides the presigned-URL attachment endpoint without multipart dependencies.
+import { PresignUploadsModule } from './uploads/presign.module';
 import { ModerationModule } from './moderation/moderation.module';
 // SearchModule excluded: meilisearch package not installed, not needed for demo
 import { NotificationsModule } from './notifications/notifications.module';
@@ -48,6 +50,7 @@ import { EmailModule } from './email/email.module';
     MessagesModule,
     InvitesModule,
     RolesModule,
+    PresignUploadsModule,
     ModerationModule,
     NotificationsModule,
     WebhooksModule,

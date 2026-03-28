@@ -59,10 +59,6 @@ export function useGatewayBridge() {
     setAccessToken(accessToken);
 
     // --- Connection lifecycle ---
-    gw.on('connected', () => {
-      setGatewayStatus('connected');
-    });
-
     gw.on('disconnected', (code, _reason) => {
       setGatewayStatus('disconnected');
 
@@ -80,14 +76,29 @@ export function useGatewayBridge() {
       }
     });
 
-    let lastReconnectToast = 0;
+    let reconnectToastTimeout: ReturnType<typeof setTimeout> | null = null;
 
-    gw.on('reconnecting', () => {
+    gw.on('reconnecting', (attempt) => {
       setGatewayStatus('reconnecting');
-      const now = Date.now();
-      if (now - lastReconnectToast >= 12_000) {
-        lastReconnectToast = now;
-        toastInfo('Reconnecting to server...');
+      // Only show toast after 3+ seconds of sustained reconnecting (attempt > 1),
+      // to avoid spamming on brief network blips that resolve in <1s.
+      if (attempt >= 2 && !reconnectToastTimeout) {
+        reconnectToastTimeout = setTimeout(() => {
+          reconnectToastTimeout = null;
+          // Check if still reconnecting before showing toast
+          if (useGatewayStore.getState().status === 'reconnecting') {
+            toastInfo('Reconnecting to server...');
+          }
+        }, 2000);
+      }
+    });
+
+    // Clear reconnect toast timer when connection is restored
+    gw.on('connected', () => {
+      setGatewayStatus('connected');
+      if (reconnectToastTimeout) {
+        clearTimeout(reconnectToastTimeout);
+        reconnectToastTimeout = null;
       }
     });
 
@@ -323,6 +334,7 @@ export function useGatewayBridge() {
 
     return () => {
       bridged.current = false;
+      if (reconnectToastTimeout) clearTimeout(reconnectToastTimeout);
       gw.disconnect();
       gw.removeAllListeners();
       resetGateway();

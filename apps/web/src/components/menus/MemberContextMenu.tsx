@@ -2,10 +2,13 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { UserMinus, Ban, Edit3, X } from 'lucide-react';
+import { UserMinus, Ban, Edit3, MessageSquare, User } from 'lucide-react';
 import { kickMember, banMember, updateMember } from '@/lib/api/guilds.api';
+import { openDM } from '@/lib/api/dms.api';
 import { useAuthStore } from '@/stores/auth.store';
 import { useGuildsStore } from '@/stores/guilds.store';
+import { useUIStore } from '@/stores/ui.store';
+import { useRouter } from 'next/navigation';
 import type { MemberPayload } from '@constchat/protocol';
 
 interface MemberContextMenuProps {
@@ -26,6 +29,8 @@ export function MemberContextMenu({
   const ref = useRef<HTMLDivElement>(null);
   const currentUserId = useAuthStore((s) => s.user?.id);
   const removeMember = useGuildsStore((s) => s.removeMember);
+  const openModal = useUIStore((s) => s.openModal);
+  const router = useRouter();
   const [confirmAction, setConfirmAction] = useState<'kick' | 'ban' | null>(null);
   const [banReason, setBanReason] = useState('');
   const [editNick, setEditNick] = useState(false);
@@ -34,6 +39,23 @@ export function MemberContextMenu({
 
   const isSelf = currentUserId === member.user?.id;
   const canManage = isOwner && !isSelf;
+
+  const handleSendMessage = async () => {
+    if (!member.user?.id) return;
+    try {
+      const dm = await openDM(member.user.id);
+      router.push(`/channels/@me/${dm.id}`);
+      onClose();
+    } catch (err) {
+      console.error('Failed to open DM:', err);
+    }
+  };
+
+  const handleViewProfile = () => {
+    if (!member.user?.id) return;
+    openModal('user-profile', { userId: member.user.id });
+    onClose();
+  };
 
   useEffect(() => {
     const handleClick = (e: MouseEvent) => {
@@ -119,6 +141,49 @@ export function MemberContextMenu({
         </div>
 
         <div className="p-1">
+          {/* Profile & Message — always visible (except self) */}
+          {!isSelf && !confirmAction && !editNick && (
+            <>
+              <button
+                className={menuItemClass}
+                style={{ color: 'var(--color-text-secondary)' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--color-surface-raised)';
+                  e.currentTarget.style.color = 'var(--color-text-primary)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--color-text-secondary)';
+                }}
+                onClick={handleViewProfile}
+              >
+                <User size={14} />
+                Profile
+              </button>
+              <button
+                className={menuItemClass}
+                style={{ color: 'var(--color-text-secondary)' }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--color-surface-raised)';
+                  e.currentTarget.style.color = 'var(--color-text-primary)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--color-text-secondary)';
+                }}
+                onClick={handleSendMessage}
+              >
+                <MessageSquare size={14} />
+                Message
+              </button>
+            </>
+          )}
+
+          {/* Separator between social actions and management actions */}
+          {!isSelf && canManage && !confirmAction && !editNick && (
+            <div className="my-1 border-t" style={{ borderColor: 'var(--color-border-subtle)' }} />
+          )}
+
           {/* Edit Nickname */}
           {canManage && !confirmAction && !editNick && (
             <button
@@ -178,7 +243,7 @@ export function MemberContextMenu({
             </div>
           )}
 
-          {/* Separator */}
+          {/* Separator between edit and destructive actions */}
           {canManage && !editNick && !confirmAction && (
             <div className="my-1 border-t" style={{ borderColor: 'var(--color-border-subtle)' }} />
           )}
@@ -281,10 +346,10 @@ export function MemberContextMenu({
             </div>
           )}
 
-          {/* If not owner, show nothing actionable */}
-          {!canManage && !editNick && !confirmAction && (
+          {/* Self — no actions in context menu */}
+          {isSelf && !editNick && !confirmAction && (
             <p className="px-3 py-2 text-xs" style={{ color: 'var(--color-text-muted)' }}>
-              No actions available
+              This is you
             </p>
           )}
         </div>
