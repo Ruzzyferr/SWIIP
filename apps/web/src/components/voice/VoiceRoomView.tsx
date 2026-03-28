@@ -16,7 +16,7 @@ import {
   Monitor,
   MonitorOff,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { Avatar } from '@/components/ui/Avatar';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
@@ -27,6 +27,38 @@ import { useGuildsStore } from '@/stores/guilds.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { useVoiceActions } from '@/hooks/useVoiceActions';
 import { useLiveKitContext } from '@/contexts/LiveKitContext';
+
+// ---------------------------------------------------------------------------
+// Animation variants
+// ---------------------------------------------------------------------------
+
+const tileVariants = {
+  hidden: { opacity: 0, scale: 0.85 },
+  visible: {
+    opacity: 1,
+    scale: 1,
+    transition: { type: 'spring', stiffness: 400, damping: 30, mass: 0.8 },
+  },
+  exit: {
+    opacity: 0,
+    scale: 0.85,
+    transition: { duration: 0.15, ease: 'easeOut' },
+  },
+};
+
+const spotlightVariants = {
+  hidden: { opacity: 0, y: -20 },
+  visible: {
+    opacity: 1,
+    y: 0,
+    transition: { type: 'spring', stiffness: 300, damping: 25 },
+  },
+  exit: {
+    opacity: 0,
+    y: -20,
+    transition: { duration: 0.2 },
+  },
+};
 
 // ---------------------------------------------------------------------------
 // Per-user volume slider (used inside context menu)
@@ -69,17 +101,19 @@ function UserVolumeSlider({ userId }: { userId: string }) {
 }
 
 // ---------------------------------------------------------------------------
-// Participant Tile (audio-only mode — no video)
+// Participant Tile (audio-only — shows avatar, mute/deaf badges, speaking ring)
 // ---------------------------------------------------------------------------
 
 function ParticipantTile({
   participant,
   guildId,
   isCurrentUser,
+  size = 'normal',
 }: {
   participant: VoiceParticipant;
   guildId: string;
   isCurrentUser: boolean;
+  size?: 'normal' | 'compact';
 }) {
   const members = useGuildsStore((s) => s.members[guildId]);
   const member = members?.[participant.userId];
@@ -92,6 +126,8 @@ function ParticipantTile({
     : participant.selfDeaf
     ? 'var(--color-voice-deafened)'
     : 'transparent';
+
+  const isCompact = size === 'compact';
 
   const contextItems: ContextMenuItem[] = isCurrentUser
     ? []
@@ -107,73 +143,89 @@ function ParticipantTile({
   const tile = (
     <motion.div
       layout
-      initial={{ opacity: 0, scale: 0.9 }}
-      animate={{ opacity: 1, scale: 1 }}
-      exit={{ opacity: 0, scale: 0.9 }}
-      transition={{ duration: 0.2 }}
-      className="flex flex-col items-center gap-2 p-4 rounded-xl"
+      layoutId={`participant-${participant.userId}`}
+      variants={tileVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
+      className="flex flex-col items-center justify-center rounded-xl"
       style={{
         background: 'var(--color-surface-raised)',
         border: `2px solid ${borderColor}`,
-        minWidth: 120,
-        maxWidth: 160,
         transition: 'border-color 0.1s',
+        padding: isCompact ? '12px 8px' : '24px 16px',
+        gap: isCompact ? 6 : 10,
+        minWidth: isCompact ? 80 : 0,
+        aspectRatio: isCompact ? undefined : '1 / 1',
       }}
     >
       {/* Avatar with speaking ring */}
       <div className="relative">
-        <div
-          className="rounded-full transition-shadow duration-100"
-          style={{
-            boxShadow: isSpeaking ? '0 0 12px var(--color-voice-speaking)' : 'none',
+        <motion.div
+          className="rounded-full"
+          animate={{
+            boxShadow: isSpeaking
+              ? '0 0 0 3px var(--color-voice-speaking), 0 0 16px var(--color-voice-speaking)'
+              : '0 0 0 0px transparent, 0 0 0px transparent',
           }}
+          transition={{ duration: 0.15 }}
         >
           <Avatar
             src={member?.user?.avatar ?? (member?.user as { avatarId?: string } | undefined)?.avatarId}
             userId={participant.userId}
             displayName={displayName}
-            size="xl"
+            size={isCompact ? 'md' : 'xl'}
           />
-        </div>
+        </motion.div>
 
         {/* Mute/Deaf indicator badge */}
         {(participant.selfMute || participant.selfDeaf) && (
-          <div
-            className="absolute -bottom-1 -right-1 w-6 h-6 rounded-full flex items-center justify-center"
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="absolute -bottom-1 -right-1 rounded-full flex items-center justify-center"
             style={{
+              width: isCompact ? 18 : 24,
+              height: isCompact ? 18 : 24,
               background: 'var(--color-surface-overlay)',
               border: '2px solid var(--color-surface-raised)',
             }}
           >
             {participant.selfDeaf ? (
-              <EarOff size={12} style={{ color: 'var(--color-danger-default)' }} />
+              <EarOff size={isCompact ? 9 : 12} style={{ color: 'var(--color-danger-default)' }} />
             ) : (
-              <MicOff size={12} style={{ color: 'var(--color-danger-default)' }} />
+              <MicOff size={isCompact ? 9 : 12} style={{ color: 'var(--color-danger-default)' }} />
             )}
-          </div>
+          </motion.div>
         )}
 
         {/* Video indicator badge */}
         {participant.selfVideo && (
-          <div
-            className="absolute -bottom-1 -left-1 w-6 h-6 rounded-full flex items-center justify-center"
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="absolute -bottom-1 -left-1 rounded-full flex items-center justify-center"
             style={{
+              width: isCompact ? 18 : 24,
+              height: isCompact ? 18 : 24,
               background: 'var(--color-surface-overlay)',
               border: '2px solid var(--color-surface-raised)',
             }}
           >
-            <Video size={12} style={{ color: 'var(--color-success-default)' }} />
-          </div>
+            <Video size={isCompact ? 9 : 12} style={{ color: 'var(--color-success-default)' }} />
+          </motion.div>
         )}
       </div>
 
       {/* Name */}
       <span
-        className="text-sm font-medium truncate w-full text-center"
+        className="font-medium truncate w-full text-center"
         style={{
+          fontSize: isCompact ? 11 : 13,
           color: isSpeaking
             ? 'var(--color-voice-speaking)'
             : 'var(--color-text-primary)',
+          transition: 'color 0.15s',
         }}
       >
         {displayName}
@@ -194,137 +246,264 @@ function ParticipantTile({
 }
 
 // ---------------------------------------------------------------------------
-// Video Grid
+// Adaptive grid layout calculator (Discord-style)
 // ---------------------------------------------------------------------------
 
-function VideoGrid({
+function getGridLayout(count: number): { cols: number; rows: number } {
+  if (count <= 1) return { cols: 1, rows: 1 };
+  if (count <= 2) return { cols: 2, rows: 1 };
+  if (count <= 4) return { cols: 2, rows: 2 };
+  if (count <= 6) return { cols: 3, rows: 2 };
+  if (count <= 9) return { cols: 3, rows: 3 };
+  return { cols: 4, rows: Math.ceil(count / 4) };
+}
+
+// ---------------------------------------------------------------------------
+// Voice Room Content — handles layout switching
+// ---------------------------------------------------------------------------
+
+function VoiceRoomContent({
   participants,
   guildId,
+  userId,
 }: {
   participants: VoiceParticipant[];
   guildId: string;
+  userId: string | undefined;
 }) {
   const { videoTracks } = useLiveKitContext();
   const pinnedId = useVoiceStore((s) => s.pinnedParticipantId);
   const setPinnedParticipant = useVoiceStore((s) => s.setPinnedParticipant);
   const members = useGuildsStore((s) => s.members[guildId]);
-  const userId = useAuthStore((s) => s.user?.id);
 
-  // Build list of video tiles (camera + screen shares)
-  const tiles = useMemo(() => {
-    const result: {
-      key: string;
-      participantId: string;
-      displayName: string;
-      avatarUrl?: string;
-      track?: MediaStreamTrack;
-      isScreen: boolean;
-      isMuted: boolean;
-      isSpeaking: boolean;
-    }[] = [];
+  // Classify what's happening
+  const screenSharer = useMemo(() => {
+    return participants.find(
+      (p) => p.screenSharing || videoTracks[p.userId]?.screen,
+    );
+  }, [participants, videoTracks]);
 
-    for (const p of participants) {
-      const member = members?.[p.userId];
-      const name = member?.nick ?? member?.user?.globalName ?? member?.user?.username ?? p.userId;
-      const avatar = member?.user?.avatar ?? (member?.user as { avatarId?: string } | undefined)?.avatarId;
-      const tracks = videoTracks[p.userId];
+  const hasAnyVideo = useMemo(() => {
+    return participants.some(
+      (p) =>
+        p.selfVideo ||
+        p.screenSharing ||
+        videoTracks[p.userId]?.camera ||
+        videoTracks[p.userId]?.screen,
+    );
+  }, [participants, videoTracks]);
 
-      // Screen share tile (always shown first / pinned by default)
-      if (tracks?.screen) {
-        result.push({
-          key: `${p.userId}-screen`,
-          participantId: p.userId,
-          displayName: name,
-          avatarUrl: avatar,
-          track: tracks.screen,
-          isScreen: true,
-          isMuted: p.selfMute,
-          isSpeaking: p.speaking && !p.selfMute,
-        });
-      }
+  if (participants.length === 0) return null;
 
-      // Camera tile
-      if (tracks?.camera || p.selfVideo) {
-        result.push({
-          key: `${p.userId}-camera`,
-          participantId: p.userId,
-          displayName: name + (p.userId === userId ? ' (you)' : ''),
-          avatarUrl: avatar,
-          track: tracks?.camera,
-          isScreen: false,
-          isMuted: p.selfMute,
-          isSpeaking: p.speaking && !p.selfMute,
-        });
-      }
-    }
+  // ── SPOTLIGHT MODE: Someone is screen sharing ──
+  if (screenSharer) {
+    const screenTrack = videoTracks[screenSharer.userId]?.screen;
+    const sharerMember = members?.[screenSharer.userId];
+    const sharerName =
+      sharerMember?.nick ??
+      sharerMember?.user?.globalName ??
+      sharerMember?.user?.username ??
+      screenSharer.userId;
 
-    return result;
-  }, [participants, videoTracks, members, userId]);
+    return (
+      <LayoutGroup>
+        <div className="flex-1 flex flex-col gap-3 w-full max-w-6xl min-h-0">
+          {/* Spotlight: Screen share */}
+          <AnimatePresence mode="popLayout">
+            <motion.div
+              key="spotlight"
+              variants={spotlightVariants}
+              initial="hidden"
+              animate="visible"
+              exit="exit"
+              className="flex-1 min-h-0"
+            >
+              <VideoTile
+                participantId={screenSharer.userId}
+                displayName={sharerName}
+                avatarUrl={
+                  sharerMember?.user?.avatar ??
+                  (sharerMember?.user as { avatarId?: string } | undefined)?.avatarId
+                }
+                track={screenTrack}
+                isScreen
+                isMuted={screenSharer.selfMute}
+                isSpeaking={screenSharer.speaking && !screenSharer.selfMute}
+                isPinned
+                onPin={() => setPinnedParticipant(screenSharer.userId)}
+              />
+            </motion.div>
+          </AnimatePresence>
 
-  if (tiles.length === 0) return null;
+          {/* Bottom strip: All participants (including sharer's camera) */}
+          <div className="flex gap-2 overflow-x-auto pb-1 justify-center shrink-0">
+            <AnimatePresence mode="popLayout">
+              {participants.map((p) => {
+                const tracks = videoTracks[p.userId];
+                const hasCameraTrack = !!tracks?.camera;
 
-  // Find pinned tile
-  const pinnedTile = pinnedId
-    ? tiles.find((t) => t.key === `${pinnedId}-screen` || t.key === `${pinnedId}-camera`)
-    : tiles.find((t) => t.isScreen); // Auto-pin first screen share
+                // If this participant has a camera, show video tile
+                if (hasCameraTrack) {
+                  const member = members?.[p.userId];
+                  const name =
+                    member?.nick ??
+                    member?.user?.globalName ??
+                    member?.user?.username ??
+                    p.userId;
+                  return (
+                    <motion.div
+                      key={p.userId}
+                      layout
+                      variants={tileVariants}
+                      initial="hidden"
+                      animate="visible"
+                      exit="exit"
+                      style={{ width: 200, flexShrink: 0 }}
+                    >
+                      <VideoTile
+                        participantId={p.userId}
+                        displayName={name + (p.userId === userId ? ' (you)' : '')}
+                        avatarUrl={
+                          member?.user?.avatar ??
+                          (member?.user as { avatarId?: string } | undefined)?.avatarId
+                        }
+                        track={tracks?.camera}
+                        isMuted={p.selfMute}
+                        isSpeaking={p.speaking && !p.selfMute}
+                        compact
+                        onPin={() => setPinnedParticipant(p.userId)}
+                      />
+                    </motion.div>
+                  );
+                }
 
-  const otherTiles = pinnedTile
-    ? tiles.filter((t) => t.key !== pinnedTile.key)
-    : tiles;
+                // Audio-only participant tile (compact)
+                return (
+                  <ParticipantTile
+                    key={p.userId}
+                    participant={p}
+                    guildId={guildId}
+                    isCurrentUser={p.userId === userId}
+                    size="compact"
+                  />
+                );
+              })}
+            </AnimatePresence>
+          </div>
+        </div>
+      </LayoutGroup>
+    );
+  }
 
-  // Grid column count based on tile count
-  const gridCols = otherTiles.length <= 1 ? 1 : otherTiles.length <= 4 ? 2 : 3;
+  // ── VIDEO GRID MODE: Cameras active, no screen share ──
+  if (hasAnyVideo) {
+    const videoParticipants = participants.filter(
+      (p) => p.selfVideo || videoTracks[p.userId]?.camera,
+    );
+    const audioOnlyParticipants = participants.filter(
+      (p) => !p.selfVideo && !videoTracks[p.userId]?.camera,
+    );
+
+    const { cols } = getGridLayout(videoParticipants.length);
+
+    return (
+      <LayoutGroup>
+        <div className="flex-1 flex flex-col gap-3 w-full max-w-5xl min-h-0">
+          {/* Video grid */}
+          <div
+            className="flex-1 grid gap-3 min-h-0"
+            style={{
+              gridTemplateColumns: `repeat(${cols}, 1fr)`,
+              alignContent: 'center',
+            }}
+          >
+            <AnimatePresence mode="popLayout">
+              {videoParticipants.map((p) => {
+                const member = members?.[p.userId];
+                const name =
+                  member?.nick ??
+                  member?.user?.globalName ??
+                  member?.user?.username ??
+                  p.userId;
+                const tracks = videoTracks[p.userId];
+
+                return (
+                  <motion.div
+                    key={p.userId}
+                    layout
+                    variants={tileVariants}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                  >
+                    <VideoTile
+                      participantId={p.userId}
+                      displayName={name + (p.userId === userId ? ' (you)' : '')}
+                      avatarUrl={
+                        member?.user?.avatar ??
+                        (member?.user as { avatarId?: string } | undefined)?.avatarId
+                      }
+                      track={tracks?.camera}
+                      isMuted={p.selfMute}
+                      isSpeaking={p.speaking && !p.selfMute}
+                      onPin={() => setPinnedParticipant(p.userId)}
+                    />
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </div>
+
+          {/* Audio-only participants below the video grid */}
+          {audioOnlyParticipants.length > 0 && (
+            <div className="flex gap-2 justify-center shrink-0 pb-1">
+              <AnimatePresence mode="popLayout">
+                {audioOnlyParticipants.map((p) => (
+                  <ParticipantTile
+                    key={p.userId}
+                    participant={p}
+                    guildId={guildId}
+                    isCurrentUser={p.userId === userId}
+                    size="compact"
+                  />
+                ))}
+              </AnimatePresence>
+            </div>
+          )}
+        </div>
+      </LayoutGroup>
+    );
+  }
+
+  // ── AUDIO-ONLY MODE: No video, just avatars in a grid ──
+  const { cols } = getGridLayout(participants.length);
 
   return (
-    <div className="w-full max-w-5xl flex flex-col gap-3">
-      {/* Spotlight / pinned view */}
-      {pinnedTile && (
-        <div className="w-full">
-          <VideoTile
-            participantId={pinnedTile.participantId}
-            displayName={pinnedTile.displayName}
-            avatarUrl={pinnedTile.avatarUrl}
-            track={pinnedTile.track}
-            isScreen={pinnedTile.isScreen}
-            isMuted={pinnedTile.isMuted}
-            isSpeaking={pinnedTile.isSpeaking}
-            isPinned
-            onPin={() => setPinnedParticipant(pinnedTile.participantId)}
-          />
-        </div>
-      )}
-
-      {/* Other tiles in grid */}
-      {otherTiles.length > 0 && (
-        <div
-          className="grid gap-3"
-          style={{
-            gridTemplateColumns: `repeat(${gridCols}, 1fr)`,
-          }}
-        >
-          {otherTiles.map((tile) => (
-            <VideoTile
-              key={tile.key}
-              participantId={tile.participantId}
-              displayName={tile.displayName}
-              avatarUrl={tile.avatarUrl}
-              track={tile.track}
-              isScreen={tile.isScreen}
-              isMuted={tile.isMuted}
-              isSpeaking={tile.isSpeaking}
-              isPinned={false}
-              onPin={() => setPinnedParticipant(tile.participantId)}
-              compact={!!pinnedTile}
+    <LayoutGroup>
+      <div
+        className="grid gap-4 w-full justify-center"
+        style={{
+          gridTemplateColumns: `repeat(${cols}, minmax(100px, 180px))`,
+          maxWidth: cols * 200,
+        }}
+      >
+        <AnimatePresence mode="popLayout">
+          {participants.map((p) => (
+            <ParticipantTile
+              key={p.userId}
+              participant={p}
+              guildId={guildId}
+              isCurrentUser={p.userId === userId}
             />
           ))}
-        </div>
-      )}
-    </div>
+        </AnimatePresence>
+      </div>
+    </LayoutGroup>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Screen Share Quality Selector (right-click for quality options)
+// Screen Share Button
 // ---------------------------------------------------------------------------
 
 function ScreenShareButton() {
@@ -337,10 +516,8 @@ function ScreenShareButton() {
 
   const handleClick = () => {
     if (screenShareEnabled) {
-      // Already sharing — stop
       toggleScreenShare();
     } else {
-      // Not sharing — open modal to pick quality
       setModalOpen(true);
     }
   };
@@ -404,7 +581,6 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
     const filtered = Object.values(participantsRaw).filter(
       (p) => p.channelId === channelId,
     );
-    // Shallow-compare to avoid new reference when content hasn't changed
     const prev = prevParticipantsRef.current;
     if (
       prev.length === filtered.length &&
@@ -417,7 +593,6 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
   }, [participantsRaw, channelId]);
   const channel = useGuildsStore((s) => s.channels[channelId]);
   const userId = useAuthStore((s) => s.user?.id);
-  const { videoTracks } = useLiveKitContext();
   const {
     joinVoiceChannel,
     leaveVoiceChannel,
@@ -432,101 +607,94 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
     (connectionState === 'connecting' || connectionState === 'reconnecting');
   const hasError = isInThisChannel && connectionState === 'error';
 
-  // Check if any participant has video/screen active
-  const hasAnyVideo = useMemo(() => {
-    return participants.some(
-      (p) => p.selfVideo || p.screenSharing || videoTracks[p.userId]?.camera || videoTracks[p.userId]?.screen,
-    );
-  }, [participants, videoTracks]);
-
   const btnClass =
     'w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200';
 
   return (
     <div
-      className="flex-1 flex flex-col items-center justify-center gap-6 p-8 overflow-y-auto"
+      className="flex-1 flex flex-col items-center gap-4 p-6 overflow-hidden"
       style={{ background: 'var(--color-surface-base)' }}
     >
-      {/* Channel name */}
-      <div className="text-center">
+      {/* Channel header */}
+      <div className="text-center shrink-0">
         <h2
-          className="text-xl font-bold"
+          className="text-lg font-bold"
           style={{ color: 'var(--color-text-primary)' }}
         >
           {channel?.name ?? 'Voice Channel'}
         </h2>
-        {channel?.userLimit ? (
-          <p className="text-sm mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
-            {participants.length} / {channel.userLimit} participants
-          </p>
-        ) : (
-          <p className="text-sm mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
-            {participants.length} participant{participants.length !== 1 ? 's' : ''}
-          </p>
-        )}
+        <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
+          {participants.length} participant{participants.length !== 1 ? 's' : ''}
+          {channel?.userLimit ? ` / ${channel.userLimit}` : ''}
+        </p>
       </div>
 
       {/* Status messages */}
-      {isConnecting && (
-        <div className="flex items-center gap-2" style={{ color: 'var(--color-status-idle)' }}>
-          <Loader2 size={16} className="animate-spin" />
-          <span className="text-sm">
-            {connectionState === 'reconnecting' ? 'Reconnecting...' : 'Connecting...'}
-          </span>
-        </div>
-      )}
-
-      {hasError && (
-        <div
-          className="flex items-center gap-2 px-4 py-2 rounded-lg"
-          style={{
-            background: 'var(--color-danger-muted)',
-            color: 'var(--color-danger-default)',
-          }}
-        >
-          <AlertTriangle size={16} />
-          <span className="text-sm">{error ?? 'Failed to connect to voice channel'}</span>
-        </div>
-      )}
-
-      {/* Video grid (when any participant has video/screen) */}
-      {hasAnyVideo && (
-        <VideoGrid participants={participants} guildId={guildId} />
-      )}
-
-      {/* Audio-only participant grid (when no video active) */}
-      {!hasAnyVideo && participants.length > 0 && (
-        <div className="flex flex-wrap gap-4 justify-center max-w-3xl">
-          <AnimatePresence mode="popLayout">
-            {participants.map((p) => (
-              <ParticipantTile
-                key={p.userId}
-                participant={p}
-                guildId={guildId}
-                isCurrentUser={p.userId === userId}
-              />
-            ))}
-          </AnimatePresence>
-        </div>
-      )}
-
-      {/* Empty state when nobody's in the channel and we're not connected */}
-      {!isInThisChannel && participants.length === 0 && (
-        <div className="text-center space-y-2">
-          <div
-            className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
-            style={{ background: 'var(--color-surface-raised)' }}
+      <AnimatePresence>
+        {isConnecting && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="flex items-center gap-2 shrink-0"
+            style={{ color: 'var(--color-status-idle)' }}
           >
-            <Phone size={28} style={{ color: 'var(--color-text-tertiary)' }} />
-          </div>
-          <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
-            No one is in this voice channel.
-          </p>
-        </div>
-      )}
+            <Loader2 size={16} className="animate-spin" />
+            <span className="text-sm">
+              {connectionState === 'reconnecting' ? 'Reconnecting...' : 'Connecting...'}
+            </span>
+          </motion.div>
+        )}
 
-      {/* Controls */}
-      <div className="flex items-center gap-3 mt-2">
+        {hasError && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="flex items-center gap-2 px-4 py-2 rounded-lg shrink-0"
+            style={{
+              background: 'var(--color-danger-muted)',
+              color: 'var(--color-danger-default)',
+            }}
+          >
+            <AlertTriangle size={16} />
+            <span className="text-sm">{error ?? 'Failed to connect to voice channel'}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Main content area — flex-1 to fill available space */}
+      <div className="flex-1 flex items-center justify-center w-full min-h-0 overflow-hidden">
+        {participants.length > 0 ? (
+          <VoiceRoomContent
+            participants={participants}
+            guildId={guildId}
+            userId={userId}
+          />
+        ) : !isInThisChannel ? (
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="text-center space-y-3"
+          >
+            <div
+              className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
+              style={{ background: 'var(--color-surface-raised)' }}
+            >
+              <Phone size={28} style={{ color: 'var(--color-text-tertiary)' }} />
+            </div>
+            <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
+              No one is in this voice channel.
+            </p>
+          </motion.div>
+        ) : null}
+      </div>
+
+      {/* Controls bar — always at bottom */}
+      <motion.div
+        className="flex items-center gap-3 shrink-0"
+        layout
+      >
         {!isInThisChannel ? (
           <button
             onClick={() => joinVoiceChannel(channelId)}
@@ -641,7 +809,7 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
             </Tooltip>
           </>
         )}
-      </div>
+      </motion.div>
     </div>
   );
 }

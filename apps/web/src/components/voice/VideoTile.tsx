@@ -80,10 +80,12 @@ export const VideoTile = memo(function VideoTile({
         autoPlay
         playsInline
         muted
-        className="w-full h-full object-cover"
+        className="w-full h-full"
         style={{
+          objectFit: isScreen ? 'contain' : 'cover',
           transform: isScreen ? 'none' : 'scaleX(-1)',
           display: isPlaying ? 'block' : 'none',
+          background: isScreen ? '#000' : undefined,
         }}
       />
 

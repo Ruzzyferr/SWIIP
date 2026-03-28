@@ -14,6 +14,7 @@ import {
   type LocalParticipant,
   type LocalTrackPublication,
   type Participant,
+  type TrackPublication,
 } from 'livekit-client';
 import { OpCode, ClientEventType } from '@constchat/protocol';
 import { getGatewayClient } from '@/lib/gateway/GatewayClient';
@@ -203,10 +204,13 @@ export function useLiveKitRoom() {
 
     room.on(RoomEvent.ParticipantConnected, (participant: RemoteParticipant) => {
       if (!currentChannelId) return;
+      // Note: isMicrophoneEnabled returns false until audio track is published,
+      // so default to selfMute: false (assume unmuted). TrackMuted/TrackUnmuted
+      // will update this once tracks are subscribed.
       setParticipant({
         userId: participant.identity,
         channelId: currentChannelId,
-        selfMute: participant.isMicrophoneEnabled === false,
+        selfMute: false,
         selfDeaf: false,
         serverMute: false,
         serverDeaf: false,
@@ -276,6 +280,27 @@ export function useLiveKitRoom() {
       }
     });
 
+    // Track mute/unmute for all participants (reliable mic state sync)
+    room.on(RoomEvent.TrackMuted, (publication: TrackPublication, participant: Participant) => {
+      if (publication.source === Track.Source.Microphone && currentChannelId) {
+        const key = `${currentChannelId}:${participant.identity}`;
+        const existing = useVoiceStore.getState().participants[key];
+        if (existing) {
+          setParticipant({ ...existing, selfMute: true });
+        }
+      }
+    });
+
+    room.on(RoomEvent.TrackUnmuted, (publication: TrackPublication, participant: Participant) => {
+      if (publication.source === Track.Source.Microphone && currentChannelId) {
+        const key = `${currentChannelId}:${participant.identity}`;
+        const existing = useVoiceStore.getState().participants[key];
+        if (existing) {
+          setParticipant({ ...existing, selfMute: false });
+        }
+      }
+    });
+
     // Track local participant video publications (camera + screen share)
     room.on(RoomEvent.LocalTrackPublished, (publication: LocalTrackPublication, participant: LocalParticipant) => {
       const track = publication.track;
@@ -286,13 +311,28 @@ export function useLiveKitRoom() {
         isScreen ? 'screen' : 'camera',
         track.mediaStreamTrack,
       );
+      // Sync store flags for local participant
+      if (currentChannelId) {
+        if (isScreen) {
+          setParticipantScreenShare(currentChannelId, participant.identity, true);
+        } else {
+          setParticipantVideo(currentChannelId, participant.identity, true);
+        }
+      }
     });
 
     room.on(RoomEvent.LocalTrackUnpublished, (publication: LocalTrackPublication, participant: LocalParticipant) => {
       if (publication.source === Track.Source.Camera) {
         updateVideoTrack(participant.identity, 'camera', undefined);
+        // Clear selfVideo flag so the VideoGrid tile is properly removed
+        if (currentChannelId) {
+          setParticipantVideo(currentChannelId, participant.identity, false);
+        }
       } else if (publication.source === Track.Source.ScreenShare) {
         updateVideoTrack(participant.identity, 'screen', undefined);
+        if (currentChannelId) {
+          setParticipantScreenShare(currentChannelId, participant.identity, false);
+        }
         // If screen share was stopped externally (e.g. browser "Stop sharing"), sync store + notify gateway
         useVoiceStore.getState().setScreenShareEnabled(false);
         const gw = getGatewayClient();
@@ -349,10 +389,14 @@ export function useLiveKitRoom() {
         // Register existing remote participants + bind speaking listeners
         for (const [, participant] of room.remoteParticipants) {
           if (currentChannelId) {
+            // By this point, existing participants have already published their tracks,
+            // so isMicrophoneEnabled is reliable here (unlike ParticipantConnected which fires before track publish)
+            const hasMicTrack = participant.getTrackPublication(Track.Source.Microphone);
+            const isMuted = hasMicTrack ? !participant.isMicrophoneEnabled : false;
             setParticipant({
               userId: participant.identity,
               channelId: currentChannelId,
-              selfMute: participant.isMicrophoneEnabled === false,
+              selfMute: isMuted,
               selfDeaf: false,
               serverMute: false,
               serverDeaf: false,
@@ -444,19 +488,20 @@ export function useLiveKitRoom() {
     }
   }, [outputDeviceId]);
 
-  // Toggle noise suppression at runtime
+  // Toggle noise suppression at runtime — restart mic to apply new constraints
   useEffect(() => {
     const room = roomRef.current;
     if (!room || room.state !== ConnectionState.Connected) return;
-    const micTrack = room.localParticipant.getTrackPublication(Track.Source.Microphone);
-    const track = micTrack?.track;
-    if (track && track.mediaStreamTrack) {
-      track.mediaStreamTrack.applyConstraints({
+    const isMuted = useVoiceStore.getState().selfMuted;
+    if (isMuted) return; // No active mic to restart
+    // Restart mic with new noise suppression setting
+    room.localParticipant.setMicrophoneEnabled(false).then(() => {
+      return room.localParticipant.setMicrophoneEnabled(true, {
         noiseSuppression,
         echoCancellation: true,
         autoGainControl: true,
-      }).catch(console.error);
-    }
+      });
+    }).catch(console.error);
   }, [noiseSuppression]);
 
   // Sync camera enabled state to LiveKit
@@ -468,7 +513,13 @@ export function useLiveKitRoom() {
       deviceId: videoDeviceId !== 'default' ? videoDeviceId : undefined,
     }).catch((err) => {
       console.warn('[LiveKit] Camera toggle failed:', err);
-      useVoiceStore.getState().setCameraEnabled(false);
+      const store = useVoiceStore.getState();
+      store.setCameraEnabled(false);
+      if (err instanceof Error && err.name === 'NotAllowedError') {
+        store.setError('Camera permission denied. Please allow camera access in your browser settings.');
+      } else if (err instanceof Error && err.name === 'NotFoundError') {
+        store.setError('No camera found. Please connect a camera and try again.');
+      }
     });
   }, [cameraEnabled]); // videoDeviceId is handled by switchActiveDevice below
 
@@ -490,14 +541,10 @@ export function useLiveKitRoom() {
       const preset = presets[quality as keyof typeof presets] ?? presets['1080p30'];
 
       room.localParticipant.setScreenShareEnabled(true, {
-        resolution: { width: preset.width, height: preset.height, frameRate: preset.fps },
+        // Don't constrain resolution — let the browser capture at native resolution.
         contentHint: preset.fps >= 60 ? 'motion' : 'detail',
-        video: {
-          // @ts-expect-error -- scalabilityMode is valid for VP9 SVC
-          scalabilityMode: preset.fps >= 60 ? 'L3T3' : 'L1T3',
-        },
-      }, {
         selfBrowserSurface: 'include',
+        surfaceSwitching: 'include',
       }).catch((err) => {
         console.warn('[LiveKit] Screen share failed:', err);
         useVoiceStore.getState().setScreenShareEnabled(false);
