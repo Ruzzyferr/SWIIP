@@ -11,6 +11,7 @@ import { Eye, EyeOff, Loader2, Github, Chrome } from 'lucide-react';
 import { login } from '@/lib/api/auth.api';
 import { useAuthStore } from '@/stores/auth.store';
 import { setAccessToken } from '@/lib/api/client';
+import { useTranslations } from 'next-intl';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -46,6 +47,8 @@ export default function LoginPage() {
 }
 
 function LoginContent() {
+  const t = useTranslations('auth.login');
+  const tCommon = useTranslations('common');
   const router = useRouter();
   const searchParams = useSearchParams();
   const rawRedirect = searchParams.get('redirect');
@@ -140,13 +143,13 @@ function LoginContent() {
             className="text-3xl font-bold tracking-tight"
             style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.03em' }}
           >
-            Welcome back
+            {t('title')}
           </h1>
           <p
             className="mt-2 text-sm"
             style={{ color: 'var(--color-text-tertiary)' }}
           >
-            Sign in to continue to your workspace
+            {t('subtitle')}
           </p>
         </motion.div>
 
@@ -186,7 +189,7 @@ function LoginContent() {
                 className="block text-xs font-semibold uppercase tracking-wider mb-1.5"
                 style={{ color: 'var(--color-text-secondary)' }}
               >
-                Email address
+                {t('email')}
               </label>
               <input
                 id="email"
@@ -233,14 +236,14 @@ function LoginContent() {
                   className="block text-xs font-semibold uppercase tracking-wider"
                   style={{ color: 'var(--color-text-secondary)' }}
                 >
-                  Password
+                  {t('password')}
                 </label>
                 <Link
                   href="/forgot-password"
                   className="text-xs transition-colors duration-fast"
                   style={{ color: 'var(--color-text-accent)' }}
                 >
-                  Forgot password?
+                  {t('forgotPassword')}
                 </Link>
               </div>
               <div className="relative">
@@ -279,7 +282,7 @@ function LoginContent() {
                   className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded transition-colors duration-fast"
                   style={{ color: 'var(--color-text-tertiary)' }}
                   tabIndex={-1}
-                  aria-label={showPassword ? 'Hide password' : 'Show password'}
+                  aria-label={showPassword ? t('hidePassword') : t('showPassword')}
                 >
                   {showPassword ? (
                     <EyeOff size={15} />
@@ -323,10 +326,10 @@ function LoginContent() {
               {isSubmitting ? (
                 <>
                   <Loader2 size={15} className="animate-spin" />
-                  Signing in…
+                  {t('submitting')}
                 </>
               ) : (
-                'Sign in'
+                t('submit')
               )}
             </button>
           </form>
@@ -335,7 +338,7 @@ function LoginContent() {
           <div className="flex items-center gap-3 my-5">
             <div className="flex-1 h-px" style={{ background: 'var(--color-border-subtle)' }} />
             <span className="text-xs" style={{ color: 'var(--color-text-disabled)' }}>
-              or continue with
+              {t('continueWith')}
             </span>
             <div className="flex-1 h-px" style={{ background: 'var(--color-border-subtle)' }} />
           </div>
@@ -355,7 +358,7 @@ function LoginContent() {
             >
               <Github size={15} />
               GitHub
-              <span className="text-xs">(Coming soon)</span>
+              <span className="text-xs">({tCommon('comingSoon')})</span>
             </button>
             <button
               type="button"
@@ -370,7 +373,7 @@ function LoginContent() {
             >
               <Chrome size={15} />
               Google
-              <span className="text-xs">(Coming soon)</span>
+              <span className="text-xs">({tCommon('comingSoon')})</span>
             </button>
           </div>
         </motion.div>
@@ -381,13 +384,13 @@ function LoginContent() {
           className="text-center mt-5 text-sm"
           style={{ color: 'var(--color-text-tertiary)' }}
         >
-          Don&apos;t have an account?{' '}
+          {t('noAccount')}{' '}
           <Link
             href="/register"
             className="font-medium transition-colors duration-fast"
             style={{ color: 'var(--color-text-accent)' }}
           >
-            Sign up
+            {t('signUp')}
           </Link>
         </motion.p>
       </motion.div>

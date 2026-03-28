@@ -28,7 +28,7 @@ const registerSchema = z
     confirmPassword: z.string(),
     terms: z
       .boolean()
-      .refine((v) => v === true, 'You must accept the terms of service'),
+      .refine((v) => v === true, 'Kullanım koşullarını kabul etmelisiniz'),
   })
   .refine((d) => d.password === d.confirmPassword, {
     message: "Passwords don't match",
@@ -469,22 +469,22 @@ export default function RegisterPage() {
                       </div>
                     </div>
                     <span className="text-sm leading-snug" style={{ color: 'var(--color-text-secondary)' }}>
-                      I agree to the{' '}
                       <Link
                         href="/terms"
                         className="transition-colors duration-fast"
                         style={{ color: 'var(--color-text-accent)' }}
                       >
-                        Terms of Service
+                        Kullanım Koşulları
                       </Link>{' '}
-                      and{' '}
+                      ve{' '}
                       <Link
                         href="/privacy"
                         className="transition-colors duration-fast"
                         style={{ color: 'var(--color-text-accent)' }}
                       >
-                        Privacy Policy
+                        Gizlilik Politikası
                       </Link>
+                      {`'nı kabul ediyorum`}
                     </span>
                   </label>
                   {errors.terms && (

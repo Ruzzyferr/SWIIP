@@ -7,6 +7,7 @@ import Image from 'next/image';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { useUIStore } from '@/stores/ui.store';
+import { useTranslations } from 'next-intl';
 
 interface ServerIconProps {
   id: string;
@@ -196,6 +197,7 @@ function RailActionButton({
 }
 
 export function ServerRail() {
+  const t = useTranslations('servers');
   const router = useRouter();
   const guilds = useGuildsStore((s) => s.guilds);
   const guildOrder = useGuildsStore((s) => s.guildOrder);
@@ -234,7 +236,7 @@ export function ServerRail() {
       role="navigation"
     >
       {/* Home / DM button */}
-      <Tooltip content="Direct Messages" placement="right">
+      <Tooltip content={t('directMessages')} placement="right">
         <button
           onClick={handleDMClick}
           onMouseEnter={() => setDmHovered(true)}
@@ -256,7 +258,7 @@ export function ServerRail() {
               ? '0 0 16px rgba(108,92,231,0.20)'
               : 'inset 0 0 0 1px rgba(255,255,255,0.04)',
           }}
-          aria-label="Direct Messages"
+          aria-label={t('directMessages')}
           aria-current={!activeGuildId ? 'page' : undefined}
         >
           <Home
@@ -291,19 +293,19 @@ export function ServerRail() {
       {/* Action buttons */}
       <RailActionButton
         icon={<Plus size={20} />}
-        label="Create a Server"
+        label={t('createServer')}
         accentColor="var(--color-success-default)"
         onClick={() => openModal('create-guild')}
       />
       <RailActionButton
         icon={<Link2 size={20} />}
-        label="Join a Server"
+        label={t('joinServer')}
         accentColor="var(--color-accent-primary)"
         onClick={() => openModal('join-guild')}
       />
       <RailActionButton
         icon={<Compass size={20} />}
-        label="Discover Servers"
+        label={t('discoverServers')}
         accentColor="var(--color-accent-primary)"
         onClick={() => router.push('/discover')}
       />
@@ -316,7 +318,7 @@ export function ServerRail() {
           <RailDivider />
           <RailActionButton
             icon={<Download size={20} />}
-            label="Download App"
+            label={t('downloadApp')}
             accentColor="var(--color-success-default)"
             href="/downloads/Swiip-Setup-latest.exe"
           />

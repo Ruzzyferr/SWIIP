@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
+import { useTranslations } from 'next-intl';
 import {
   Hash,
   Volume2,
@@ -45,6 +46,7 @@ function GuildHeaderDropdown({
   onCreateChannel: () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const t = useTranslations('servers');
 
   return (
     <div className="relative flex-shrink-0">
@@ -54,7 +56,7 @@ function GuildHeaderDropdown({
         style={{ borderBottom: '1px solid var(--color-border-subtle)' }}
         onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
         onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-        aria-label={`${guild.name} — server options`}
+        aria-label={`${guild.name} — ${t('serverOptions')}`}
       >
         <span className="font-semibold truncate text-sm" style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.01em' }}>
           {guild.name}
@@ -77,9 +79,9 @@ function GuildHeaderDropdown({
                 border: '1px solid var(--color-border-subtle)',
               }}
             >
-              <DropdownItem icon={<UserPlus size={15} />} label="Invite People" onClick={() => { onInvite(); setOpen(false); }} accent />
-              <DropdownItem icon={<Plus size={15} />} label="Create Channel" onClick={() => { onCreateChannel(); setOpen(false); }} />
-              <DropdownItem icon={<Settings size={15} />} label="Server Settings" onClick={() => { onSettings(); setOpen(false); }} />
+              <DropdownItem icon={<UserPlus size={15} />} label={t('invitePeople')} onClick={() => { onInvite(); setOpen(false); }} accent />
+              <DropdownItem icon={<Plus size={15} />} label={t('createChannel')} onClick={() => { onCreateChannel(); setOpen(false); }} />
+              <DropdownItem icon={<Settings size={15} />} label={t('serverSettings')} onClick={() => { onSettings(); setOpen(false); }} />
             </motion.div>
           </>
         )}
@@ -154,6 +156,7 @@ function CategorySection({
   onDrop,
 }: CategorySectionProps) {
   const [collapsed, setCollapsed] = useState(false);
+  const tChannels = useTranslations('channels');
 
   return (
     <div className="mb-1">
@@ -180,7 +183,7 @@ function CategorySection({
         >
           {name}
         </span>
-        <Tooltip content={`Create channel in ${name}`} placement="top">
+        <Tooltip content={tChannels('createChannelIn', { name })} placement="top">
           <div
             className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity duration-fast p-0.5 rounded"
             onClick={(e) => {
@@ -259,6 +262,7 @@ function ChannelItem({
   const [hovered, setHovered] = useState(false);
   const [dragOver, setDragOver] = useState(false);
   const isVoice = channel.type === ChannelType.VOICE;
+  const tChannels = useTranslations('channels');
 
   // Unread detection: compare channel's lastMessageId with user's lastReadId
   const lastReadId = useMessagesStore((s) => s.channels[channel.id]?.lastReadId);
@@ -350,7 +354,7 @@ function ChannelItem({
         {/* Actions visible on hover */}
         {hovered && (
           <div className="ml-auto flex items-center gap-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
-            <Tooltip content="Invite people" placement="top">
+            <Tooltip content={tChannels('invitePeople')} placement="top">
               <div
                 className="p-0.5 rounded hover:text-text-primary transition-colors"
                 onClick={(e) => e.stopPropagation()}
@@ -358,7 +362,7 @@ function ChannelItem({
                 <UserPlus size={13} />
               </div>
             </Tooltip>
-            <Tooltip content="Channel settings" placement="top">
+            <Tooltip content={tChannels('channelSettings')} placement="top">
               <div
                 className="p-0.5 rounded hover:text-text-primary transition-colors"
                 onClick={(e) => {
@@ -389,6 +393,8 @@ interface ChannelSidebarProps {
 
 export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
   const router = useRouter();
+  const t = useTranslations('servers');
+  const tChannels = useTranslations('channels');
   const channels = useGuildsStore((s) => s.channels);
   const guilds = useGuildsStore((s) => s.guilds);
   const activeChannelId = useUIStore((s) => s.activeChannelId);
@@ -560,7 +566,7 @@ export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
             {guildChannels.length === 0 && (
               <div className="px-2 py-6 text-center">
                 <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
-                  No channels yet
+                  {tChannels('noChannelsYet')}
                 </p>
               </div>
             )}

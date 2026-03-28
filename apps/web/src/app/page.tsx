@@ -5,8 +5,11 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth.store';
 import { ArrowRight, Download, Globe, MessageCircle, Shield, Users, Mic, Zap } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 
 export default function LandingPage() {
+  const t = useTranslations('landing');
+  const tAuth = useTranslations('auth.login');
   const router = useRouter();
   const token = useAuthStore((s) => s.accessToken);
   const [mounted, setMounted] = useState(false);
@@ -54,10 +57,10 @@ export default function LandingPage() {
               style={{ color: 'var(--color-text-secondary)' }}
               onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
               onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-secondary)'; e.currentTarget.style.background = 'transparent'; }}>
-              Log in
+              {tAuth('submit')}
             </Link>
             <Link href="/register" className="btn-premium">
-              Get Started
+              {t('cta.button')}
               <ArrowRight size={14} />
             </Link>
           </div>
@@ -76,7 +79,7 @@ export default function LandingPage() {
               animationDelay: '0.1s',
             }}>
             <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--color-status-online)' }} />
-            Now in Beta
+            Beta
           </div>
 
           <h1
@@ -88,16 +91,14 @@ export default function LandingPage() {
               animationDelay: '0.2s',
             }}
           >
-            Where your
-            <br />
-            <span className="text-gradient-vibrant">community</span> lives
+            {t('hero.title')}
           </h1>
 
           <p
             className="text-lg md:text-xl max-w-xl mx-auto mb-12 leading-relaxed animate-fade-in-up"
             style={{ color: 'var(--color-text-secondary)', animationDelay: '0.3s' }}
           >
-            Real-time voice, video, and text. Built for communities that demand more.
+            {t('hero.subtitle')}
           </p>
 
           {/* CTA */}
@@ -108,11 +109,11 @@ export default function LandingPage() {
               style={{ padding: '14px 32px', fontSize: '15px' }}
             >
               <Download size={18} />
-              Download for Windows
+              {t('hero.downloadDesktop')}
             </a>
             <Link href="/register" className="btn-secondary" style={{ padding: '14px 32px', fontSize: '15px' }}>
               <Globe size={18} />
-              Open in Browser
+              {t('hero.cta')}
             </Link>
           </div>
 
@@ -130,21 +131,21 @@ export default function LandingPage() {
               className="text-3xl md:text-4xl font-bold mb-4"
               style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.03em' }}
             >
-              Built different
+              {t('cta.title')}
             </h2>
             <p className="max-w-md mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
-              Not another chat app. A platform designed for depth.
+              {t('cta.subtitle')}
             </p>
           </div>
 
           <div className="grid md:grid-cols-3 gap-5">
             {[
-              { icon: <MessageCircle size={22} />, title: 'Instant Messaging', desc: 'WebSocket-powered delivery. Rich markdown, reactions, threads, and link previews.' },
-              { icon: <Mic size={22} />, title: 'Crystal Voice', desc: 'Low-latency voice with Krisp noise suppression. Screen share with audio.' },
-              { icon: <Users size={22} />, title: 'Communities', desc: 'Servers, channels, roles, permissions. Everything to build your space.' },
-              { icon: <Shield size={22} />, title: 'Secure', desc: 'End-to-end encrypted connections. Role-based access, moderation, and audit logs.' },
-              { icon: <Zap size={22} />, title: 'Blazing Fast', desc: 'Virtualized rendering, IndexedDB cache, service worker. No lag, ever.' },
-              { icon: <Download size={22} />, title: 'Native Apps', desc: 'Desktop app with global shortcuts, system tray, and native notifications.' },
+              { icon: <MessageCircle size={22} />, title: t('features.messaging.title'), desc: t('features.messaging.description') },
+              { icon: <Mic size={22} />, title: t('features.voice.title'), desc: t('features.voice.description') },
+              { icon: <Users size={22} />, title: t('features.community.title'), desc: t('features.community.description') },
+              { icon: <Shield size={22} />, title: t('features.security.title'), desc: t('features.security.description') },
+              { icon: <Zap size={22} />, title: t('features.fast.title'), desc: t('features.fast.description') },
+              { icon: <Download size={22} />, title: t('features.native.title'), desc: t('features.native.description') },
             ].map((f, i) => (
               <div
                 key={i}
@@ -200,13 +201,13 @@ export default function LandingPage() {
               className="text-3xl font-bold mb-4"
               style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.02em' }}
             >
-              Your space awaits
+              {t('hero.title')}
             </h2>
             <p className="mb-8 max-w-sm mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
-              Join thousands building their communities on Swiip.
+              {t('hero.subtitle')}
             </p>
             <Link href="/register" className="btn-premium" style={{ padding: '14px 36px', fontSize: '15px' }}>
-              Get Started — It&apos;s Free
+              {t('cta.button')}
               <ArrowRight size={16} />
             </Link>
           </div>
@@ -228,7 +229,7 @@ export default function LandingPage() {
             </span>
           </div>
           <p className="text-xs" style={{ color: 'var(--color-text-disabled)' }}>
-            &copy; {new Date().getFullYear()} Swiip. All rights reserved.
+            &copy; {new Date().getFullYear()} Swiip. {t('footer.copyright')}
           </p>
         </div>
       </footer>

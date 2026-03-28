@@ -1,0 +1,462 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "save": "Save",
+    "cancel": "Cancel",
+    "delete": "Delete",
+    "edit": "Edit",
+    "close": "Close",
+    "confirm": "Confirm",
+    "back": "Back",
+    "next": "Next",
+    "submit": "Submit",
+    "search": "Search",
+    "copy": "Copy",
+    "copied": "Copied!",
+    "retry": "Retry",
+    "yes": "Yes",
+    "no": "No",
+    "or": "or",
+    "and": "and",
+    "none": "None",
+    "all": "All",
+    "online": "Online",
+    "offline": "Offline",
+    "idle": "Idle",
+    "dnd": "Do Not Disturb",
+    "invisible": "Invisible",
+    "comingSoon": "Coming soon",
+    "learnMore": "Learn More",
+    "optional": "Optional"
+  },
+
+  "auth": {
+    "login": {
+      "title": "Welcome Back",
+      "subtitle": "Sign in to continue",
+      "email": "Email address",
+      "password": "Password",
+      "forgotPassword": "Forgot password?",
+      "submit": "Sign In",
+      "submitting": "Signing in...",
+      "noAccount": "Don't have an account?",
+      "signUp": "Sign Up",
+      "continueWith": "or continue with",
+      "invalidCredentials": "Invalid email or password",
+      "emailPlaceholder": "example@email.com",
+      "showPassword": "Show password",
+      "hidePassword": "Hide password"
+    },
+    "register": {
+      "title": "Create Your Account",
+      "subtitle": "Join Swiip and connect with your friends",
+      "email": "Email address",
+      "username": "Username",
+      "password": "Password",
+      "confirmPassword": "Confirm password",
+      "globalName": "Display name",
+      "submit": "Sign Up",
+      "submitting": "Creating account...",
+      "hasAccount": "Already have an account?",
+      "signIn": "Sign In",
+      "termsAgree": "I agree to the Terms of Service and Privacy Policy",
+      "termsRequired": "You must accept the terms of service",
+      "termsOfService": "Terms of Service",
+      "privacyPolicy": "Privacy Policy",
+      "handlePreview": "Your handle will be @{username}",
+      "passwordStrength": {
+        "veryWeak": "Very weak",
+        "weak": "Weak",
+        "fair": "Fair",
+        "strong": "Strong",
+        "veryStrong": "Very strong"
+      },
+      "validation": {
+        "emailRequired": "Please enter a valid email address",
+        "usernameMin": "Username must be at least 2 characters",
+        "usernameMax": "Username must be at most 32 characters",
+        "usernamePattern": "Only lowercase letters, numbers, dots, underscores and hyphens",
+        "passwordMin": "Password must be at least 8 characters",
+        "passwordUppercase": "Must contain an uppercase letter",
+        "passwordNumber": "Must contain a number",
+        "passwordsNoMatch": "Passwords don't match"
+      },
+      "verify": {
+        "title": "Check Your Email",
+        "subtitle": "Enter the 6-digit code sent to {email}",
+        "submit": "Verify",
+        "submitting": "Verifying...",
+        "resend": "Resend code",
+        "resendCooldown": "Resend code ({seconds}s)"
+      }
+    },
+    "forgotPassword": {
+      "title": "Reset Your Password",
+      "subtitle": "Enter your email and we'll send a reset link",
+      "email": "Email address",
+      "submit": "Send Reset Link",
+      "submitting": "Sending...",
+      "sent": "Link sent! Check your email.",
+      "backToLogin": "Back to login"
+    }
+  },
+
+  "servers": {
+    "directMessages": "Direct Messages",
+    "createServer": "Create a Server",
+    "joinServer": "Join a Server",
+    "discoverServers": "Discover Servers",
+    "downloadApp": "Download App",
+    "serverSettings": "Server Settings",
+    "serverOptions": "Server options",
+    "invitePeople": "Invite People",
+    "createChannel": "Create Channel",
+    "notifications": "Notifications",
+    "muteServer": "Mute Server",
+    "leaveServer": "Leave Server",
+    "leaveConfirm": "Are you sure you want to leave {server}?",
+    "createModal": {
+      "title": "Create Your Server",
+      "subtitle": "Your server is where you and your friends hang out. Create one and start chatting.",
+      "name": "Server name",
+      "namePlaceholder": "{username}'s server",
+      "create": "Create"
+    },
+    "joinModal": {
+      "title": "Join a Server",
+      "subtitle": "Enter an invite link below",
+      "inviteLink": "Invite Link",
+      "invitePlaceholder": "https://swiip.app/invite/abc123",
+      "join": "Join"
+    }
+  },
+
+  "channels": {
+    "text": "Text Channel",
+    "voice": "Voice Channel",
+    "announcement": "Announcement Channel",
+    "stage": "Stage Channel",
+    "forum": "Forum Channel",
+    "category": "Category",
+    "topic": "Topic: {topic}",
+    "noTopic": "No topic set",
+    "threads": "Threads",
+    "pins": "Pinned Messages",
+    "members": "Member List",
+    "search": "Search",
+    "searchPlaceholder": "Search this server",
+    "openChannelsMenu": "Open channels menu",
+    "hideMembers": "Hide Members",
+    "showMembers": "Show Members",
+    "inbox": "Inbox",
+    "createChannelIn": "Create channel in {name}",
+    "invitePeople": "Invite People",
+    "channelSettings": "Channel Settings",
+    "noChannelsYet": "No channels yet",
+    "createChannel": {
+      "title": "Create Channel",
+      "name": "Channel name",
+      "type": "Channel type",
+      "category": "Category",
+      "private": "Private Channel",
+      "privateDesc": "Only selected members and roles can view"
+    }
+  },
+
+  "messages": {
+    "placeholder": "Message #{channel}",
+    "placeholderDm": "Message @{user}",
+    "edit": "Edit Message",
+    "editingMessage": "Editing message",
+    "delete": "Delete Message",
+    "deleteConfirm": "Are you sure you want to delete this message? This action cannot be undone.",
+    "pin": "Pin Message",
+    "unpin": "Unpin Message",
+    "reply": "Reply",
+    "replyingTo": "Replying to @{user}",
+    "copyText": "Copy Text",
+    "copyId": "Copy ID",
+    "markUnread": "Mark as Unread",
+    "addReaction": "Add Reaction",
+    "edited": "(edited)",
+    "today": "Today",
+    "yesterday": "Yesterday",
+    "sendMessage": "Send Message",
+    "saveEdit": "Save Edit",
+    "sendFailed": "Failed to send message",
+    "uploadFile": "Upload a File",
+    "emoji": "Emoji",
+    "openEmojiPicker": "Open emoji picker",
+    "copyMessageLink": "Copy Message Link",
+    "newMessages": "New Messages",
+    "sending": "Sending...",
+    "delivered": "Delivered",
+    "replyToMessage": "Reply to message",
+    "editHint": "Enter to save · Esc to cancel",
+    "cancelEdit": "Cancel edit",
+    "editedAt": "Edited",
+    "viewThread": "View Thread",
+    "messageFrom": "Message from {author}",
+    "confirmDelete": "Delete this message?",
+    "failedToEdit": "Failed to edit message",
+    "failedToDelete": "Failed to delete message",
+    "failedToPin": "Failed to pin/unpin message",
+    "typing": {
+      "one": "{user} is typing...",
+      "two": "{user1} and {user2} are typing...",
+      "many": "Several people are typing..."
+    },
+    "upload": {
+      "dragDrop": "Drag and drop files here",
+      "maxSize": "Max file size: {size}MB",
+      "uploading": "Uploading...",
+      "uploadingProgress": "Uploading... {progress}%"
+    },
+    "slowmode": "Slowmode is enabled. Wait {seconds} seconds between messages.",
+    "hints": {
+      "send": "to send",
+      "newLine": "for new line"
+    },
+    "formatting": {
+      "bold": "Bold (Ctrl+B)",
+      "italic": "Italic (Ctrl+I)",
+      "code": "Code (Ctrl+`)"
+    }
+  },
+
+  "voice": {
+    "connected": "Voice Connected",
+    "connecting": "Connecting...",
+    "disconnected": "Disconnected",
+    "reconnecting": "Reconnecting...",
+    "mute": "Mute",
+    "unmute": "Unmute",
+    "deafen": "Deafen",
+    "undeafen": "Undeafen",
+    "disconnect": "Disconnect",
+    "camera": "Camera",
+    "cameraOn": "Turn On Camera",
+    "cameraOff": "Turn Off Camera",
+    "screenShare": "Share Screen",
+    "screenShareStop": "Stop Sharing",
+    "noiseSuppression": "Noise Suppression",
+    "pushToTalk": "Push to Talk",
+    "voiceActivity": "Voice Activity",
+    "qualityBars": "{quality} quality",
+    "aloneWarning": "You're alone in this channel",
+    "screenShareQuality": {
+      "title": "Screen Share Quality",
+      "720p30": "720p 30fps",
+      "1080p30": "1080p 30fps",
+      "1080p60": "1080p 60fps"
+    },
+    "settings": {
+      "inputDevice": "Input Device",
+      "outputDevice": "Output Device",
+      "inputVolume": "Input Volume",
+      "outputVolume": "Output Volume",
+      "inputMode": "Input Mode",
+      "noiseSuppressionDesc": "Reduces background noise"
+    }
+  },
+
+  "members": {
+    "online": "Online — {count}",
+    "offline": "Offline — {count}",
+    "owner": "Server Owner",
+    "admin": "Admin",
+    "moderator": "Moderator",
+    "profile": "View Profile",
+    "message": "Send Message",
+    "kick": "Kick from Server",
+    "ban": "Ban",
+    "timeout": "Timeout",
+    "changeNickname": "Change Nickname",
+    "roles": "Roles",
+    "mutualServers": "Mutual Servers",
+    "mutualFriends": "Mutual Friends"
+  },
+
+  "friends": {
+    "title": "Friends",
+    "all": "All",
+    "online": "Online",
+    "pending": "Pending",
+    "blocked": "Blocked",
+    "addFriend": "Add Friend",
+    "addFriendPlaceholder": "Enter a username (e.g. user#1234)",
+    "sendRequest": "Send Request",
+    "requestSent": "Friend request sent!",
+    "accept": "Accept",
+    "decline": "Decline",
+    "removeFriend": "Remove Friend",
+    "block": "Block",
+    "unblock": "Unblock",
+    "noFriends": "No friends yet",
+    "noPending": "No pending requests",
+    "noBlocked": "No blocked users"
+  },
+
+  "settings": {
+    "title": "User Settings",
+    "userSettings": "User Settings",
+    "appSettings": "App Settings",
+    "account": {
+      "title": "My Account",
+      "username": "Username",
+      "email": "Email",
+      "phone": "Phone",
+      "changePassword": "Change Password",
+      "twoFactor": "Two-Factor Authentication",
+      "twoFactorEnable": "Enable 2FA",
+      "twoFactorDisable": "Disable 2FA",
+      "deleteAccount": "Delete Account",
+      "deleteWarning": "This action cannot be undone. All your data will be permanently deleted."
+    },
+    "profile": {
+      "title": "Profile",
+      "avatar": "Avatar",
+      "banner": "Banner",
+      "globalName": "Display Name",
+      "bio": "About Me",
+      "accentColor": "Accent Color"
+    },
+    "privacy": {
+      "title": "Privacy & Safety",
+      "dmFromMembers": "Allow DMs from server members",
+      "friendRequests": "Who can send you friend requests",
+      "everyone": "Everyone",
+      "friendsOfFriends": "Friends of Friends",
+      "nobody": "No One"
+    },
+    "appearance": {
+      "title": "Appearance",
+      "theme": "Theme",
+      "dark": "Dark",
+      "light": "Light",
+      "auto": "System",
+      "fontSize": "Font Size",
+      "messageDisplay": "Message Display",
+      "compact": "Compact",
+      "cozy": "Cozy",
+      "language": "Language",
+      "turkish": "Türkçe",
+      "english": "English"
+    },
+    "notifications": {
+      "title": "Notifications",
+      "enableDesktop": "Enable Desktop Notifications",
+      "enableSounds": "Play Notification Sounds",
+      "enableBadge": "Taskbar Badge"
+    },
+    "voiceVideo": {
+      "title": "Voice & Video"
+    },
+    "keybinds": {
+      "title": "Keybinds"
+    },
+    "language": {
+      "title": "Language",
+      "select": "Select Language",
+      "turkish": "Türkçe",
+      "english": "English"
+    },
+    "logOut": "Log Out",
+    "logOutConfirm": "Are you sure you want to log out?"
+  },
+
+  "serverSettings": {
+    "title": "Server Settings",
+    "overview": "Overview",
+    "roles": "Roles",
+    "emoji": "Emoji",
+    "channels": "Channels",
+    "members": "Members",
+    "bans": "Bans",
+    "auditLog": "Audit Log",
+    "invites": "Invites",
+    "webhooks": "Webhooks",
+    "deleteServer": "Delete Server",
+    "deleteWarning": "This action cannot be undone. The server and all its data will be permanently deleted."
+  },
+
+  "modals": {
+    "createDm": {
+      "title": "New Message",
+      "searchPlaceholder": "Find a friend"
+    },
+    "invite": {
+      "title": "Invite to {server}",
+      "subtitle": "Invite your friends to this server",
+      "copyLink": "Copy Link",
+      "expires": "Expires in {days} days"
+    },
+    "shortcuts": {
+      "title": "Keyboard Shortcuts",
+      "navigation": "Navigation",
+      "messaging": "Messaging",
+      "voice": "Voice"
+    }
+  },
+
+  "errors": {
+    "connectionLost": "Connection lost",
+    "reconnecting": "Reconnecting...",
+    "somethingWrong": "Something went wrong",
+    "tryAgain": "Try Again",
+    "notFound": "Page not found",
+    "forbidden": "You don't have access to this page",
+    "serverError": "A server error occurred"
+  },
+
+  "landing": {
+    "hero": {
+      "title": "Connect with your community",
+      "subtitle": "Swiip is the best way to communicate in real-time with your friends and communities.",
+      "cta": "Open in Browser",
+      "downloadDesktop": "Download Desktop App"
+    },
+    "features": {
+      "voice": {
+        "title": "Crystal Clear Voice",
+        "description": "Low-latency voice and video calls with noise suppression"
+      },
+      "messaging": {
+        "title": "Rich Messaging",
+        "description": "Markdown, code blocks, file sharing and more"
+      },
+      "security": {
+        "title": "Secure Communication",
+        "description": "End-to-end encryption and two-factor authentication"
+      },
+      "community": {
+        "title": "Community Tools",
+        "description": "Roles, permissions, moderation and more"
+      },
+      "fast": {
+        "title": "Blazing Fast",
+        "description": "Virtualized rendering, IndexedDB cache, service worker. No lag, ever."
+      },
+      "native": {
+        "title": "Native Apps",
+        "description": "Desktop app with global shortcuts, system tray, and native notifications."
+      }
+    },
+    "cta": {
+      "title": "Get Started",
+      "subtitle": "Completely free — no credit card required",
+      "button": "Create Account"
+    },
+    "footer": {
+      "copyright": "All rights reserved."
+    }
+  },
+
+  "time": {
+    "justNow": "Just now",
+    "minutesAgo": "{count} minutes ago",
+    "hoursAgo": "{count} hours ago",
+    "today": "Today at {time}",
+    "yesterday": "Yesterday at {time}"
+  }
+}

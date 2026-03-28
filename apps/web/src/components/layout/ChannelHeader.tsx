@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import { useTranslations } from 'next-intl';
 import {
   Hash,
   Volume2,
@@ -43,6 +44,7 @@ export function ChannelHeader({
   onToggleMobileNav,
   showMobileNavToggle = false,
 }: ChannelHeaderProps) {
+  const t = useTranslations('channels');
   const channel = useGuildsStore((s) => s.channels[channelId]);
   const isMemberSidebarOpen = useUIStore((s) => s.isMemberSidebarOpen);
   const toggleMemberSidebar = useUIStore((s) => s.toggleMemberSidebar);
@@ -81,7 +83,7 @@ export function ChannelHeader({
           onClick={onToggleMobileNav}
           className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-fast md:hidden"
           style={{ color: 'var(--color-text-secondary)' }}
-          aria-label="Open channels menu"
+          aria-label={t('openChannelsMenu')}
         >
           <Menu size={18} />
         </button>
@@ -124,24 +126,24 @@ export function ChannelHeader({
       <div className="flex items-center gap-0.5">
         {[
           {
-            label: 'Pinned Messages',
+            label: t('pins'),
             icon: <Pin size={16} />,
             onClick: () => setShowPins((v) => !v),
             active: showPins,
           },
           {
-            label: isMemberSidebarOpen ? 'Hide Members' : 'Show Members',
+            label: isMemberSidebarOpen ? t('hideMembers') : t('showMembers'),
             icon: <Users size={16} />,
             onClick: toggleMemberSidebar,
             active: isMemberSidebarOpen,
           },
           {
-            label: 'Search',
+            label: t('search'),
             icon: <Search size={16} />,
             onClick: () => setShowSearch(true),
           },
           {
-            label: 'Inbox',
+            label: t('inbox'),
             icon: <Inbox size={16} />,
             onClick: () => {
               // Navigate to mentions/inbox — uses the DM route as inbox

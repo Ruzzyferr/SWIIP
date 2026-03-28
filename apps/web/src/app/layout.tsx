@@ -2,9 +2,11 @@ import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import '@/styles/globals.css';
 import 'highlight.js/styles/github-dark.css';
+import { NextIntlClientProvider } from 'next-intl';
+import { getLocale, getMessages } from 'next-intl/server';
 
 const inter = Inter({
-  subsets: ['latin'],
+  subsets: ['latin', 'latin-ext'],
   variable: '--font-sans',
   display: 'swap',
   weight: ['400', '500', '600', '700'],
@@ -29,11 +31,16 @@ export const viewport: Viewport = {
 
 import { ServiceWorkerRegistration } from '@/components/providers/ServiceWorkerRegistration';
 
-export default function RootLayout({ children }: { children: React.ReactNode }) {
+export default async function RootLayout({ children }: { children: React.ReactNode }) {
+  const locale = await getLocale();
+  const messages = await getMessages();
+
   return (
-    <html lang="en" className={inter.variable}>
+    <html lang={locale} className={inter.variable}>
       <body className="bg-surface-base text-text-primary antialiased overflow-hidden">
-        {children}
+        <NextIntlClientProvider locale={locale} messages={messages}>
+          {children}
+        </NextIntlClientProvider>
         <ServiceWorkerRegistration />
       </body>
     </html>

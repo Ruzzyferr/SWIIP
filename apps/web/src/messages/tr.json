@@ -1,0 +1,462 @@
+{
+  "common": {
+    "loading": "Yükleniyor...",
+    "save": "Kaydet",
+    "cancel": "İptal",
+    "delete": "Sil",
+    "edit": "Düzenle",
+    "close": "Kapat",
+    "confirm": "Onayla",
+    "back": "Geri",
+    "next": "İleri",
+    "submit": "Gönder",
+    "search": "Ara",
+    "copy": "Kopyala",
+    "copied": "Kopyalandı!",
+    "retry": "Tekrar Dene",
+    "yes": "Evet",
+    "no": "Hayır",
+    "or": "veya",
+    "and": "ve",
+    "none": "Yok",
+    "all": "Tümü",
+    "online": "Çevrimiçi",
+    "offline": "Çevrimdışı",
+    "idle": "Boşta",
+    "dnd": "Rahatsız Etmeyin",
+    "invisible": "Görünmez",
+    "comingSoon": "Yakında",
+    "learnMore": "Daha Fazla",
+    "optional": "İsteğe bağlı"
+  },
+
+  "auth": {
+    "login": {
+      "title": "Tekrar Hoş Geldin",
+      "subtitle": "Hesabına giriş yap",
+      "email": "E-posta adresi",
+      "password": "Şifre",
+      "forgotPassword": "Şifremi unuttum",
+      "submit": "Giriş Yap",
+      "submitting": "Giriş yapılıyor...",
+      "noAccount": "Hesabın yok mu?",
+      "signUp": "Kayıt Ol",
+      "continueWith": "veya şununla devam et",
+      "invalidCredentials": "Geçersiz e-posta veya şifre",
+      "emailPlaceholder": "ornek@email.com",
+      "showPassword": "Şifreyi göster",
+      "hidePassword": "Şifreyi gizle"
+    },
+    "register": {
+      "title": "Hesabını Oluştur",
+      "subtitle": "Swiip'e katıl ve arkadaşlarınla bağlan",
+      "email": "E-posta adresi",
+      "username": "Kullanıcı adı",
+      "password": "Şifre",
+      "confirmPassword": "Şifre tekrarı",
+      "globalName": "Görünen ad",
+      "submit": "Kayıt Ol",
+      "submitting": "Kayıt yapılıyor...",
+      "hasAccount": "Zaten hesabın var mı?",
+      "signIn": "Giriş Yap",
+      "termsAgree": "Kullanım Koşulları ve Gizlilik Politikası'nı kabul ediyorum",
+      "termsRequired": "Kullanım koşullarını kabul etmelisiniz",
+      "termsOfService": "Kullanım Koşulları",
+      "privacyPolicy": "Gizlilik Politikası",
+      "handlePreview": "Kullanıcı adın @{username} olacak",
+      "passwordStrength": {
+        "veryWeak": "Çok Zayıf",
+        "weak": "Zayıf",
+        "fair": "Orta",
+        "strong": "Güçlü",
+        "veryStrong": "Çok Güçlü"
+      },
+      "validation": {
+        "emailRequired": "Geçerli bir e-posta adresi girin",
+        "usernameMin": "Kullanıcı adı en az 2 karakter olmalıdır",
+        "usernameMax": "Kullanıcı adı en fazla 32 karakter olabilir",
+        "usernamePattern": "Yalnızca küçük harf, rakam, nokta, alt çizgi ve tire kullanılabilir",
+        "passwordMin": "Şifre en az 8 karakter olmalıdır",
+        "passwordUppercase": "Büyük harf içermelidir",
+        "passwordNumber": "Rakam içermelidir",
+        "passwordsNoMatch": "Şifreler eşleşmiyor"
+      },
+      "verify": {
+        "title": "E-postanı Kontrol Et",
+        "subtitle": "{email} adresine gönderilen 6 haneli kodu gir",
+        "submit": "Doğrula",
+        "submitting": "Doğrulanıyor...",
+        "resend": "Tekrar Gönder",
+        "resendCooldown": "Tekrar Gönder ({seconds}s)"
+      }
+    },
+    "forgotPassword": {
+      "title": "Şifreni Sıfırla",
+      "subtitle": "E-posta adresini gir, sıfırlama bağlantısı gönderelim",
+      "email": "E-posta adresi",
+      "submit": "Sıfırlama Bağlantısı Gönder",
+      "submitting": "Gönderiliyor...",
+      "sent": "Bağlantı gönderildi! E-postanı kontrol et.",
+      "backToLogin": "Giriş sayfasına dön"
+    }
+  },
+
+  "servers": {
+    "directMessages": "Direkt Mesajlar",
+    "createServer": "Sunucu Oluştur",
+    "joinServer": "Sunucuya Katıl",
+    "discoverServers": "Sunucuları Keşfet",
+    "downloadApp": "Uygulamayı İndir",
+    "serverSettings": "Sunucu Ayarları",
+    "serverOptions": "Sunucu seçenekleri",
+    "invitePeople": "Kişileri Davet Et",
+    "createChannel": "Kanal Oluştur",
+    "notifications": "Bildirimler",
+    "muteServer": "Sunucuyu Sessize Al",
+    "leaveServer": "Sunucudan Ayrıl",
+    "leaveConfirm": "{server} sunucusundan ayrılmak istediğine emin misin?",
+    "createModal": {
+      "title": "Sunucunu Oluştur",
+      "subtitle": "Sunucun, arkadaşlarınla takıldığın yer. Bir tane oluştur ve sohbete başla.",
+      "name": "Sunucu adı",
+      "namePlaceholder": "{username} sunucusu",
+      "create": "Oluştur"
+    },
+    "joinModal": {
+      "title": "Sunucuya Katıl",
+      "subtitle": "Aşağıya bir davet bağlantısı gir",
+      "inviteLink": "Davet Bağlantısı",
+      "invitePlaceholder": "https://swiip.app/invite/abc123",
+      "join": "Katıl"
+    }
+  },
+
+  "channels": {
+    "text": "Metin Kanalı",
+    "voice": "Sesli Kanal",
+    "announcement": "Duyuru Kanalı",
+    "stage": "Sahne Kanalı",
+    "forum": "Forum Kanalı",
+    "category": "Kategori",
+    "topic": "Konu: {topic}",
+    "noTopic": "Konu belirtilmemiş",
+    "threads": "Mesaj Dizileri",
+    "pins": "Sabitlenmiş Mesajlar",
+    "members": "Üye Listesi",
+    "search": "Ara",
+    "searchPlaceholder": "Bu sunucuda ara",
+    "openChannelsMenu": "Kanal menüsünü aç",
+    "hideMembers": "Üyeleri Gizle",
+    "showMembers": "Üyeleri Göster",
+    "inbox": "Gelen Kutusu",
+    "createChannelIn": "{name} içinde kanal oluştur",
+    "invitePeople": "Kişileri Davet Et",
+    "channelSettings": "Kanal Ayarları",
+    "noChannelsYet": "Henüz kanal yok",
+    "createChannel": {
+      "title": "Kanal Oluştur",
+      "name": "Kanal adı",
+      "type": "Kanal türü",
+      "category": "Kategori",
+      "private": "Gizli Kanal",
+      "privateDesc": "Yalnızca seçili üyeler ve roller görebilir"
+    }
+  },
+
+  "messages": {
+    "placeholder": "{channel} kanalına mesaj gönder",
+    "placeholderDm": "{user} kullanıcısına mesaj gönder",
+    "edit": "Mesajı Düzenle",
+    "editingMessage": "Mesaj düzenleniyor",
+    "delete": "Mesajı Sil",
+    "deleteConfirm": "Bu mesajı silmek istediğine emin misin? Bu işlem geri alınamaz.",
+    "pin": "Mesajı Sabitle",
+    "unpin": "Sabitlemeyi Kaldır",
+    "reply": "Yanıtla",
+    "replyingTo": "@{user} kullanıcısına yanıt veriliyor",
+    "copyText": "Metni Kopyala",
+    "copyId": "ID'yi Kopyala",
+    "markUnread": "Okunmadı Olarak İşaretle",
+    "addReaction": "Tepki Ekle",
+    "edited": "(düzenlendi)",
+    "today": "Bugün",
+    "yesterday": "Dün",
+    "sendMessage": "Mesaj Gönder",
+    "saveEdit": "Düzenlemeyi Kaydet",
+    "sendFailed": "Mesaj gönderilemedi",
+    "uploadFile": "Dosya Yükle",
+    "emoji": "Emoji",
+    "openEmojiPicker": "Emoji seçiciyi aç",
+    "copyMessageLink": "Mesaj Bağlantısını Kopyala",
+    "newMessages": "Yeni Mesajlar",
+    "sending": "Gönderiliyor...",
+    "delivered": "Teslim edildi",
+    "replyToMessage": "Mesajı yanıtla",
+    "editHint": "Kaydetmek için Enter · İptal için Esc",
+    "cancelEdit": "Düzenlemeyi iptal et",
+    "editedAt": "Düzenlendi",
+    "viewThread": "Konuyu Görüntüle",
+    "messageFrom": "{author} tarafından mesaj",
+    "confirmDelete": "Bu mesajı silmek istediğine emin misin?",
+    "failedToEdit": "Mesaj düzenlenemedi",
+    "failedToDelete": "Mesaj silinemedi",
+    "failedToPin": "Mesaj sabitlenemedi",
+    "typing": {
+      "one": "{user} yazıyor...",
+      "two": "{user1} ve {user2} yazıyor...",
+      "many": "Birden fazla kişi yazıyor..."
+    },
+    "upload": {
+      "dragDrop": "Dosyaları buraya sürükle",
+      "maxSize": "Maksimum dosya boyutu: {size}MB",
+      "uploading": "Yükleniyor...",
+      "uploadingProgress": "Yükleniyor... %{progress}"
+    },
+    "slowmode": "Yavaş mod aktif. Mesajlar arası {seconds} saniye beklemelisiniz.",
+    "hints": {
+      "send": "göndermek için",
+      "newLine": "yeni satır için"
+    },
+    "formatting": {
+      "bold": "Kalın (Ctrl+B)",
+      "italic": "İtalik (Ctrl+I)",
+      "code": "Kod (Ctrl+`)"
+    }
+  },
+
+  "voice": {
+    "connected": "Ses Bağlı",
+    "connecting": "Bağlanıyor...",
+    "disconnected": "Bağlantı Kesildi",
+    "reconnecting": "Yeniden Bağlanıyor...",
+    "mute": "Mikrofonu Kapat",
+    "unmute": "Mikrofonu Aç",
+    "deafen": "Kulaklığı Kapat",
+    "undeafen": "Kulaklığı Aç",
+    "disconnect": "Bağlantıyı Kes",
+    "camera": "Kamera",
+    "cameraOn": "Kamerayı Aç",
+    "cameraOff": "Kamerayı Kapat",
+    "screenShare": "Ekran Paylaş",
+    "screenShareStop": "Ekran Paylaşımını Durdur",
+    "noiseSuppression": "Gürültü Engelleme",
+    "pushToTalk": "Bas Konuş",
+    "voiceActivity": "Ses Algılama",
+    "qualityBars": "{quality} kalitesi",
+    "aloneWarning": "Kanalda yalnızsınız",
+    "screenShareQuality": {
+      "title": "Ekran Paylaşım Kalitesi",
+      "720p30": "720p 30fps",
+      "1080p30": "1080p 30fps",
+      "1080p60": "1080p 60fps"
+    },
+    "settings": {
+      "inputDevice": "Giriş Aygıtı",
+      "outputDevice": "Çıkış Aygıtı",
+      "inputVolume": "Giriş Ses Seviyesi",
+      "outputVolume": "Çıkış Ses Seviyesi",
+      "inputMode": "Giriş Modu",
+      "noiseSuppressionDesc": "Arka plan gürültüsünü azaltır"
+    }
+  },
+
+  "members": {
+    "online": "Çevrimiçi — {count}",
+    "offline": "Çevrimdışı — {count}",
+    "owner": "Sunucu Sahibi",
+    "admin": "Yönetici",
+    "moderator": "Moderatör",
+    "profile": "Profili Görüntüle",
+    "message": "Mesaj Gönder",
+    "kick": "Sunucudan At",
+    "ban": "Yasakla",
+    "timeout": "Zaman Aşımı Ver",
+    "changeNickname": "Takma Ad Değiştir",
+    "roles": "Roller",
+    "mutualServers": "Ortak Sunucular",
+    "mutualFriends": "Ortak Arkadaşlar"
+  },
+
+  "friends": {
+    "title": "Arkadaşlar",
+    "all": "Tümü",
+    "online": "Çevrimiçi",
+    "pending": "Bekleyen",
+    "blocked": "Engellenen",
+    "addFriend": "Arkadaş Ekle",
+    "addFriendPlaceholder": "Kullanıcı adını gir (ör: kullanici#1234)",
+    "sendRequest": "İstek Gönder",
+    "requestSent": "Arkadaşlık isteği gönderildi!",
+    "accept": "Kabul Et",
+    "decline": "Reddet",
+    "removeFriend": "Arkadaşlıktan Çıkar",
+    "block": "Engelle",
+    "unblock": "Engeli Kaldır",
+    "noFriends": "Henüz arkadaşın yok",
+    "noPending": "Bekleyen istek yok",
+    "noBlocked": "Engellenen kullanıcı yok"
+  },
+
+  "settings": {
+    "title": "Kullanıcı Ayarları",
+    "userSettings": "Kullanıcı Ayarları",
+    "appSettings": "Uygulama Ayarları",
+    "account": {
+      "title": "Hesabım",
+      "username": "Kullanıcı Adı",
+      "email": "E-posta",
+      "phone": "Telefon",
+      "changePassword": "Şifreyi Değiştir",
+      "twoFactor": "İki Faktörlü Kimlik Doğrulama",
+      "twoFactorEnable": "2FA'yı Etkinleştir",
+      "twoFactorDisable": "2FA'yı Devre Dışı Bırak",
+      "deleteAccount": "Hesabı Sil",
+      "deleteWarning": "Bu işlem geri alınamaz. Tüm verileriniz kalıcı olarak silinecektir."
+    },
+    "profile": {
+      "title": "Profil",
+      "avatar": "Avatar",
+      "banner": "Afiş",
+      "globalName": "Görünen Ad",
+      "bio": "Hakkımda",
+      "accentColor": "Vurgu Rengi"
+    },
+    "privacy": {
+      "title": "Gizlilik ve Güvenlik",
+      "dmFromMembers": "Sunucu üyelerinden DM'lere izin ver",
+      "friendRequests": "Arkadaşlık isteklerini kimler gönderebilir",
+      "everyone": "Herkes",
+      "friendsOfFriends": "Arkadaşların Arkadaşları",
+      "nobody": "Hiç Kimse"
+    },
+    "appearance": {
+      "title": "Görünüm",
+      "theme": "Tema",
+      "dark": "Koyu",
+      "light": "Açık",
+      "auto": "Sistem",
+      "fontSize": "Yazı Boyutu",
+      "messageDisplay": "Mesaj Görünümü",
+      "compact": "Sıkışık",
+      "cozy": "Rahat",
+      "language": "Dil",
+      "turkish": "Türkçe",
+      "english": "English"
+    },
+    "notifications": {
+      "title": "Bildirimler",
+      "enableDesktop": "Masaüstü Bildirimlerini Etkinleştir",
+      "enableSounds": "Bildirimlerde Ses Çal",
+      "enableBadge": "Görev Çubuğu Rozeti"
+    },
+    "voiceVideo": {
+      "title": "Ses ve Görüntü"
+    },
+    "keybinds": {
+      "title": "Tuş Atamaları"
+    },
+    "language": {
+      "title": "Dil",
+      "select": "Dil Seçin",
+      "turkish": "Türkçe",
+      "english": "English"
+    },
+    "logOut": "Çıkış Yap",
+    "logOutConfirm": "Çıkış yapmak istediğine emin misin?"
+  },
+
+  "serverSettings": {
+    "title": "Sunucu Ayarları",
+    "overview": "Genel Bakış",
+    "roles": "Roller",
+    "emoji": "Emoji",
+    "channels": "Kanallar",
+    "members": "Üyeler",
+    "bans": "Yasaklar",
+    "auditLog": "Denetim Günlüğü",
+    "invites": "Davetler",
+    "webhooks": "Webhook'lar",
+    "deleteServer": "Sunucuyu Sil",
+    "deleteWarning": "Bu işlem geri alınamaz. Sunucu ve tüm verileri kalıcı olarak silinecektir."
+  },
+
+  "modals": {
+    "createDm": {
+      "title": "Yeni Mesaj",
+      "searchPlaceholder": "Bir arkadaşını bul"
+    },
+    "invite": {
+      "title": "{server} Sunucusuna Davet Et",
+      "subtitle": "Arkadaşlarını bu sunucuya davet et",
+      "copyLink": "Bağlantıyı Kopyala",
+      "expires": "{days} gün sonra sona erer"
+    },
+    "shortcuts": {
+      "title": "Klavye Kısayolları",
+      "navigation": "Gezinti",
+      "messaging": "Mesajlaşma",
+      "voice": "Ses"
+    }
+  },
+
+  "errors": {
+    "connectionLost": "Bağlantı kesildi",
+    "reconnecting": "Yeniden bağlanılıyor...",
+    "somethingWrong": "Bir şeyler ters gitti",
+    "tryAgain": "Tekrar Dene",
+    "notFound": "Sayfa bulunamadı",
+    "forbidden": "Bu sayfaya erişim izniniz yok",
+    "serverError": "Sunucu hatası oluştu"
+  },
+
+  "landing": {
+    "hero": {
+      "title": "Topluluğunuzla bağ kurun",
+      "subtitle": "Swiip, arkadaşlarınız ve topluluğunuzla gerçek zamanlı iletişim kurmanın en iyi yoludur.",
+      "cta": "Tarayıcıda Aç",
+      "downloadDesktop": "Masaüstü Uygulamasını İndir"
+    },
+    "features": {
+      "voice": {
+        "title": "Kristal Netliğinde Ses",
+        "description": "Düşük gecikmeli ses ve görüntü görüşmeleri ile noisesuppression"
+      },
+      "messaging": {
+        "title": "Zengin Mesajlaşma",
+        "description": "Markdown, kod blokları, dosya paylaşımı ve daha fazlası"
+      },
+      "security": {
+        "title": "Güvenli İletişim",
+        "description": "Uçtan uca şifreleme ve iki faktörlü kimlik doğrulama"
+      },
+      "community": {
+        "title": "Topluluk Araçları",
+        "description": "Roller, izinler, moderasyon ve daha fazlası"
+      },
+      "fast": {
+        "title": "Yıldırım Hızında",
+        "description": "Sanal render, IndexedDB önbellek, service worker. Asla takılma yok."
+      },
+      "native": {
+        "title": "Yerel Uygulamalar",
+        "description": "Global kısayollar, sistem tepsisi ve yerel bildirimlerle masaüstü uygulaması."
+      }
+    },
+    "cta": {
+      "title": "Hemen Başla",
+      "subtitle": "Tamamen ücretsiz — kredi kartı gerekmez",
+      "button": "Hesap Oluştur"
+    },
+    "footer": {
+      "copyright": "Tüm hakları saklıdır."
+    }
+  },
+
+  "time": {
+    "justNow": "Az önce",
+    "minutesAgo": "{count} dakika önce",
+    "hoursAgo": "{count} saat önce",
+    "today": "Bugün saat {time}",
+    "yesterday": "Dün saat {time}"
+  }
+}

@@ -37,6 +37,7 @@ import { editMessage, deleteMessage, addReaction } from '@/lib/api/messages.api'
 import { pinMessage, unpinMessage } from '@/lib/api/channels.api';
 import { useMessagesStore } from '@/stores/messages.store';
 import { toastError } from '@/lib/toast';
+import { useTranslations } from 'next-intl';
 import type { MessagePayload, ReactionPayload, EmojiRef } from '@constchat/protocol';
 import DOMPurify from 'dompurify';
 import hljs from 'highlight.js/lib/core';
@@ -382,6 +383,7 @@ function MessageActions({
   channelId: string;
   messageId: string;
 }) {
+  const t = useTranslations('messages');
   const reactButtonRef = useRef<HTMLButtonElement>(null);
 
   const handleReactionSelect = useCallback(async (emoji: string) => {
@@ -408,7 +410,7 @@ function MessageActions({
       }}
     >
       {/* Add Reaction button */}
-      <Tooltip content="Add Reaction" placement="top" disabled={showReactionPicker}>
+      <Tooltip content={t('addReaction')} placement="top" disabled={showReactionPicker}>
         <button
           ref={reactButtonRef}
           onClick={onToggleReactionPicker}
@@ -431,7 +433,7 @@ function MessageActions({
               e.currentTarget.style.color = 'var(--color-text-secondary)';
             }
           }}
-          aria-label="Add Reaction"
+          aria-label={t('addReaction')}
         >
           <SmilePlus size={15} />
         </button>
@@ -447,10 +449,10 @@ function MessageActions({
 
       {/* Other action buttons */}
       {[
-        { label: 'Reply', icon: <Reply size={15} />, onClick: onReply },
-        ...(canEdit ? [{ label: 'Edit', icon: <Pencil size={15} />, onClick: onEdit! }] : []),
-        { label: isPinned ? 'Unpin' : 'Pin', icon: isPinned ? <PinOff size={15} /> : <Pin size={15} />, onClick: onPin },
-        ...(canEdit ? [{ label: 'Delete', icon: <Trash2 size={15} />, onClick: onDelete!, danger: true }] : []),
+        { label: t('reply'), icon: <Reply size={15} />, onClick: onReply },
+        ...(canEdit ? [{ label: t('edit'), icon: <Pencil size={15} />, onClick: onEdit! }] : []),
+        { label: isPinned ? t('unpin') : t('pin'), icon: isPinned ? <PinOff size={15} /> : <Pin size={15} />, onClick: onPin },
+        ...(canEdit ? [{ label: t('delete'), icon: <Trash2 size={15} />, onClick: onDelete!, danger: true }] : []),
       ].map(({ label, icon, onClick, danger }) => (
         <Tooltip key={label} content={label} placement="top">
           <button
@@ -512,6 +514,7 @@ export function MessageItem({
   isHighlighted = false,
   onToggleSelect,
 }: MessageItemProps) {
+  const t = useTranslations('messages');
   const currentUser = useAuthStore((s) => s.user);
   const updateMsg = useMessagesStore((s) => s.updateMessage);
   const removeMsg = useMessagesStore((s) => s.removeMessage);
@@ -557,7 +560,7 @@ export function MessageItem({
       updateMsg(channelId, message.id, updated);
       setEditing(false);
     } catch (err: unknown) {
-      toastError(err instanceof Error ? err.message : 'Failed to edit message');
+      toastError(err instanceof Error ? err.message : t('failedToEdit'));
     }
   };
 
@@ -573,12 +576,12 @@ export function MessageItem({
   };
 
   const handleDelete = async () => {
-    if (!window.confirm('Delete this message?')) return;
+    if (!window.confirm(t('confirmDelete'))) return;
     try {
       await deleteMessage(channelId, message.id);
       removeMsg(channelId, message.id);
     } catch (err: unknown) {
-      toastError(err instanceof Error ? err.message : 'Failed to delete message');
+      toastError(err instanceof Error ? err.message : t('failedToDelete'));
     }
   };
 
@@ -594,7 +597,7 @@ export function MessageItem({
         updateMsg(channelId, message.id, { ...message, pinned: true } as any);
       }
     } catch (err: unknown) {
-      toastError(err instanceof Error ? err.message : 'Failed to pin/unpin message');
+      toastError(err instanceof Error ? err.message : t('failedToPin'));
     }
   };
 
@@ -608,17 +611,17 @@ export function MessageItem({
   };
 
   const contextMenuItems: ContextMenuItem[] = [
-    { type: 'item', label: 'Copy Text', icon: <Copy size={14} />, onClick: handleCopyText },
-    { type: 'item', label: 'Reply', icon: <Reply size={14} />, onClick: () => onReply(message) },
-    ...(canEdit ? [{ type: 'item' as const, label: 'Edit Message', icon: <Pencil size={14} />, onClick: () => {
+    { type: 'item', label: t('copyText'), icon: <Copy size={14} />, onClick: handleCopyText },
+    { type: 'item', label: t('reply'), icon: <Reply size={14} />, onClick: () => onReply(message) },
+    ...(canEdit ? [{ type: 'item' as const, label: t('edit'), icon: <Pencil size={14} />, onClick: () => {
       setEditing(true);
       setEditContent(message.content ?? '');
       setTimeout(() => { editRef.current?.focus(); editRef.current?.select(); }, 10);
     }}] : []),
     { type: 'separator' as const },
-    { type: 'item', label: isPinned ? 'Unpin Message' : 'Pin Message', icon: isPinned ? <PinOff size={14} /> : <Pin size={14} />, onClick: handlePin },
-    { type: 'item', label: 'Copy Message Link', icon: <Link2 size={14} />, onClick: handleCopyLink },
-    ...(canEdit ? [{ type: 'separator' as const }, { type: 'item' as const, label: 'Delete Message', icon: <Trash2 size={14} />, danger: true, onClick: handleDelete }] : []),
+    { type: 'item', label: isPinned ? t('unpin') : t('pin'), icon: isPinned ? <PinOff size={14} /> : <Pin size={14} />, onClick: handlePin },
+    { type: 'item', label: t('copyMessageLink'), icon: <Link2 size={14} />, onClick: handleCopyLink },
+    ...(canEdit ? [{ type: 'separator' as const }, { type: 'item' as const, label: t('delete'), icon: <Trash2 size={14} />, danger: true, onClick: handleDelete }] : []),
   ];
 
   return (
@@ -631,7 +634,7 @@ export function MessageItem({
             className="text-xs font-semibold flex-shrink-0"
             style={{ color: 'var(--color-danger-default)' }}
           >
-            New Messages
+            {t('newMessages')}
           </span>
           <div className="flex-1 h-px" style={{ background: 'var(--color-danger-default)' }} />
         </div>
@@ -658,7 +661,7 @@ export function MessageItem({
           }
         }}
         role="article"
-        aria-label={`Message from ${authorId}`}
+        aria-label={t('messageFrom', { author: authorName })}
       >
         {/* Selection checkbox */}
         {selectionMode && (
@@ -755,11 +758,11 @@ export function MessageItem({
                 {/* Delivery status for own messages */}
                 {canEdit && (
                   message.id.startsWith('pending-') ? (
-                    <Tooltip content="Sending..." placement="top">
+                    <Tooltip content={t('sending')} placement="top">
                       <Clock size={11} style={{ color: 'var(--color-text-disabled)' }} />
                     </Tooltip>
                   ) : (
-                    <Tooltip content="Delivered" placement="top">
+                    <Tooltip content={t('delivered')} placement="top">
                       <CheckCheck size={11} style={{ color: 'var(--color-success-default)' }} />
                     </Tooltip>
                   )
@@ -778,7 +781,7 @@ export function MessageItem({
                 }}
               >
                 <Reply size={11} />
-                <span className="truncate">Reply to message</span>
+                <span className="truncate">{t('replyToMessage')}</span>
               </div>
             )}
 
@@ -802,7 +805,7 @@ export function MessageItem({
                 />
                 <div className="flex items-center gap-2 mt-1.5">
                   <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-                    Enter to save · Esc to cancel
+                    {t('editHint')}
                   </span>
                   <div className="flex gap-1 ml-auto">
                     <button
@@ -812,7 +815,7 @@ export function MessageItem({
                       }}
                       className="w-6 h-6 rounded flex items-center justify-center transition-colors duration-fast"
                       style={{ color: 'var(--color-danger-default)', background: 'var(--color-danger-muted)' }}
-                      aria-label="Cancel edit"
+                      aria-label={t('cancelEdit')}
                     >
                       <X size={13} />
                     </button>
@@ -820,7 +823,7 @@ export function MessageItem({
                       onClick={handleEditSubmit}
                       className="w-6 h-6 rounded flex items-center justify-center transition-colors duration-fast"
                       style={{ color: 'var(--color-success-default)', background: 'var(--color-success-muted)' }}
-                      aria-label="Save edit"
+                      aria-label={t('saveEdit')}
                     >
                       <Check size={13} />
                     </button>
@@ -837,28 +840,28 @@ export function MessageItem({
                     {renderContent(message.content)}
                     {editedAt && (
                       <Tooltip
-                        content={`Edited ${new Date(editedAt).toLocaleString()}`}
+                        content={`${t('editedAt')} ${new Date(editedAt).toLocaleString()}`}
                         placement="top"
                       >
                         <span
                           className="text-xs ml-1 cursor-default"
                           style={{ color: 'var(--color-text-disabled)' }}
                         >
-                          (edited)
+                          {t('edited')}
                         </span>
                       </Tooltip>
                     )}
                   </p>
                 ) : editedAt ? (
                   <Tooltip
-                    content={`Edited ${new Date(editedAt).toLocaleString()}`}
+                    content={`${t('editedAt')} ${new Date(editedAt).toLocaleString()}`}
                     placement="top"
                   >
                     <span
                       className="text-xs cursor-default"
                       style={{ color: 'var(--color-text-disabled)' }}
                     >
-                      (edited)
+                      {t('edited')}
                     </span>
                   </Tooltip>
                 ) : null}
@@ -976,7 +979,7 @@ export function MessageItem({
                 }}
               >
                 <MessageSquare size={12} />
-                <span>View Thread</span>
+                <span>{t('viewThread')}</span>
               </button>
             )}
           </div>

@@ -17,6 +17,7 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { useVoiceStore } from '@/stores/voice.store';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { useVoiceActions } from '@/hooks/useVoiceActions';
+import { useTranslations } from 'next-intl';
 
 /** Discord-style signal bars (4 bars, colored by quality level) */
 function ConnectionQualityBars({ quality }: { quality: number }) {
@@ -61,6 +62,7 @@ function ConnectionQualityBars({ quality }: { quality: number }) {
  * when the user is connected to (or connecting to) a voice channel.
  */
 export function VoiceConnectionPanel() {
+  const t = useTranslations('voice');
   const connectionState = useVoiceStore((s) => s.connectionState);
   const currentChannelId = useVoiceStore((s) => s.currentChannelId);
   const selfMuted = useVoiceStore((s) => s.selfMuted);
@@ -79,12 +81,12 @@ export function VoiceConnectionPanel() {
 
   const statusText =
     connectionState === 'connecting'
-      ? 'Connecting...'
+      ? t('connecting')
       : connectionState === 'reconnecting'
-      ? 'Reconnecting...'
+      ? t('reconnecting')
       : connectionState === 'error'
-      ? 'Connection Error'
-      : 'Voice Connected';
+      ? t('disconnected')
+      : t('connected');
 
   const statusColor =
     connectionState === 'connected'
@@ -140,7 +142,7 @@ export function VoiceConnectionPanel() {
           }}
         >
           <AlertTriangle size={12} />
-          <span>Disconnecting in {aloneTimeout}s (alone in channel)</span>
+          <span>{t('aloneWarning')} ({aloneTimeout}s)</span>
         </div>
       )}
 
@@ -187,7 +189,7 @@ export function VoiceConnectionPanel() {
 
       {/* Controls */}
       <div className="flex items-center justify-center gap-1.5 relative">
-        <Tooltip content={selfMuted ? 'Unmute' : 'Mute'} placement="top">
+        <Tooltip content={selfMuted ? t('unmute') : t('mute')} placement="top">
           <button
             onClick={toggleMute}
             className={btnClass}
@@ -214,14 +216,14 @@ export function VoiceConnectionPanel() {
                 e.currentTarget.style.color = 'var(--color-text-secondary)';
               }
             }}
-            aria-label={selfMuted ? 'Unmute' : 'Mute'}
+            aria-label={selfMuted ? t('unmute') : t('mute')}
             aria-pressed={selfMuted}
           >
             {selfMuted ? <MicOff size={15} /> : <Mic size={15} />}
           </button>
         </Tooltip>
 
-        <Tooltip content={selfDeafened ? 'Undeafen' : 'Deafen'} placement="top">
+        <Tooltip content={selfDeafened ? t('undeafen') : t('deafen')} placement="top">
           <button
             onClick={toggleDeafen}
             className={btnClass}
@@ -248,14 +250,14 @@ export function VoiceConnectionPanel() {
                 e.currentTarget.style.color = 'var(--color-text-secondary)';
               }
             }}
-            aria-label={selfDeafened ? 'Undeafen' : 'Deafen'}
+            aria-label={selfDeafened ? t('undeafen') : t('deafen')}
             aria-pressed={selfDeafened}
           >
             {selfDeafened ? <EarOff size={15} /> : <Headphones size={15} />}
           </button>
         </Tooltip>
 
-        <Tooltip content={cameraEnabled ? 'Turn Off Camera' : 'Turn On Camera'} placement="top">
+        <Tooltip content={cameraEnabled ? t('cameraOff') : t('cameraOn')} placement="top">
           <button
             onClick={toggleCamera}
             className={btnClass}
@@ -282,7 +284,7 @@ export function VoiceConnectionPanel() {
                 e.currentTarget.style.color = 'var(--color-text-secondary)';
               }
             }}
-            aria-label={cameraEnabled ? 'Turn Off Camera' : 'Turn On Camera'}
+            aria-label={cameraEnabled ? t('cameraOff') : t('cameraOn')}
             aria-pressed={cameraEnabled}
           >
             {cameraEnabled ? <Video size={15} /> : <VideoOff size={15} />}
@@ -316,7 +318,7 @@ export function VoiceConnectionPanel() {
                 e.currentTarget.style.color = 'var(--color-text-secondary)';
               }
             }}
-            aria-label={screenShareEnabled ? 'Stop Screen Share' : 'Share Screen'}
+            aria-label={screenShareEnabled ? t('screenShareStop') : t('screenShare')}
             aria-pressed={screenShareEnabled}
           >
             {screenShareEnabled ? <MonitorOff size={15} /> : <Monitor size={15} />}
@@ -324,7 +326,7 @@ export function VoiceConnectionPanel() {
         </Tooltip>
 
         {/* Disconnect — prominent red */}
-        <Tooltip content="Disconnect" placement="top">
+        <Tooltip content={t('disconnect')} placement="top">
           <button
             onClick={leaveVoiceChannel}
             className={btnClass}
@@ -343,7 +345,7 @@ export function VoiceConnectionPanel() {
               e.currentTarget.style.boxShadow = '0 0 12px rgba(255,84,112,0.3)';
               e.currentTarget.style.transform = 'scale(1)';
             }}
-            aria-label="Disconnect from voice"
+            aria-label={t('disconnect')}
           >
             <PhoneOff size={15} />
           </button>

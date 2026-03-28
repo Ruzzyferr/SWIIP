@@ -1,7 +1,11 @@
 'use client';
 
-import { Moon, Sun, MessageSquare, AlignLeft } from 'lucide-react';
+import { Moon, Sun, MessageSquare, AlignLeft, Globe } from 'lucide-react';
 import { useAppearanceStore, type Theme, type MessageDisplay } from '@/stores/appearance.store';
+import { useTranslations, useLocale } from 'next-intl';
+import { useRouter } from 'next/navigation';
+import { useTransition } from 'react';
+import { setLocale, type Locale } from '@/lib/locale';
 
 function ThemeCard({
   theme,
@@ -101,6 +105,10 @@ function Slider({
 }
 
 export function AppearancePage() {
+  const t = useTranslations('settings.appearance');
+  const currentLocale = useLocale();
+  const router = useRouter();
+  const [isPending, startTransition] = useTransition();
   const theme = useAppearanceStore((s) => s.theme);
   const setTheme = useAppearanceStore((s) => s.setTheme);
   const messageDisplay = useAppearanceStore((s) => s.messageDisplay);
@@ -108,16 +116,74 @@ export function AppearancePage() {
   const chatFontSize = useAppearanceStore((s) => s.chatFontSize);
   const setChatFontSize = useAppearanceStore((s) => s.setChatFontSize);
 
+  const handleLocaleChange = (locale: Locale) => {
+    startTransition(async () => {
+      await setLocale(locale);
+      router.refresh();
+    });
+  };
+
   return (
     <div className="max-w-2xl space-y-8">
       <div>
         <h2 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
-          Appearance
+          {t('title')}
         </h2>
         <p className="text-sm mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-          Customize how Swiip looks on your device.
+          {currentLocale === 'tr' ? "Swiip'in cihazınızdaki görünümünü özelleştirin." : 'Customize how Swiip looks on your device.'}
         </p>
       </div>
+
+      {/* Language */}
+      <section className="space-y-3">
+        <p
+          className="text-xs font-bold uppercase tracking-wider"
+          style={{ color: 'var(--color-text-disabled)' }}
+        >
+          {t('language')}
+        </p>
+        <div className="flex gap-3">
+          {([
+            { id: 'tr' as Locale, label: 'Türkçe', flag: '🇹🇷' },
+            { id: 'en' as Locale, label: 'English', flag: '🇬🇧' },
+          ]).map(({ id, label, flag }) => (
+            <button
+              key={id}
+              onClick={() => handleLocaleChange(id)}
+              disabled={isPending}
+              className="flex-1 p-4 rounded-xl text-left transition-all"
+              style={{
+                border: currentLocale === id
+                  ? '2px solid var(--color-accent-primary)'
+                  : '2px solid var(--color-border-subtle)',
+                background: 'var(--color-surface-raised)',
+                opacity: isPending ? 0.6 : 1,
+              }}
+            >
+              <div className="flex items-center gap-3">
+                <span className="text-2xl">{flag}</span>
+                <div>
+                  <span className="text-sm font-medium block" style={{ color: 'var(--color-text-primary)' }}>
+                    {label}
+                  </span>
+                </div>
+                {currentLocale === id && (
+                  <div className="ml-auto">
+                    <div
+                      className="w-5 h-5 rounded-full flex items-center justify-center"
+                      style={{ background: 'var(--color-accent-primary)' }}
+                    >
+                      <div className="w-2 h-2 rounded-full bg-white" />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </button>
+          ))}
+        </div>
+      </section>
+
+      <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />
 
       {/* Theme */}
       <section className="space-y-3">
@@ -125,12 +191,12 @@ export function AppearancePage() {
           className="text-xs font-bold uppercase tracking-wider"
           style={{ color: 'var(--color-text-disabled)' }}
         >
-          Theme
+          {t('theme')}
         </p>
         <div className="flex gap-4">
           <ThemeCard
             theme="dark"
-            label="Dark"
+            label={t('dark')}
             icon={Moon}
             selected={theme === 'dark'}
             onSelect={() => setTheme('dark')}
@@ -138,7 +204,7 @@ export function AppearancePage() {
           />
           <ThemeCard
             theme="light"
-            label="Light"
+            label={t('light')}
             icon={Sun}
             selected={theme === 'light'}
             onSelect={() => setTheme('light')}
@@ -155,12 +221,12 @@ export function AppearancePage() {
           className="text-xs font-bold uppercase tracking-wider"
           style={{ color: 'var(--color-text-disabled)' }}
         >
-          Message Display
+          {t('messageDisplay')}
         </p>
         <div className="flex gap-3">
           {([
-            { id: 'cozy' as MessageDisplay, label: 'Cozy', icon: MessageSquare, desc: 'Shows avatars and full timestamps' },
-            { id: 'compact' as MessageDisplay, label: 'Compact', icon: AlignLeft, desc: 'Fits more messages on screen' },
+            { id: 'cozy' as MessageDisplay, label: t('cozy'), icon: MessageSquare, desc: currentLocale === 'tr' ? 'Avatar ve tam zaman damgası gösterir' : 'Shows avatars and full timestamps' },
+            { id: 'compact' as MessageDisplay, label: t('compact'), icon: AlignLeft, desc: currentLocale === 'tr' ? 'Ekrana daha fazla mesaj sığdırır' : 'Fits more messages on screen' },
           ]).map(({ id, label, icon: Icon, desc }) => (
             <button
               key={id}
@@ -192,7 +258,7 @@ export function AppearancePage() {
       {/* Chat Font Size */}
       <section>
         <Slider
-          label="Chat Font Size"
+          label={t('fontSize')}
           value={chatFontSize}
           min={12}
           max={24}
@@ -210,7 +276,7 @@ export function AppearancePage() {
             className="text-xs font-bold uppercase tracking-wider mb-2"
             style={{ color: 'var(--color-text-disabled)' }}
           >
-            Preview
+            {currentLocale === 'tr' ? 'Önizleme' : 'Preview'}
           </p>
           <div className="flex items-start gap-3">
             <div
@@ -223,11 +289,13 @@ export function AppearancePage() {
                   Username
                 </span>
                 <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-                  Today at 12:00
+                  {currentLocale === 'tr' ? 'Bugün 12:00' : 'Today at 12:00'}
                 </span>
               </div>
               <p style={{ color: 'var(--color-text-primary)', fontSize: chatFontSize }}>
-                This is a preview of how messages will look with the current font size.
+                {currentLocale === 'tr'
+                  ? 'Bu, mesajların mevcut yazı boyutuyla nasıl görüneceğinin bir önizlemesidir.'
+                  : 'This is a preview of how messages will look with the current font size.'}
               </p>
             </div>
           </div>

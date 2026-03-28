@@ -156,7 +156,7 @@ ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_
 
 echo.
 echo [*] Rebuilding services...
-ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% --profile voice up -d --build api gateway web media-signalling 2>&1"
+ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% --profile voice up -d --build api gateway web workers media-signalling 2>&1"
 if errorlevel 1 goto deploy_fail
 
 echo.

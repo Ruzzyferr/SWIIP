@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useUIStore } from '@/stores/ui.store';
 import { useAuthStore } from '@/stores/auth.store';
+import { useTranslations } from 'next-intl';
 import { logout as logoutApi } from '@/lib/api/auth.api';
 import { setAccessToken } from '@/lib/api/client';
 import { VoiceSettingsPage } from '@/components/settings/VoiceSettingsPage';
@@ -25,12 +26,12 @@ import { NotificationsPage } from '@/components/settings/NotificationsPage';
 import { KeybindsPage } from '@/components/settings/KeybindsPage';
 
 const NAV_ITEMS = [
-  { id: 'account', label: 'My Account', icon: User, section: 'User Settings' },
-  { id: 'privacy', label: 'Privacy & Safety', icon: Shield, section: 'User Settings' },
-  { id: 'notifications', label: 'Notifications', icon: Bell, section: 'App Settings' },
-  { id: 'appearance', label: 'Appearance', icon: Palette, section: 'App Settings' },
-  { id: 'voice', label: 'Voice & Video', icon: Volume2, section: 'App Settings' },
-  { id: 'keybinds', label: 'Keybinds', icon: KeyRound, section: 'App Settings' },
+  { id: 'account', labelKey: 'account.title', icon: User, sectionKey: 'userSettings' },
+  { id: 'privacy', labelKey: 'privacy.title', icon: Shield, sectionKey: 'userSettings' },
+  { id: 'notifications', labelKey: 'notifications.title', icon: Bell, sectionKey: 'appSettings' },
+  { id: 'appearance', labelKey: 'appearance.title', icon: Palette, sectionKey: 'appSettings' },
+  { id: 'voice', labelKey: 'voiceVideo.title', icon: Volume2, sectionKey: 'appSettings' },
+  { id: 'keybinds', labelKey: 'keybinds.title', icon: KeyRound, sectionKey: 'appSettings' },
 ];
 
 function PlaceholderPage({ title }: { title: string }) {
@@ -53,6 +54,7 @@ function PlaceholderPage({ title }: { title: string }) {
 }
 
 export function SettingsOverlay() {
+  const t = useTranslations('settings');
   const isOpen = useUIStore((s) => s.isSettingsOpen);
   const page = useUIStore((s) => s.settingsPage);
   const closeSettings = useUIStore((s) => s.closeSettings);
@@ -94,7 +96,7 @@ export function SettingsOverlay() {
         return <KeybindsPage />;
       default: {
         const item = NAV_ITEMS.find((i) => i.id === page);
-        return <PlaceholderPage title={item?.label ?? 'Settings'} />;
+        return <PlaceholderPage title={item ? t(item.labelKey) : t('title')} />;
       }
     }
   };
@@ -102,8 +104,9 @@ export function SettingsOverlay() {
   // Group nav items by section
   const sections = NAV_ITEMS.reduce<Record<string, typeof NAV_ITEMS>>(
     (acc, item) => {
-      if (!acc[item.section]) acc[item.section] = [];
-      acc[item.section]!.push(item);
+      const sectionLabel = t(item.sectionKey);
+      if (!acc[sectionLabel]) acc[sectionLabel] = [];
+      acc[sectionLabel]!.push(item);
       return acc;
     },
     {}
@@ -147,7 +150,8 @@ export function SettingsOverlay() {
                   >
                     {section}
                   </p>
-                  {items.map(({ id, label, icon: Icon }) => {
+                  {items.map(({ id, labelKey, icon: Icon }) => {
+                    const label = t(labelKey);
                     const active = page === id;
                     return (
                       <button
@@ -200,7 +204,7 @@ export function SettingsOverlay() {
                 }}
               >
                 <LogOut size={15} />
-                Log Out
+                {t('logOut')}
               </button>
             </nav>
           </div>

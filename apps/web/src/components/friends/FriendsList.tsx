@@ -31,6 +31,7 @@ import {
 import { openDM } from '@/lib/api/dms.api';
 import { useDMsStore } from '@/stores/dms.store';
 import { toastSuccess, toastError } from '@/lib/toast';
+import { useTranslations } from 'next-intl';
 import type { PresenceStatus } from '@constchat/protocol';
 
 // ---------------------------------------------------------------------------
@@ -256,6 +257,8 @@ function FriendRow({
 // ---------------------------------------------------------------------------
 
 export function FriendsList() {
+  const t = useTranslations('friends');
+  const tCommon = useTranslations('common');
   const router = useRouter();
   const toggleMobileNav = useUIStore((s) => s.toggleMobileNav);
   const [activeTab, setActiveTab] = useState<FriendsTab>('online');
@@ -330,10 +333,10 @@ export function FriendsList() {
   ).length, [relationships]);
 
   const tabs: { id: FriendsTab; label: string; badge?: number }[] = [
-    { id: 'online', label: 'Online' },
-    { id: 'all', label: 'All' },
-    { id: 'pending', label: 'Pending', badge: pendingCount },
-    { id: 'blocked', label: 'Blocked' },
+    { id: 'online', label: t('online') },
+    { id: 'all', label: t('all') },
+    { id: 'pending', label: t('pending'), badge: pendingCount },
+    { id: 'blocked', label: t('blocked') },
   ];
 
   return (
@@ -355,7 +358,7 @@ export function FriendsList() {
 
         <div className="flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
           <Users size={20} />
-          <span className="font-semibold text-sm">Friends</span>
+          <span className="font-semibold text-sm">{t('title')}</span>
         </div>
 
         <div className="h-5 w-px mx-1" style={{ background: 'var(--color-border-default)' }} />
@@ -396,7 +399,7 @@ export function FriendsList() {
             border: activeTab === 'add' ? '1px solid var(--color-success-default)' : 'none',
           }}
         >
-          Add Friend
+          {t('addFriend')}
         </button>
       </div>
 
@@ -415,7 +418,7 @@ export function FriendsList() {
             <input
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search"
+              placeholder={tCommon('search')}
               className="w-full rounded-md pl-9 pr-3 py-1.5 text-sm outline-none"
               style={{
                 background: 'var(--color-surface-base)',
@@ -432,7 +435,7 @@ export function FriendsList() {
         <div className="flex-1 overflow-y-auto px-4 py-2">
           <p className="text-xs font-semibold uppercase tracking-wider px-2 mb-2"
             style={{ color: 'var(--color-text-disabled)' }}>
-            {activeTab === 'online' ? 'Online' : activeTab === 'all' ? 'All Friends' : activeTab === 'pending' ? 'Pending' : 'Blocked'}
+            {activeTab === 'online' ? t('online') : activeTab === 'all' ? t('all') : activeTab === 'pending' ? t('pending') : t('blocked')}
             {' — '}{displayed.length}
           </p>
 
@@ -447,14 +450,14 @@ export function FriendsList() {
               )}
               <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
                 {searchQuery
-                  ? 'No results found'
+                  ? (tCommon('none'))
                   : activeTab === 'online'
-                  ? 'No friends online right now'
+                  ? t('noFriends')
                   : activeTab === 'pending'
-                  ? 'No pending requests'
+                  ? t('noPending')
                   : activeTab === 'blocked'
-                  ? 'No blocked users'
-                  : 'No friends yet. Add someone!'}
+                  ? t('noBlocked')
+                  : t('noFriends')}
               </p>
             </div>
           )}

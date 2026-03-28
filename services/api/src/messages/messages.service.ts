@@ -9,6 +9,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PermissionsService, Permissions } from '../permissions/permissions.service';
+import { SearchService } from '../search/search.service';
 import {
   IsString,
   IsOptional,
@@ -68,6 +69,7 @@ export class MessagesService {
     private readonly redis: RedisService,
     private readonly eventEmitter: EventEmitter2,
     private readonly permissionsService: PermissionsService,
+    private readonly searchService: SearchService,
   ) {}
 
   private readonly MESSAGE_INCLUDE = {
@@ -175,6 +177,17 @@ export class MessagesService {
           message: updated,
         });
 
+        // Index for search (fire and forget)
+        this.searchService.indexMessage({
+          id: updated.id,
+          channelId,
+          guildId: channel.guildId ?? undefined,
+          authorId: userId,
+          authorUsername: updated.author?.username ?? userId,
+          content: updated.content,
+          timestamp: updated.createdAt,
+        }).catch((err) => this.logger.warn({ err }, 'Failed to index message for search'));
+
         return updated;
       }
     }
@@ -194,6 +207,17 @@ export class MessagesService {
       guildId: channel.guildId,
       message,
     });
+
+    // Index for search (fire and forget)
+    this.searchService.indexMessage({
+      id: message.id,
+      channelId,
+      guildId: channel.guildId ?? undefined,
+      authorId: userId,
+      authorUsername: message.author?.username ?? userId,
+      content: message.content,
+      timestamp: message.createdAt,
+    }).catch((err) => this.logger.warn({ err }, 'Failed to index message for search'));
 
     return message;
   }
@@ -273,6 +297,11 @@ export class MessagesService {
     );
 
     this.eventEmitter.emit('message.updated', { messageId, channelId: message.channelId });
+
+    // Update search index (fire and forget)
+    this.searchService.updateMessageIndex(messageId, dto.content)
+      .catch((err) => this.logger.warn({ err }, 'Failed to update message search index'));
+
     return updated;
   }
 
@@ -309,6 +338,11 @@ export class MessagesService {
     );
 
     this.eventEmitter.emit('message.deleted', { messageId, channelId: message.channelId });
+
+    // Remove from search index (fire and forget)
+    this.searchService.deleteMessageFromIndex(messageId)
+      .catch((err) => this.logger.warn({ err }, 'Failed to delete message from search index'));
+
     return { message: 'Message deleted' };
   }
 

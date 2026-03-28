@@ -2,13 +2,13 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, Shield } from 'lucide-react';
 
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.05, delayChildren: 0.08 },
+    transition: { staggerChildren: 0.04, delayChildren: 0.06 },
   },
 };
 
@@ -23,76 +23,92 @@ const itemVariants = {
 
 const sections = [
   {
-    title: '1. Information We Collect',
+    title: '1. Veri Sorumlusu',
     content:
-      'We collect information you provide directly, such as your email address, username, and profile details when you create an account. We also collect messages, files, and other content you share through the Service. Additionally, we automatically collect usage data including IP addresses, device information, browser type, and interaction data.',
+      'Bu aydınlatma metni, 6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") kapsamında veri sorumlusu sıfatıyla Swiip tarafından hazırlanmıştır. Kişisel verileriniz aşağıda açıklanan amaçlar ve hukuki sebepler doğrultusunda işlenmektedir.',
   },
   {
-    title: '2. How We Use Your Information',
+    title: '2. Toplanan Kişisel Veriler',
     content:
-      'We use your information to: operate and maintain the Service; deliver messages and content to your intended recipients; authenticate your identity and secure your account; send you important service-related notifications; improve and optimize the Service; comply with legal obligations; and prevent fraud, abuse, and violations of our Terms of Service.',
+      'Hesap oluşturma sırasında: e-posta adresi, kullanıcı adı, şifre (hash\'lenmiş). Profil bilgileri: görünen ad, avatar, banner, biyografi, durum. Kullanım verileri: IP adresi, cihaz bilgisi, tarayıcı türü, oturum süreleri. İçerik verileri: mesajlar, paylaşılan dosyalar, ses/görüntü iletişim meta verileri (içerik kaydedilmez). Çerezler: oturum yönetimi ve kimlik doğrulama için zorunlu çerezler.',
   },
   {
-    title: '3. Message Privacy',
+    title: '3. Kişisel Verilerin İşlenme Amaçları',
     content:
-      'Your messages are transmitted securely and stored in encrypted form. We do not sell your message content to third parties. We do not read your private messages unless required by law or necessary to enforce our Terms of Service (e.g., investigating reports of abuse).',
+      'Verileriniz şu amaçlarla işlenmektedir: Hizmetin sunulması ve sürdürülmesi; mesaj ve içeriklerin alıcılara iletilmesi; hesap güvenliğinin sağlanması ve kimlik doğrulama; hizmet ile ilgili bildirimlerin gönderilmesi; hizmetin iyileştirilmesi ve optimizasyonu; yasal yükümlülüklerin yerine getirilmesi; dolandırıcılık, kötüye kullanım ve Kullanım Koşulları ihlallerinin önlenmesi.',
   },
   {
-    title: '4. Data Sharing',
+    title: '4. Hukuki Sebepler (KVKK md. 5)',
     content:
-      'We do not sell your personal information. We may share your information with: service providers who assist in operating the Service (hosting, analytics, email delivery); law enforcement when required by valid legal process; other users, but only information you choose to make public (e.g., username, avatar, status).',
+      'Kişisel verileriniz şu hukuki sebeplere dayanılarak işlenmektedir: Açık rızanız (profil bilgileri, isteğe bağlı veriler); bir sözleşmenin kurulması veya ifasıyla doğrudan ilgili olması (hizmet sunumu); veri sorumlusunun meşru menfaati (hizmet güvenliği, iyileştirme); hukuki yükümlülüğün yerine getirilmesi (yasal talepler, suç bildirimi).',
   },
   {
-    title: '5. Data Retention',
+    title: '5. Mesaj Gizliliği',
     content:
-      'We retain your account information and message content for as long as your account is active. When you delete your account, we will delete or anonymize your personal data within 30 days, except where retention is required by law. Server logs and aggregated analytics data may be retained longer in anonymized form.',
+      'Mesajlarınız güvenli bağlantı (TLS) üzerinden iletilir ve şifreli biçimde saklanır. Özel mesajlarınızın içeriği üçüncü taraflara satılmaz. Özel mesajlarınız, yasal zorunluluk veya Kullanım Koşulları ihlali soruşturması (ör. taciz raporları) dışında okunmaz. Ses ve görüntü görüşmelerinin içeriği sunucularımızda kaydedilmez.',
   },
   {
-    title: '6. Data Security',
+    title: '6. Kişisel Verilerin Aktarılması',
     content:
-      'We implement industry-standard security measures to protect your data, including encryption in transit (TLS), encrypted storage, secure authentication with JWT tokens and optional MFA, and regular security audits. However, no method of transmission or storage is 100% secure, and we cannot guarantee absolute security.',
+      'Kişisel verileriniz satılmaz. Verileriniz şu durumlarda aktarılabilir: Hizmetin işletilmesine yardımcı olan altyapı sağlayıcılarına (barındırma, e-posta iletimi); yürürlükteki mevzuat gereği yetkili kamu kurum ve kuruluşlarına; diğer kullanıcılara yalnızca sizin herkese açık olarak paylaştığınız bilgiler (kullanıcı adı, avatar, durum). Verileriniz Türkiye dışındaki sunucularda işlenebilir; bu durumda KVKK\'nın yurt dışına aktarım hükümlerine uygun tedbirler alınır.',
   },
   {
-    title: '7. Your Rights',
+    title: '7. Veri Saklama Süreleri',
     content:
-      'Depending on your jurisdiction, you may have the right to: access and receive a copy of your personal data; correct inaccurate personal data; request deletion of your personal data; object to or restrict processing of your data; data portability. To exercise these rights, contact us at privacy@swiip.app.',
+      'Hesap bilgileriniz ve mesaj içerikleriniz hesabınız aktif olduğu sürece saklanır. Hesabınızı silmeniz halinde kişisel verileriniz 30 gün içinde silinir veya anonim hale getirilir (yasal saklama yükümlülükleri saklıdır). Sunucu günlükleri ve toplu analitik verileri anonim biçimde daha uzun süre saklanabilir.',
   },
   {
-    title: '8. Cookies and Tracking',
+    title: '8. Veri Güvenliği Tedbirleri',
     content:
-      'We use essential cookies for authentication and session management. We do not use third-party tracking cookies for advertising. You can manage cookie preferences through your browser settings, though disabling essential cookies may affect Service functionality.',
+      'Verilerinizin korunması için endüstri standardı güvenlik önlemleri uygulanmaktadır: İletim sırasında şifreleme (TLS 1.3); veritabanı düzeyinde şifreli depolama; JWT token ve isteğe bağlı iki faktörlü kimlik doğrulama (2FA); düzenli güvenlik denetimleri; erişim kontrolü ve yetkilendirme mekanizmaları. Ancak hiçbir iletim veya depolama yöntemi %100 güvenli değildir.',
   },
   {
-    title: '9. Children\'s Privacy',
+    title: '9. Çerezler',
     content:
-      'The Service is not intended for users under the age of 13. We do not knowingly collect personal information from children under 13. If we discover that we have collected data from a child under 13, we will promptly delete it.',
+      'Yalnızca hizmetin çalışması için zorunlu olan çerezler kullanılmaktadır: oturum yönetimi ve kimlik doğrulama çerezleri. Reklam amaçlı üçüncü taraf izleme çerezleri kullanılmamaktadır. Tarayıcı ayarlarınızdan çerez tercihlerinizi yönetebilirsiniz; ancak zorunlu çerezlerin devre dışı bırakılması hizmet işlevselliğini etkileyebilir.',
   },
   {
-    title: '10. International Data Transfers',
+    title: '10. İlgili Kişi Hakları (KVKK md. 11)',
     content:
-      'Your data may be processed and stored in countries other than your own. We ensure appropriate safeguards are in place for international data transfers in compliance with applicable data protection laws.',
+      'KVKK\'nın 11. maddesi kapsamında şu haklara sahipsiniz: Kişisel verilerinizin işlenip işlenmediğini öğrenme; işlenmişse buna ilişkin bilgi talep etme; işlenme amacını ve amacına uygun kullanılıp kullanılmadığını öğrenme; yurt içinde/yurt dışında aktarıldığı üçüncü kişileri bilme; eksik veya yanlış işlenmiş verilerin düzeltilmesini isteme; KVKK md. 7 kapsamında silinmesini veya yok edilmesini isteme; düzeltme/silme işlemlerinin aktarılan üçüncü kişilere bildirilmesini isteme; işlenen verilerin münhasıran otomatik sistemler vasıtasıyla analiz edilmesi suretiyle aleyhinize bir sonucun ortaya çıkmasına itiraz etme; kanuna aykırı işlenme sebebiyle zarara uğramanız halinde zararın giderilmesini talep etme.',
   },
   {
-    title: '11. Changes to This Policy',
+    title: '11. Başvuru Yöntemi',
     content:
-      'We may update this Privacy Policy from time to time. We will notify you of significant changes through the Service or via email. Your continued use of the Service after changes take effect constitutes acceptance of the updated policy.',
+      'Yukarıdaki haklarınızı kullanmak için kvkk@swiip.app adresine e-posta göndererek veya uygulama içindeki Ayarlar > Gizlilik bölümünden başvurabilirsiniz. Başvurularınız en geç 30 gün içinde ücretsiz olarak yanıtlanacaktır. İşlemin ayrıca bir maliyet gerektirmesi halinde Kişisel Verileri Koruma Kurulu tarafından belirlenen tarife üzerinden ücret alınabilir.',
   },
   {
-    title: '12. Contact Us',
+    title: '12. Çocukların Gizliliği',
     content:
-      'For privacy-related inquiries, contact us at privacy@swiip.app. For general support, reach out to support@swiip.app.',
+      'Hizmet, 13 yaşın altındaki kullanıcılara yönelik değildir. 13 yaşın altındaki çocuklardan bilerek kişisel veri toplanmaz. Böyle bir durumun tespiti halinde ilgili veriler derhal silinir.',
+  },
+  {
+    title: '13. Politika Değişiklikleri',
+    content:
+      'Bu Gizlilik Politikası zaman zaman güncellenebilir. Önemli değişiklikler hizmet içi bildirim veya e-posta yoluyla bildirilecektir. Değişiklikler yürürlüğe girdikten sonra hizmeti kullanmaya devam etmeniz, güncellenmiş politikayı kabul ettiğiniz anlamına gelir.',
+  },
+  {
+    title: '14. İletişim',
+    content:
+      'Gizlilik ve KVKK ile ilgili sorularınız için: kvkk@swiip.app. Genel destek için: destek@swiip.app.',
   },
 ];
 
 export default function PrivacyPage() {
   return (
-    <div className="relative min-h-screen bg-surface-base">
-      {/* Background */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div className="relative min-h-screen" style={{ background: 'var(--color-bg-base)' }}>
+      {/* Atmospheric orbs */}
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
-          className="absolute -top-32 -right-32 w-[600px] h-[600px] rounded-full"
+          className="absolute -top-32 -right-32 w-[600px] h-[600px] rounded-full opacity-40"
           style={{
-            background: 'radial-gradient(circle, rgba(99,102,241,0.06) 0%, transparent 70%)',
+            background: 'radial-gradient(circle, #6c5ce7 0%, transparent 65%)',
+          }}
+        />
+        <div
+          className="absolute bottom-0 -left-48 w-[500px] h-[500px] rounded-full opacity-30"
+          style={{
+            background: 'radial-gradient(circle, #a29bfe 0%, transparent 65%)',
           }}
         />
       </div>
@@ -107,11 +123,11 @@ export default function PrivacyPage() {
         <motion.div variants={itemVariants} className="mb-8">
           <Link
             href="/register"
-            className="inline-flex items-center gap-1.5 text-sm transition-colors duration-fast"
+            className="inline-flex items-center gap-1.5 text-sm transition-colors duration-fast hover:opacity-80"
             style={{ color: 'var(--color-text-tertiary)' }}
           >
             <ArrowLeft size={14} />
-            Back to sign up
+            Kayıt sayfasına dön
           </Link>
         </motion.div>
 
@@ -119,15 +135,10 @@ export default function PrivacyPage() {
         <motion.div variants={itemVariants} className="mb-8">
           <div className="inline-flex items-center gap-2.5 mb-5">
             <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: 'var(--color-accent-primary)' }}
+              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: 'var(--color-accent-gradient)' }}
             >
-              <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-                <path
-                  d="M4 6C4 4.895 4.895 4 6 4H14C15.105 4 16 4.895 16 6V11C16 12.105 15.105 13 14 13H11L8 16V13H6C4.895 13 4 12.105 4 11V6Z"
-                  fill="white"
-                />
-              </svg>
+              <Shield size={18} color="white" />
             </div>
             <span
               className="text-lg font-bold tracking-tight"
@@ -140,10 +151,10 @@ export default function PrivacyPage() {
             className="text-3xl font-bold tracking-tight"
             style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.03em' }}
           >
-            Privacy Policy
+            Gizlilik Politikası & KVKK Aydınlatma Metni
           </h1>
           <p className="mt-2 text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
-            Last updated: March 27, 2026
+            Son güncelleme: 28 Mart 2026
           </p>
         </motion.div>
 
@@ -152,10 +163,26 @@ export default function PrivacyPage() {
           variants={itemVariants}
           className="rounded-2xl p-6 space-y-6"
           style={{
-            background: 'var(--color-surface-elevated)',
+            background: 'var(--glass-bg)',
+            backdropFilter: 'blur(var(--glass-blur))',
+            WebkitBackdropFilter: 'blur(var(--glass-blur))',
             border: '1px solid var(--color-border-subtle)',
+            boxShadow: 'var(--shadow-float)',
           }}
         >
+          <div
+            className="rounded-xl p-4 text-sm leading-relaxed"
+            style={{
+              background: 'rgba(108, 92, 231, 0.08)',
+              border: '1px solid rgba(108, 92, 231, 0.15)',
+              color: 'var(--color-text-secondary)',
+            }}
+          >
+            Bu metin, 6698 sayılı Kişisel Verilerin Korunması Kanunu ("KVKK") ve ilgili
+            mevzuat kapsamında kişisel verilerinizin işlenmesine ilişkin sizi bilgilendirmek
+            amacıyla hazırlanmıştır.
+          </div>
+
           {sections.map((section) => (
             <div key={section.title}>
               <h2
@@ -172,6 +199,17 @@ export default function PrivacyPage() {
               </p>
             </div>
           ))}
+        </motion.div>
+
+        {/* Footer */}
+        <motion.div variants={itemVariants} className="mt-6 text-center">
+          <Link
+            href="/terms"
+            className="text-sm transition-colors duration-fast hover:opacity-80"
+            style={{ color: 'var(--color-text-accent)' }}
+          >
+            Kullanım Koşulları
+          </Link>
         </motion.div>
       </motion.div>
     </div>

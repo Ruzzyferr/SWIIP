@@ -4,7 +4,18 @@ www.swiip.app {
 }
 
 swiip.app {
-    # Static downloads (desktop app installer)
+    # ── Security Headers (all responses) ──────────────────────────────────
+    header {
+        X-Content-Type-Options "nosniff"
+        X-Frame-Options "DENY"
+        X-XSS-Protection "1; mode=block"
+        Referrer-Policy "strict-origin-when-cross-origin"
+        Permissions-Policy "camera=(self), microphone=(self), display-capture=(self), geolocation=(), payment=()"
+        Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+        -Server
+    }
+
+    # ── Static downloads (desktop app installer) ──────────────────────────
     @latestInstaller path /downloads/Swiip-Setup-latest.exe /downloads/Swiip-Setup-latest.exe.sha256 /downloads/latest.yml
     handle @latestInstaller {
         header Cache-Control "no-store, no-cache, must-revalidate, max-age=0"
@@ -19,25 +30,44 @@ swiip.app {
         file_server
     }
 
-    # API — strip /api prefix before proxying
+    # ── API — strip /api prefix before proxying ───────────────────────────
     handle /api/* {
         uri strip_prefix /api
-        reverse_proxy api:4000
+        reverse_proxy api:4000 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+            header_up X-Forwarded-Proto {scheme}
+        }
     }
 
-    # WebSocket gateway
+    # ── WebSocket gateway ─────────────────────────────────────────────────
     handle /gateway* {
-        reverse_proxy gateway:4001
+        reverse_proxy gateway:4001 {
+            header_up X-Real-IP {remote_host}
+            header_up X-Forwarded-For {remote_host}
+        }
     }
 
-    # LiveKit WebSocket/HTTP
+    # ── LiveKit WebSocket/HTTP ────────────────────────────────────────────
     handle /livekit* {
         uri strip_prefix /livekit
         reverse_proxy livekit:7880
     }
 
-    # Web frontend (catch-all)
+    # ── Web frontend (catch-all) ──────────────────────────────────────────
     handle {
         reverse_proxy web:3000
+
+        # Compress responses
+        encode gzip zstd
+    }
+
+    # ── Logging ───────────────────────────────────────────────────────────
+    log {
+        output file /data/access.log {
+            roll_size 100mb
+            roll_keep 5
+        }
+        format json
     }
 }

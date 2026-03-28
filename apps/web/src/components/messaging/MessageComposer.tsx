@@ -23,6 +23,7 @@ import {
   Italic,
   Code,
 } from 'lucide-react';
+import { useTranslations } from 'next-intl';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { Spinner } from '@/components/ui/Spinner';
 import { EmojiPicker } from '@/components/ui/EmojiPicker';
@@ -185,6 +186,7 @@ export function MessageComposer({
   onStartEdit,
   slowmodeSeconds = 0,
 }: MessageComposerProps) {
+  const t = useTranslations('messages');
   const [content, setContent] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
@@ -390,7 +392,7 @@ export function MessageComposer({
       if (trimmed && files.length === 0) {
         removeMessage(channelId, pendingId);
       }
-      toastError(err instanceof Error ? err.message : 'Failed to send message');
+      toastError(err instanceof Error ? err.message : t('sendFailed'));
     } finally {
       setSending(false);
     }
@@ -600,7 +602,7 @@ export function MessageComposer({
             >
               <ComposerHeader
                 type="reply"
-                label={`Replying to @${replyTo.author.globalName ?? replyTo.author.username ?? replyTo.author.id}`}
+                label={t('replyingTo', { user: replyTo.author.globalName ?? replyTo.author.username ?? replyTo.author.id })}
                 onClose={onClearReply}
               />
             </motion.div>
@@ -614,7 +616,7 @@ export function MessageComposer({
             >
               <ComposerHeader
                 type="edit"
-                label="Editing message"
+                label={t('editingMessage')}
                 onClose={() => {
                   onClearEdit();
                   setContent('');
@@ -654,7 +656,7 @@ export function MessageComposer({
             }}
           >
             <p className="text-sm font-medium" style={{ color: 'var(--color-accent-primary)' }}>
-              Drop files to upload
+              {t('upload.dragDrop')}
             </p>
           </div>
         )}
@@ -662,7 +664,7 @@ export function MessageComposer({
         {/* Input area */}
         <div className="flex items-end gap-1 px-2 py-2">
           {/* Attach button */}
-          <Tooltip content="Upload a File" placement="top">
+          <Tooltip content={t('uploadFile')} placement="top">
             <button
               onClick={() => {
                 const input = document.createElement('input');
@@ -684,7 +686,7 @@ export function MessageComposer({
                 e.currentTarget.style.background = 'transparent';
                 e.currentTarget.style.color = 'var(--color-text-tertiary)';
               }}
-              aria-label="Upload a file"
+              aria-label={t('uploadFile')}
             >
               <Plus size={18} />
             </button>
@@ -707,7 +709,7 @@ export function MessageComposer({
               onChange={handleContentChange}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
-              placeholder={`Message #${channelName}`}
+              placeholder={t('placeholder', { channel: channelName })}
               rows={1}
               className="w-full bg-transparent resize-none outline-none text-sm py-2 px-1"
               style={{
@@ -717,7 +719,7 @@ export function MessageComposer({
                 lineHeight: '1.5',
                 overflow: 'auto',
               }}
-              aria-label={`Message #${channelName}`}
+              aria-label={t('placeholder', { channel: channelName })}
               aria-multiline
             />
           </div>
@@ -741,7 +743,7 @@ export function MessageComposer({
             )}
 
             {/* Emoji */}
-            <Tooltip content="Emoji" placement="top" disabled={showEmojiPicker}>
+            <Tooltip content={t('emoji')} placement="top" disabled={showEmojiPicker}>
               <button
                 ref={emojiButtonRef}
                 onClick={() => setShowEmojiPicker((v) => !v)}
@@ -764,7 +766,7 @@ export function MessageComposer({
                     e.currentTarget.style.color = 'var(--color-text-tertiary)';
                   }
                 }}
-                aria-label="Open emoji picker"
+                aria-label={t('openEmojiPicker')}
                 aria-expanded={showEmojiPicker}
               >
                 <Smile size={18} />
@@ -779,7 +781,7 @@ export function MessageComposer({
             )}
 
             {/* Send button */}
-            <Tooltip content={editingMessage ? 'Save Edit' : 'Send Message'} placement="top">
+            <Tooltip content={editingMessage ? t('saveEdit') : t('sendMessage')} placement="top">
               <button
                 onClick={handleSend}
                 disabled={!canSend}
@@ -796,7 +798,7 @@ export function MessageComposer({
                 onMouseLeave={(e) => {
                   if (canSend) e.currentTarget.style.background = 'var(--color-accent-primary)';
                 }}
-                aria-label={editingMessage ? 'Save edit' : 'Send message'}
+                aria-label={editingMessage ? t('saveEdit') : t('sendMessage')}
               >
                 {sending ? <Spinner size={15} /> : <Send size={15} />}
               </button>
@@ -820,7 +822,7 @@ export function MessageComposer({
               />
             </div>
             <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
-              Uploading... {uploadProgress}%
+              {t('upload.uploadingProgress', { progress: uploadProgress })}
             </p>
           </div>
         )}
@@ -852,11 +854,11 @@ export function MessageComposer({
           style={{ color: 'var(--color-text-disabled)' }}
         >
           <span className="text-xs">
-            <kbd className="font-mono">Enter</kbd> to send ·{' '}
-            <kbd className="font-mono">Shift+Enter</kbd> for new line
+            <kbd className="font-mono">Enter</kbd> {t('hints.send')} ·{' '}
+            <kbd className="font-mono">Shift+Enter</kbd> {t('hints.newLine')}
           </span>
           <div className="flex items-center gap-1 ml-auto">
-            <Tooltip content="Bold (Ctrl+B)" placement="top">
+            <Tooltip content={t('formatting.bold')} placement="top">
               <button
                 onClick={() => wrapSelection('**')}
                 className="p-1 rounded transition-colors duration-fast text-xs font-bold"
@@ -869,12 +871,12 @@ export function MessageComposer({
                   e.currentTarget.style.color = 'var(--color-text-disabled)';
                   e.currentTarget.style.background = 'transparent';
                 }}
-                aria-label="Bold"
+                aria-label={t('formatting.bold')}
               >
                 <Bold size={12} />
               </button>
             </Tooltip>
-            <Tooltip content="Italic (Ctrl+I)" placement="top">
+            <Tooltip content={t('formatting.italic')} placement="top">
               <button
                 onClick={() => wrapSelection('*')}
                 className="p-1 rounded transition-colors duration-fast"
@@ -887,12 +889,12 @@ export function MessageComposer({
                   e.currentTarget.style.color = 'var(--color-text-disabled)';
                   e.currentTarget.style.background = 'transparent';
                 }}
-                aria-label="Italic"
+                aria-label={t('formatting.italic')}
               >
                 <Italic size={12} />
               </button>
             </Tooltip>
-            <Tooltip content="Code (Ctrl+`)" placement="top">
+            <Tooltip content={t('formatting.code')} placement="top">
               <button
                 onClick={() => wrapSelection('`')}
                 className="p-1 rounded transition-colors duration-fast"
@@ -905,7 +907,7 @@ export function MessageComposer({
                   e.currentTarget.style.color = 'var(--color-text-disabled)';
                   e.currentTarget.style.background = 'transparent';
                 }}
-                aria-label="Inline code"
+                aria-label={t('formatting.code')}
               >
                 <Code size={12} />
               </button>

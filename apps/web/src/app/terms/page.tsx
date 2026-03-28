@@ -2,13 +2,13 @@
 
 import Link from 'next/link';
 import { motion } from 'framer-motion';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, FileText } from 'lucide-react';
 
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.05, delayChildren: 0.08 },
+    transition: { staggerChildren: 0.04, delayChildren: 0.06 },
   },
 };
 
@@ -23,76 +23,87 @@ const itemVariants = {
 
 const sections = [
   {
-    title: '1. Acceptance of Terms',
+    title: '1. Koşulların Kabulü',
     content:
-      'By accessing or using Swiip ("the Service"), you agree to be bound by these Terms of Service. If you do not agree to these terms, please do not use the Service.',
+      'Swiip hizmetine ("Hizmet") erişerek veya kullanarak bu Kullanım Koşullarını kabul etmiş olursunuz. Bu koşulları kabul etmiyorsanız lütfen Hizmeti kullanmayınız.',
   },
   {
-    title: '2. Description of Service',
+    title: '2. Hizmet Tanımı',
     content:
-      'Swiip is a real-time communication platform that provides text messaging, voice and video calls, file sharing, and related collaboration features. We reserve the right to modify, suspend, or discontinue any aspect of the Service at any time.',
+      'Swiip; metin mesajlaşma, sesli ve görüntülü görüşme, dosya paylaşımı ve ilgili iş birliği özelliklerini sunan gerçek zamanlı bir iletişim platformudur. Hizmetin herhangi bir yönünü önceden bildirimde bulunarak değiştirme, askıya alma veya sonlandırma hakkımız saklıdır.',
   },
   {
-    title: '3. User Accounts',
+    title: '3. Kullanıcı Hesapları',
     content:
-      'You must provide accurate and complete information when creating an account. You are responsible for maintaining the confidentiality of your account credentials and for all activities that occur under your account. You must be at least 13 years old to use the Service.',
+      'Hesap oluştururken doğru ve eksiksiz bilgi sağlamalısınız. Hesap bilgilerinizin gizliliğinden ve hesabınız altında gerçekleşen tüm faaliyetlerden siz sorumlusunuz. Hizmeti kullanmak için en az 13 yaşında olmanız gerekmektedir.',
   },
   {
-    title: '4. Acceptable Use',
+    title: '4. Kabul Edilebilir Kullanım',
     content:
-      'You agree not to use the Service to: distribute spam or unsolicited messages; upload malicious software; harass, bully, or threaten other users; impersonate any person or entity; violate any applicable laws or regulations; or attempt to gain unauthorized access to the Service or other users\' accounts.',
+      'Hizmeti şu amaçlarla kullanmamayı kabul edersiniz: Spam veya istenmeyen mesaj dağıtmak; zararlı yazılım yüklemek; diğer kullanıcıları taciz etmek, zorbalık yapmak veya tehdit etmek; herhangi bir kişi veya kuruluşun kimliğine bürünmek; yürürlükteki yasa ve düzenlemeleri ihlal etmek; Hizmete veya diğer kullanıcıların hesaplarına yetkisiz erişim sağlamaya çalışmak.',
   },
   {
-    title: '5. User Content',
+    title: '5. Kullanıcı İçeriği',
     content:
-      'You retain ownership of content you create and share through the Service. By posting content, you grant Swiip a non-exclusive, worldwide license to use, store, and display your content solely for the purpose of operating and improving the Service. You are solely responsible for the content you share.',
+      'Hizmet aracılığıyla oluşturduğunuz ve paylaştığınız içeriklerin mülkiyeti size aittir. İçerik yayınlayarak, Swiip\'e yalnızca Hizmetin işletilmesi ve iyileştirilmesi amacıyla içeriğinizi kullanma, saklama ve görüntüleme konusunda münhasır olmayan, dünya çapında bir lisans vermiş olursunuz. Paylaştığınız içeriklerden yalnızca siz sorumlusunuz.',
   },
   {
-    title: '6. Privacy',
+    title: '6. Gizlilik',
     content:
-      'Your use of the Service is also governed by our Privacy Policy, which is incorporated into these Terms by reference. Please review our Privacy Policy to understand how we collect, use, and protect your information.',
+      'Hizmeti kullanımınız ayrıca bu Koşullara referans yoluyla dahil edilen Gizlilik Politikamız ve KVKK Aydınlatma Metnimiz kapsamındadır. Kişisel verilerinizin nasıl toplandığını, kullanıldığını ve korunduğunu anlamak için lütfen Gizlilik Politikamızı inceleyiniz.',
   },
   {
-    title: '7. Intellectual Property',
+    title: '7. Fikri Mülkiyet',
     content:
-      'The Service, including its design, features, and underlying technology, is owned by Swiip and protected by intellectual property laws. You may not copy, modify, distribute, or reverse-engineer any part of the Service without our prior written consent.',
+      'Hizmetin tasarımı, özellikleri ve temelindeki teknoloji dahil olmak üzere tamamı Swiip\'e aittir ve fikri mülkiyet yasalarıyla korunmaktadır. Önceden yazılı izin almaksızın Hizmetin herhangi bir bölümünü kopyalayamaz, değiştiremez, dağıtamaz veya tersine mühendislik uygulayamazsınız.',
   },
   {
-    title: '8. Termination',
+    title: '8. Hesap Askıya Alma ve Sonlandırma',
     content:
-      'We may suspend or terminate your access to the Service at any time, with or without cause and without prior notice. Upon termination, your right to use the Service immediately ceases. You may delete your account at any time through your account settings.',
+      'Hizmete erişiminizi herhangi bir zamanda, sebep göstererek veya göstermeksizin ve önceden bildirimde bulunmaksızın askıya alabilir veya sonlandırabiliriz. Sonlandırma halinde Hizmeti kullanma hakkınız derhal sona erer. Hesabınızı istediğiniz zaman Ayarlar > Hesap bölümünden silebilirsiniz.',
   },
   {
-    title: '9. Disclaimers',
+    title: '9. Sorumluluk Reddi',
     content:
-      'The Service is provided "as is" and "as available" without warranties of any kind, whether express or implied. We do not guarantee that the Service will be uninterrupted, secure, or error-free.',
+      'Hizmet, açık veya zımni hiçbir garanti verilmeksizin "olduğu gibi" ve "mevcut olduğu şekilde" sunulmaktadır. Hizmetin kesintisiz, güvenli veya hatasız olacağını garanti etmiyoruz.',
   },
   {
-    title: '10. Limitation of Liability',
+    title: '10. Sorumluluk Sınırlandırması',
     content:
-      'To the maximum extent permitted by law, Swiip shall not be liable for any indirect, incidental, special, consequential, or punitive damages arising out of or related to your use of the Service.',
+      'Yürürlükteki kanunların izin verdiği azami ölçüde, Swiip; Hizmeti kullanmanızdan kaynaklanan veya bununla bağlantılı dolaylı, arızi, özel, sonuç niteliğinde veya cezai tazminatlardan sorumlu tutulamaz.',
   },
   {
-    title: '11. Changes to Terms',
+    title: '11. Uygulanacak Hukuk',
     content:
-      'We may update these Terms from time to time. We will notify you of significant changes through the Service or via email. Your continued use of the Service after such changes constitutes acceptance of the updated Terms.',
+      'Bu Kullanım Koşulları Türkiye Cumhuriyeti yasalarına tabidir. Bu Koşullardan kaynaklanan veya bunlarla bağlantılı tüm uyuşmazlıklarda Türkiye Cumhuriyeti mahkemeleri yetkilidir.',
   },
   {
-    title: '12. Contact',
+    title: '12. Koşullarda Değişiklik',
     content:
-      'If you have questions about these Terms, please contact us at support@swiip.app.',
+      'Bu Koşulları zaman zaman güncelleyebiliriz. Önemli değişiklikler hizmet içi bildirim veya e-posta yoluyla bildirilecektir. Değişiklikler yürürlüğe girdikten sonra Hizmeti kullanmaya devam etmeniz, güncellenmiş Koşulları kabul ettiğiniz anlamına gelir.',
+  },
+  {
+    title: '13. İletişim',
+    content:
+      'Bu Koşullarla ilgili sorularınız için destek@swiip.app adresinden bize ulaşabilirsiniz.',
   },
 ];
 
 export default function TermsPage() {
   return (
-    <div className="relative min-h-screen bg-surface-base">
-      {/* Background */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
+    <div className="relative min-h-screen" style={{ background: 'var(--color-bg-base)' }}>
+      {/* Atmospheric orbs */}
+      <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
-          className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full"
+          className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full opacity-40"
           style={{
-            background: 'radial-gradient(circle, rgba(99,102,241,0.06) 0%, transparent 70%)',
+            background: 'radial-gradient(circle, #a29bfe 0%, transparent 65%)',
+          }}
+        />
+        <div
+          className="absolute bottom-0 -right-48 w-[500px] h-[500px] rounded-full opacity-30"
+          style={{
+            background: 'radial-gradient(circle, #6c5ce7 0%, transparent 65%)',
           }}
         />
       </div>
@@ -107,11 +118,11 @@ export default function TermsPage() {
         <motion.div variants={itemVariants} className="mb-8">
           <Link
             href="/register"
-            className="inline-flex items-center gap-1.5 text-sm transition-colors duration-fast"
+            className="inline-flex items-center gap-1.5 text-sm transition-colors duration-fast hover:opacity-80"
             style={{ color: 'var(--color-text-tertiary)' }}
           >
             <ArrowLeft size={14} />
-            Back to sign up
+            Kayıt sayfasına dön
           </Link>
         </motion.div>
 
@@ -119,15 +130,10 @@ export default function TermsPage() {
         <motion.div variants={itemVariants} className="mb-8">
           <div className="inline-flex items-center gap-2.5 mb-5">
             <div
-              className="w-8 h-8 rounded-lg flex items-center justify-center"
-              style={{ background: 'var(--color-accent-primary)' }}
+              className="w-9 h-9 rounded-xl flex items-center justify-center"
+              style={{ background: 'var(--color-accent-gradient)' }}
             >
-              <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-                <path
-                  d="M4 6C4 4.895 4.895 4 6 4H14C15.105 4 16 4.895 16 6V11C16 12.105 15.105 13 14 13H11L8 16V13H6C4.895 13 4 12.105 4 11V6Z"
-                  fill="white"
-                />
-              </svg>
+              <FileText size={18} color="white" />
             </div>
             <span
               className="text-lg font-bold tracking-tight"
@@ -140,10 +146,10 @@ export default function TermsPage() {
             className="text-3xl font-bold tracking-tight"
             style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.03em' }}
           >
-            Terms of Service
+            Kullanım Koşulları
           </h1>
           <p className="mt-2 text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
-            Last updated: March 27, 2026
+            Son güncelleme: 28 Mart 2026
           </p>
         </motion.div>
 
@@ -152,8 +158,11 @@ export default function TermsPage() {
           variants={itemVariants}
           className="rounded-2xl p-6 space-y-6"
           style={{
-            background: 'var(--color-surface-elevated)',
+            background: 'var(--glass-bg)',
+            backdropFilter: 'blur(var(--glass-blur))',
+            WebkitBackdropFilter: 'blur(var(--glass-blur))',
             border: '1px solid var(--color-border-subtle)',
+            boxShadow: 'var(--shadow-float)',
           }}
         >
           {sections.map((section) => (
@@ -172,6 +181,17 @@ export default function TermsPage() {
               </p>
             </div>
           ))}
+        </motion.div>
+
+        {/* Footer */}
+        <motion.div variants={itemVariants} className="mt-6 text-center">
+          <Link
+            href="/privacy"
+            className="text-sm transition-colors duration-fast hover:opacity-80"
+            style={{ color: 'var(--color-text-accent)' }}
+          >
+            Gizlilik Politikası & KVKK
+          </Link>
         </motion.div>
       </motion.div>
     </div>
