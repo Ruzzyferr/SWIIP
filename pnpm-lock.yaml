@@ -270,6 +270,9 @@ importers:
       ioredis:
         specifier: ^5.4
         version: 5.10.1
+      meilisearch:
+        specifier: ^0.40
+        version: 0.40.0(encoding@0.1.13)
       multer:
         specifier: ^1.4
         version: 1.4.4
