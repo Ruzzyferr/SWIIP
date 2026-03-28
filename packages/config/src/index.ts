@@ -10,8 +10,14 @@ import { z, ZodError } from 'zod';
  * than throwing a raw ZodError.
  */
 function parseEnv<S extends z.ZodTypeAny>(schema: S, env: NodeJS.ProcessEnv): z.output<S> {
+  // Convert empty strings to undefined so optional() fields work with Docker Compose
+  // (Docker Compose sets unresolved ${VAR} to "" instead of leaving it undefined)
+  const cleaned = { ...env };
+  for (const [key, val] of Object.entries(cleaned)) {
+    if (val === '') delete cleaned[key];
+  }
   try {
-    return schema.parse(env);
+    return schema.parse(cleaned);
   } catch (err) {
     if (err instanceof ZodError) {
       const issues = err.issues
