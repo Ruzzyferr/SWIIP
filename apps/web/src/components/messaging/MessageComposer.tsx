@@ -577,13 +577,16 @@ export function MessageComposer({
       <input {...getInputProps()} />
 
       <div
-        className="rounded-xl overflow-hidden"
+        className="rounded-2xl overflow-hidden"
         style={{
-          background: 'var(--color-surface-raised)',
+          background: 'var(--glass-bg)',
+          backdropFilter: 'blur(12px)',
+          WebkitBackdropFilter: 'blur(12px)',
           border: isDragActive || isDragOver
             ? '2px solid var(--color-accent-primary)'
-            : '1px solid var(--color-border-default)',
-          transition: 'border-color 140ms ease',
+            : '1px solid var(--color-border-subtle)',
+          transition: 'border-color 200ms ease, box-shadow 200ms ease',
+          boxShadow: isDragActive ? 'var(--shadow-glow)' : '0 2px 10px rgba(0,0,0,0.2)',
         }}
       >
         {/* Reply / Edit header */}

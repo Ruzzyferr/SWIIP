@@ -163,9 +163,11 @@ export function Modal({
             tabIndex={-1}
             className={cn('relative w-full rounded-2xl outline-none', sizeClasses[size])}
             style={{
-              background: 'var(--color-surface-overlay)',
+              background: 'var(--glass-bg)',
+              backdropFilter: 'blur(24px)',
+              WebkitBackdropFilter: 'blur(24px)',
               border: '1px solid var(--color-border-subtle)',
-              boxShadow: 'var(--shadow-2xl)',
+              boxShadow: 'var(--shadow-float)',
             }}
             onClick={(e) => e.stopPropagation()}
           >

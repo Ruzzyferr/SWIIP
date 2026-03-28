@@ -41,7 +41,9 @@ export function UserPanel() {
       style={{
         minHeight: '52px',
         paddingBottom: 'max(0px, env(safe-area-inset-bottom))',
-        background: 'var(--color-surface-raised)',
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(var(--glass-blur))',
+        WebkitBackdropFilter: 'blur(var(--glass-blur))',
         borderTop: '1px solid var(--color-border-subtle)',
       }}
     >

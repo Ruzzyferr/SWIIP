@@ -38,6 +38,7 @@ import { pinMessage, unpinMessage } from '@/lib/api/channels.api';
 import { useMessagesStore } from '@/stores/messages.store';
 import { toastError } from '@/lib/toast';
 import type { MessagePayload, ReactionPayload, EmojiRef } from '@constchat/protocol';
+import DOMPurify from 'dompurify';
 import hljs from 'highlight.js/lib/core';
 import javascript from 'highlight.js/lib/languages/javascript';
 import typescript from 'highlight.js/lib/languages/typescript';
@@ -136,7 +137,7 @@ function renderContent(text: string): React.ReactNode[] {
             <span className="text-xs block mb-1" style={{ color: 'var(--color-text-disabled)' }}>{lang}</span>
           )}
           {highlightedHtml ? (
-            <code dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
+            <code dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(highlightedHtml) }} />
           ) : (
             <code>{code}</code>
           )}
@@ -394,11 +395,13 @@ function MessageActions({
 
   return (
     <div
-      className="message-actions flex items-center gap-0.5 rounded-lg px-1 py-1"
+      className="message-actions flex items-center gap-0.5 rounded-xl px-1 py-1"
       style={{
-        background: 'var(--color-surface-floating)',
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(16px)',
+        WebkitBackdropFilter: 'blur(16px)',
         border: '1px solid var(--color-border-subtle)',
-        boxShadow: 'var(--shadow-md)',
+        boxShadow: 'var(--shadow-float)',
         position: 'absolute',
         right: 12,
         top: -18,

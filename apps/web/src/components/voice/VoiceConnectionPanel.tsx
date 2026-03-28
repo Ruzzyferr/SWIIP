@@ -104,19 +104,39 @@ export function VoiceConnectionPanel() {
 
   return (
     <div
-      className="px-2 py-2 space-y-1.5"
+      className="px-2 py-2.5 space-y-2 relative overflow-hidden"
       style={{
         borderTop: '1px solid var(--color-border-subtle)',
-        background: 'var(--color-surface-raised)',
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(var(--glass-blur))',
+        WebkitBackdropFilter: 'blur(var(--glass-blur))',
       }}
     >
+      {/* Ambient stage glow */}
+      {connectionState === 'connected' && (
+        <div
+          className="absolute pointer-events-none"
+          style={{
+            top: -30,
+            left: '50%',
+            transform: 'translateX(-50%)',
+            width: 200,
+            height: 80,
+            borderRadius: '50%',
+            background: 'radial-gradient(circle, rgba(108,92,231,0.12), transparent 70%)',
+            filter: 'blur(20px)',
+          }}
+        />
+      )}
+
       {/* Alone timeout warning */}
       {aloneTimeout != null && aloneTimeout <= 60 && (
         <div
-          className="flex items-center gap-1.5 px-2 py-1 rounded text-xs"
+          className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs"
           style={{
             background: 'var(--color-danger-muted)',
             color: 'var(--color-danger-default)',
+            border: '1px solid rgba(255,84,112,0.15)',
           }}
         >
           <AlertTriangle size={12} />
@@ -125,7 +145,7 @@ export function VoiceConnectionPanel() {
       )}
 
       {/* Status line */}
-      <div className="flex items-center gap-2 px-1">
+      <div className="flex items-center gap-2 px-1 relative">
         {isTransitioning ? (
           <Loader2
             size={14}
@@ -138,7 +158,7 @@ export function VoiceConnectionPanel() {
           <ConnectionQualityBars quality={connectionQuality} />
         )}
         <div className="flex-1 min-w-0">
-          <p className="text-xs font-semibold truncate" style={{ color: statusColor }}>
+          <p className="text-xs font-bold truncate" style={{ color: statusColor, letterSpacing: '-0.01em' }}>
             {statusText}
           </p>
           {channel && (
@@ -166,7 +186,7 @@ export function VoiceConnectionPanel() {
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-center gap-1">
+      <div className="flex items-center justify-center gap-1.5 relative">
         <Tooltip content={selfMuted ? 'Unmute' : 'Mute'} placement="top">
           <button
             onClick={toggleMute}
@@ -177,9 +197,25 @@ export function VoiceConnectionPanel() {
                 : 'var(--color-text-secondary)',
               background: selfMuted
                 ? 'var(--color-danger-muted)'
-                : 'var(--color-surface-overlay)',
+                : 'rgba(255,255,255,0.06)',
+              borderRadius: 'var(--radius-lg)',
+              boxShadow: selfMuted ? '0 0 8px rgba(255,84,112,0.2)' : 'none',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              if (!selfMuted) {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                e.currentTarget.style.color = 'var(--color-text-primary)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!selfMuted) {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                e.currentTarget.style.color = 'var(--color-text-secondary)';
+              }
             }}
             aria-label={selfMuted ? 'Unmute' : 'Mute'}
+            aria-pressed={selfMuted}
           >
             {selfMuted ? <MicOff size={15} /> : <Mic size={15} />}
           </button>
@@ -195,9 +231,25 @@ export function VoiceConnectionPanel() {
                 : 'var(--color-text-secondary)',
               background: selfDeafened
                 ? 'var(--color-danger-muted)'
-                : 'var(--color-surface-overlay)',
+                : 'rgba(255,255,255,0.06)',
+              borderRadius: 'var(--radius-lg)',
+              boxShadow: selfDeafened ? '0 0 8px rgba(255,84,112,0.2)' : 'none',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              if (!selfDeafened) {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                e.currentTarget.style.color = 'var(--color-text-primary)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!selfDeafened) {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                e.currentTarget.style.color = 'var(--color-text-secondary)';
+              }
             }}
             aria-label={selfDeafened ? 'Undeafen' : 'Deafen'}
+            aria-pressed={selfDeafened}
           >
             {selfDeafened ? <EarOff size={15} /> : <Headphones size={15} />}
           </button>
@@ -213,9 +265,25 @@ export function VoiceConnectionPanel() {
                 : 'var(--color-text-secondary)',
               background: cameraEnabled
                 ? 'var(--color-success-muted, rgba(87, 242, 135, 0.15))'
-                : 'var(--color-surface-overlay)',
+                : 'rgba(255,255,255,0.06)',
+              borderRadius: 'var(--radius-lg)',
+              boxShadow: cameraEnabled ? '0 0 8px rgba(87,242,135,0.2)' : 'none',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              if (!cameraEnabled) {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                e.currentTarget.style.color = 'var(--color-text-primary)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!cameraEnabled) {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                e.currentTarget.style.color = 'var(--color-text-secondary)';
+              }
             }}
             aria-label={cameraEnabled ? 'Turn Off Camera' : 'Turn On Camera'}
+            aria-pressed={cameraEnabled}
           >
             {cameraEnabled ? <Video size={15} /> : <VideoOff size={15} />}
           </button>
@@ -231,21 +299,49 @@ export function VoiceConnectionPanel() {
                 : 'var(--color-text-secondary)',
               background: screenShareEnabled
                 ? 'var(--color-danger-muted)'
-                : 'var(--color-surface-overlay)',
+                : 'rgba(255,255,255,0.06)',
+              borderRadius: 'var(--radius-lg)',
+              boxShadow: screenShareEnabled ? '0 0 8px rgba(255,84,112,0.2)' : 'none',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              if (!screenShareEnabled) {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.1)';
+                e.currentTarget.style.color = 'var(--color-text-primary)';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!screenShareEnabled) {
+                e.currentTarget.style.background = 'rgba(255,255,255,0.06)';
+                e.currentTarget.style.color = 'var(--color-text-secondary)';
+              }
             }}
             aria-label={screenShareEnabled ? 'Stop Screen Share' : 'Share Screen'}
+            aria-pressed={screenShareEnabled}
           >
             {screenShareEnabled ? <MonitorOff size={15} /> : <Monitor size={15} />}
           </button>
         </Tooltip>
 
+        {/* Disconnect — prominent red */}
         <Tooltip content="Disconnect" placement="top">
           <button
             onClick={leaveVoiceChannel}
             className={btnClass}
             style={{
-              color: 'var(--color-danger-default)',
-              background: 'var(--color-danger-muted)',
+              color: '#fff',
+              background: 'var(--color-danger-default)',
+              borderRadius: 'var(--radius-lg)',
+              boxShadow: '0 0 12px rgba(255,84,112,0.3)',
+              transition: 'all 0.2s ease',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.boxShadow = '0 0 16px rgba(255,84,112,0.5)';
+              e.currentTarget.style.transform = 'scale(1.05)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.boxShadow = '0 0 12px rgba(255,84,112,0.3)';
+              e.currentTarget.style.transform = 'scale(1)';
             }}
             aria-label="Disconnect from voice"
           >

@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth.store';
+import { ArrowRight, Download, Globe, MessageCircle, Shield, Users, Mic, Zap } from 'lucide-react';
 
 export default function LandingPage() {
   const router = useRouter();
@@ -16,7 +17,6 @@ export default function LandingPage() {
       router.replace('/channels/@me');
       return;
     }
-    // On desktop app, skip the landing page and go directly to login
     if (typeof window !== 'undefined' && window.constchat?.platform === 'desktop') {
       router.replace('/login');
     }
@@ -26,189 +26,157 @@ export default function LandingPage() {
 
   return (
     <div className="min-h-screen overflow-y-auto" style={{ background: 'var(--color-surface-base)' }}>
-      {/* Navigation */}
-      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-xl" style={{ background: 'rgba(14, 15, 17, 0.85)', borderBottom: '1px solid var(--color-border-subtle)' }}>
+      {/* ---- Atmospheric Background ---- */}
+      <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
+        <div className="absolute top-[-20%] left-[30%] w-[700px] h-[700px] rounded-full opacity-[0.07]"
+          style={{ background: 'radial-gradient(circle, #6c5ce7, transparent 65%)' }} />
+        <div className="absolute top-[30%] right-[10%] w-[500px] h-[500px] rounded-full opacity-[0.05]"
+          style={{ background: 'radial-gradient(circle, #a29bfe, transparent 65%)' }} />
+        <div className="absolute bottom-[-10%] left-[10%] w-[600px] h-[600px] rounded-full opacity-[0.04]"
+          style={{ background: 'radial-gradient(circle, #fd79a8, transparent 65%)' }} />
+      </div>
+
+      {/* ---- Navigation ---- */}
+      <nav className="fixed top-0 left-0 right-0 z-50 glass-panel" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-white text-lg"
-              style={{ background: 'linear-gradient(135deg, var(--color-accent-primary), #8b5cf6)' }}>
+              style={{ background: 'var(--color-accent-gradient)' }}>
               S
             </div>
-            <span className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>Swiip</span>
+            <span className="text-lg font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
+              Swiip
+            </span>
           </div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Link href="/login"
-              className="px-4 py-2 text-sm font-medium rounded-lg transition-colors"
+              className="px-4 py-2 text-sm font-medium rounded-lg transition-all"
               style={{ color: 'var(--color-text-secondary)' }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = 'var(--color-text-primary)')}
-              onMouseLeave={(e) => (e.currentTarget.style.color = 'var(--color-text-secondary)')}>
-              Login
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-secondary)'; e.currentTarget.style.background = 'transparent'; }}>
+              Log in
             </Link>
-            <Link href="/register"
-              className="px-5 py-2 text-sm font-semibold rounded-lg text-white transition-all"
-              style={{ background: 'var(--color-accent-primary)' }}
-              onMouseEnter={(e) => (e.currentTarget.style.background = 'var(--color-accent-hover)')}
-              onMouseLeave={(e) => (e.currentTarget.style.background = 'var(--color-accent-primary)')}>
-              Sign Up
+            <Link href="/register" className="btn-premium">
+              Get Started
+              <ArrowRight size={14} />
             </Link>
           </div>
         </div>
       </nav>
 
-      {/* Hero Section */}
-      <section className="relative pt-32 pb-20 px-6 overflow-hidden">
-        {/* Background gradient effects */}
-        <div className="absolute inset-0 pointer-events-none">
-          <div className="absolute top-20 left-1/2 -translate-x-1/2 w-[800px] h-[600px] rounded-full opacity-20"
-            style={{ background: 'radial-gradient(ellipse, var(--color-accent-primary), transparent 70%)' }} />
-          <div className="absolute top-40 left-1/4 w-[400px] h-[400px] rounded-full opacity-10"
-            style={{ background: 'radial-gradient(circle, #8b5cf6, transparent 70%)' }} />
-        </div>
-
+      {/* ---- Hero ---- */}
+      <section className="relative pt-36 pb-28 px-6 overflow-hidden" style={{ zIndex: 1 }}>
         <div className="relative max-w-4xl mx-auto text-center">
-          {/* Badge */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium mb-8"
-            style={{ background: 'var(--color-accent-muted)', color: 'var(--color-text-accent)', border: '1px solid var(--color-accent-strong)' }}>
-            <span className="w-2 h-2 rounded-full animate-pulse" style={{ background: 'var(--color-status-online)' }} />
-            v0.1.0 Beta
+          {/* Beta tag */}
+          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium mb-10 animate-fade-in-up"
+            style={{
+              background: 'rgba(108,92,231,0.08)',
+              color: 'var(--color-text-accent)',
+              border: '1px solid rgba(108,92,231,0.15)',
+              animationDelay: '0.1s',
+            }}>
+            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--color-status-online)' }} />
+            Now in Beta
           </div>
 
-          <h1 className="text-5xl md:text-7xl font-extrabold leading-tight mb-6"
-            style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.03em' }}>
-            Welcome to{' '}
-            <span style={{ background: 'linear-gradient(135deg, var(--color-accent-primary), #8b5cf6, #a855f7)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
-              Swiip
-            </span>
+          <h1
+            className="font-extrabold leading-none mb-7 animate-fade-in-up"
+            style={{
+              fontSize: 'clamp(40px, 7vw, 72px)',
+              letterSpacing: '-0.04em',
+              color: 'var(--color-text-primary)',
+              animationDelay: '0.2s',
+            }}
+          >
+            Where your
+            <br />
+            <span className="text-gradient-vibrant">community</span> lives
           </h1>
 
-          <p className="text-lg md:text-xl max-w-2xl mx-auto mb-10 leading-relaxed"
-            style={{ color: 'var(--color-text-secondary)' }}>
-            Your next-generation communication platform. Create servers, chat in real-time,
-            and stay connected with your community.
+          <p
+            className="text-lg md:text-xl max-w-xl mx-auto mb-12 leading-relaxed animate-fade-in-up"
+            style={{ color: 'var(--color-text-secondary)', animationDelay: '0.3s' }}
+          >
+            Real-time voice, video, and text. Built for communities that demand more.
           </p>
 
-          {/* CTA Buttons */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
+          {/* CTA */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
             <a
               href="/downloads/Swiip-Setup-latest.exe"
-              className="group flex items-center gap-3 px-8 py-4 rounded-xl text-white font-semibold text-base transition-all hover:scale-[1.02] active:scale-[0.98]"
-              style={{ background: 'linear-gradient(135deg, var(--color-accent-primary), #7c3aed)', boxShadow: 'var(--shadow-glow)' }}
+              className="btn-premium"
+              style={{ padding: '14px 32px', fontSize: '15px' }}
             >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                <polyline points="7 10 12 15 17 10" />
-                <line x1="12" y1="15" x2="12" y2="3" />
-              </svg>
+              <Download size={18} />
               Download for Windows
-              <span className="text-xs opacity-70 font-normal">(82 MB)</span>
             </a>
-
-            <Link href="/register"
-              className="flex items-center gap-2 px-8 py-4 rounded-xl font-semibold text-base transition-all hover:scale-[1.02] active:scale-[0.98]"
-              style={{ background: 'var(--color-surface-raised)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border-default)' }}>
-              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <circle cx="12" cy="12" r="10" />
-                <line x1="2" y1="12" x2="22" y2="12" />
-                <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
-              </svg>
+            <Link href="/register" className="btn-secondary" style={{ padding: '14px 32px', fontSize: '15px' }}>
+              <Globe size={18} />
               Open in Browser
             </Link>
           </div>
 
-          <p className="mt-4 text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-            Windows 10/11 (64-bit) required
+          <p className="mt-5 text-xs animate-fade-in-up" style={{ color: 'var(--color-text-disabled)', animationDelay: '0.5s' }}>
+            Windows 10/11 &middot; macOS &middot; Web
           </p>
         </div>
       </section>
 
-      {/* Features Section */}
-      <section className="py-20 px-6">
+      {/* ---- Features Grid ---- */}
+      <section className="relative py-24 px-6" style={{ zIndex: 1 }}>
         <div className="max-w-5xl mx-auto">
-          <h2 className="text-3xl md:text-4xl font-bold text-center mb-4"
-            style={{ color: 'var(--color-text-primary)' }}>
-            Everything you need to communicate
-          </h2>
-          <p className="text-center mb-16 max-w-xl mx-auto"
-            style={{ color: 'var(--color-text-secondary)' }}>
-            Built from the ground up for speed, security, and simplicity.
-          </p>
+          <div className="text-center mb-16">
+            <h2
+              className="text-3xl md:text-4xl font-bold mb-4"
+              style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.03em' }}
+            >
+              Built different
+            </h2>
+            <p className="max-w-md mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
+              Not another chat app. A platform designed for depth.
+            </p>
+          </div>
 
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-3 gap-5">
             {[
-              {
-                icon: (
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-                  </svg>
-                ),
-                title: 'Real-time Messaging',
-                desc: 'Send messages instantly with WebSocket-powered delivery. Edit, delete, and react to messages.',
-              },
-              {
-                icon: (
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
-                    <circle cx="9" cy="7" r="4" />
-                    <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
-                    <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-                  </svg>
-                ),
-                title: 'Server & Channels',
-                desc: 'Create servers, organize with text channels, invite members, and manage your community.',
-              },
-              {
-                icon: (
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <rect x="2" y="3" width="20" height="14" rx="2" ry="2" />
-                    <line x1="8" y1="21" x2="16" y2="21" />
-                    <line x1="12" y1="17" x2="12" y2="21" />
-                  </svg>
-                ),
-                title: 'Desktop App',
-                desc: 'Native Windows application with system tray, notifications, and seamless integration.',
-              },
-              {
-                icon: (
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                  </svg>
-                ),
-                title: 'Secure by Design',
-                desc: 'Email verification, encrypted connections, role-based permissions, and moderation tools.',
-              },
-              {
-                icon: (
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <circle cx="12" cy="12" r="10" />
-                    <polyline points="12 6 12 12 16 14" />
-                  </svg>
-                ),
-                title: 'Presence & Status',
-                desc: 'See who is online, idle, or offline. Real-time presence tracking across your servers.',
-              },
-              {
-                icon: (
-                  <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                    <path d="M4 15s1-1 4-1 5 2 8 2 4-1 4-1V3s-1 1-4 1-5-2-8-2-4 1-4 1z" />
-                    <line x1="4" y1="22" x2="4" y2="15" />
-                  </svg>
-                ),
-                title: 'Invite System',
-                desc: 'Generate invite links with custom expiration and usage limits. Share and grow your server.',
-              },
-            ].map((feature, i) => (
-              <div key={i}
-                className="p-6 rounded-2xl transition-all hover:-translate-y-1"
-                style={{ background: 'var(--color-surface-elevated)', border: '1px solid var(--color-border-subtle)' }}>
-                <div className="w-12 h-12 rounded-xl flex items-center justify-center mb-4"
-                  style={{ background: 'var(--color-accent-muted)', color: 'var(--color-text-accent)' }}>
-                  {feature.icon}
+              { icon: <MessageCircle size={22} />, title: 'Instant Messaging', desc: 'WebSocket-powered delivery. Rich markdown, reactions, threads, and link previews.' },
+              { icon: <Mic size={22} />, title: 'Crystal Voice', desc: 'Low-latency voice with Krisp noise suppression. Screen share with audio.' },
+              { icon: <Users size={22} />, title: 'Communities', desc: 'Servers, channels, roles, permissions. Everything to build your space.' },
+              { icon: <Shield size={22} />, title: 'Secure', desc: 'End-to-end encrypted connections. Role-based access, moderation, and audit logs.' },
+              { icon: <Zap size={22} />, title: 'Blazing Fast', desc: 'Virtualized rendering, IndexedDB cache, service worker. No lag, ever.' },
+              { icon: <Download size={22} />, title: 'Native Apps', desc: 'Desktop app with global shortcuts, system tray, and native notifications.' },
+            ].map((f, i) => (
+              <div
+                key={i}
+                className="group p-6 rounded-2xl transition-all duration-300"
+                style={{
+                  background: 'rgba(255,255,255,0.02)',
+                  border: '1px solid rgba(255,255,255,0.04)',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                  e.currentTarget.style.borderColor = 'rgba(108,92,231,0.15)';
+                  e.currentTarget.style.transform = 'translateY(-2px)';
+                  e.currentTarget.style.boxShadow = '0 8px 30px rgba(0,0,0,0.3)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
+                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
+              >
+                <div
+                  className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
+                  style={{ background: 'var(--color-accent-muted)', color: 'var(--color-text-accent)' }}
+                >
+                  {f.icon}
                 </div>
-                <h3 className="text-base font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
-                  {feature.title}
+                <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                  {f.title}
                 </h3>
-                <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-secondary)' }}>
-                  {feature.desc}
+                <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-tertiary)' }}>
+                  {f.desc}
                 </p>
               </div>
             ))}
@@ -216,55 +184,51 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Download CTA Section */}
-      <section className="py-20 px-6">
-        <div className="max-w-3xl mx-auto text-center p-10 rounded-3xl relative overflow-hidden"
-          style={{ background: 'var(--color-surface-elevated)', border: '1px solid var(--color-border-subtle)' }}>
-          <div className="absolute inset-0 pointer-events-none opacity-30"
-            style={{ background: 'radial-gradient(ellipse at center, var(--color-accent-primary), transparent 70%)' }} />
+      {/* ---- CTA Banner ---- */}
+      <section className="relative py-24 px-6" style={{ zIndex: 1 }}>
+        <div
+          className="max-w-3xl mx-auto text-center p-12 rounded-3xl relative overflow-hidden"
+          style={{
+            background: 'rgba(108,92,231,0.06)',
+            border: '1px solid rgba(108,92,231,0.12)',
+          }}
+        >
+          <div className="absolute inset-0 pointer-events-none"
+            style={{ background: 'radial-gradient(ellipse at center top, rgba(108,92,231,0.12), transparent 70%)' }} />
           <div className="relative">
-            <h2 className="text-3xl font-bold mb-4" style={{ color: 'var(--color-text-primary)' }}>
-              Ready to get started?
+            <h2
+              className="text-3xl font-bold mb-4"
+              style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.02em' }}
+            >
+              Your space awaits
             </h2>
-            <p className="mb-8" style={{ color: 'var(--color-text-secondary)' }}>
-              Download Swiip for Windows or use it directly in your browser.
+            <p className="mb-8 max-w-sm mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
+              Join thousands building their communities on Swiip.
             </p>
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4">
-              <a
-                href="/downloads/Swiip-Setup-latest.exe"
-                className="flex items-center gap-2 px-6 py-3 rounded-xl text-white font-semibold transition-all hover:scale-[1.02] active:scale-[0.98]"
-                style={{ background: 'linear-gradient(135deg, var(--color-accent-primary), #7c3aed)', boxShadow: 'var(--shadow-glow)' }}>
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
-                  <polyline points="7 10 12 15 17 10" />
-                  <line x1="12" y1="15" x2="12" y2="3" />
-                </svg>
-                Download for Windows
-              </a>
-              <Link href="/register"
-                className="px-6 py-3 rounded-xl font-semibold transition-all hover:scale-[1.02]"
-                style={{ color: 'var(--color-text-accent)' }}>
-                Create an Account
-              </Link>
-            </div>
+            <Link href="/register" className="btn-premium" style={{ padding: '14px 36px', fontSize: '15px' }}>
+              Get Started — It&apos;s Free
+              <ArrowRight size={16} />
+            </Link>
           </div>
         </div>
       </section>
 
-      {/* Footer */}
-      <footer className="py-8 px-6" style={{ borderTop: '1px solid var(--color-border-subtle)' }}>
+      {/* ---- Footer ---- */}
+      <footer className="py-8 px-6" style={{ borderTop: '1px solid var(--color-border-subtle)', zIndex: 1, position: 'relative' }}>
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-6 h-6 rounded-md flex items-center justify-center font-bold text-white text-xs"
-              style={{ background: 'var(--color-accent-primary)' }}>
+            <div
+              className="w-6 h-6 rounded-md flex items-center justify-center font-bold text-white text-xs"
+              style={{ background: 'var(--color-accent-gradient)' }}
+            >
               S
             </div>
-            <span className="text-sm font-medium" style={{ color: 'var(--color-text-secondary)' }}>
-              Swiip v0.1.0
+            <span className="text-sm font-medium" style={{ color: 'var(--color-text-tertiary)' }}>
+              Swiip
             </span>
           </div>
-          <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-            &copy; 2025 Swiip. All rights reserved.
+          <p className="text-xs" style={{ color: 'var(--color-text-disabled)' }}>
+            &copy; {new Date().getFullYear()} Swiip. All rights reserved.
           </p>
         </div>
       </footer>

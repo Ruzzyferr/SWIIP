@@ -190,25 +190,21 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-surface-base py-8">
-      {/* Background */}
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden py-8" style={{ background: 'var(--color-surface-base)' }}>
+      {/* Atmospheric background */}
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
         <div
-          className="absolute -top-20 -right-20 w-[500px] h-[500px] rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 70%)' }}
+          className="absolute -top-20 -right-20 w-[500px] h-[500px] rounded-full opacity-[0.07]"
+          style={{ background: 'radial-gradient(circle, #6c5ce7, transparent 65%)' }}
         />
         <div
-          className="absolute -bottom-32 -left-32 w-[600px] h-[600px] rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.05) 0%, transparent 70%)' }}
+          className="absolute -bottom-32 -left-32 w-[600px] h-[600px] rounded-full opacity-[0.05]"
+          style={{ background: 'radial-gradient(circle, #a29bfe, transparent 65%)' }}
         />
-        <svg className="absolute inset-0 w-full h-full opacity-[0.02]" xmlns="http://www.w3.org/2000/svg">
-          <defs>
-            <pattern id="dots" width="24" height="24" patternUnits="userSpaceOnUse">
-              <circle cx="2" cy="2" r="1" fill="white" />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#dots)" />
-        </svg>
+        <div
+          className="absolute top-[30%] left-[50%] w-[400px] h-[400px] rounded-full opacity-[0.04]"
+          style={{ background: 'radial-gradient(circle, #fd79a8, transparent 65%)' }}
+        />
       </div>
 
       <motion.div
@@ -227,7 +223,7 @@ export default function RegisterPage() {
               >
                 <div
                   className="w-9 h-9 rounded-xl flex items-center justify-center"
-                  style={{ background: 'var(--color-accent-primary)' }}
+                  style={{ background: 'var(--color-accent-gradient)' }}
                 >
                   <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                     <path
@@ -255,8 +251,11 @@ export default function RegisterPage() {
               variants={itemVariants}
               className="rounded-2xl p-6"
               style={{
-                background: 'var(--color-surface-elevated)',
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(var(--glass-blur))',
+                WebkitBackdropFilter: 'blur(var(--glass-blur))',
                 border: '1px solid var(--color-border-subtle)',
+                boxShadow: 'var(--shadow-float)',
               }}
             >
               {serverError && (
@@ -499,16 +498,23 @@ export default function RegisterPage() {
                 <button
                   type="submit"
                   disabled={isSubmitting}
-                  className="w-full py-2.5 rounded-lg text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all duration-fast mt-2"
+                  className="w-full py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 transition-all mt-2"
                   style={{
-                    background: isSubmitting ? 'var(--color-accent-hover)' : 'var(--color-accent-primary)',
+                    background: isSubmitting ? 'var(--color-accent-hover)' : 'var(--color-accent-gradient)',
                     opacity: isSubmitting ? 0.8 : 1,
+                    boxShadow: isSubmitting ? 'none' : '0 4px 15px rgba(108,92,231,0.3)',
                   }}
                   onMouseEnter={(e) => {
-                    if (!isSubmitting) e.currentTarget.style.background = 'var(--color-accent-hover)';
+                    if (!isSubmitting) {
+                      e.currentTarget.style.boxShadow = '0 6px 20px rgba(108,92,231,0.45)';
+                      e.currentTarget.style.transform = 'translateY(-1px)';
+                    }
                   }}
                   onMouseLeave={(e) => {
-                    if (!isSubmitting) e.currentTarget.style.background = 'var(--color-accent-primary)';
+                    if (!isSubmitting) {
+                      e.currentTarget.style.boxShadow = '0 4px 15px rgba(108,92,231,0.3)';
+                      e.currentTarget.style.transform = 'translateY(0)';
+                    }
                   }}
                 >
                   {isSubmitting ? (
@@ -564,8 +570,11 @@ export default function RegisterPage() {
               variants={itemVariants}
               className="rounded-2xl p-6"
               style={{
-                background: 'var(--color-surface-elevated)',
+                background: 'var(--glass-bg)',
+                backdropFilter: 'blur(var(--glass-blur))',
+                WebkitBackdropFilter: 'blur(var(--glass-blur))',
                 border: '1px solid var(--color-border-subtle)',
+                boxShadow: 'var(--shadow-float)',
               }}
             >
               {verifyError && (

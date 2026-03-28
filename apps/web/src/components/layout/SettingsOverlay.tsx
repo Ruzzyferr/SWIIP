@@ -129,7 +129,10 @@ export function SettingsOverlay() {
             style={{
               width: '218px',
               flexShrink: 0,
-              background: 'var(--color-surface-elevated)',
+              background: 'var(--glass-bg)',
+              backdropFilter: 'blur(var(--glass-blur))',
+              WebkitBackdropFilter: 'blur(var(--glass-blur))',
+              borderRight: '1px solid var(--color-border-subtle)',
               paddingTop: '60px',
               paddingRight: '8px',
               paddingLeft: '20px',

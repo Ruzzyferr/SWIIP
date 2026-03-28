@@ -12,10 +12,11 @@ import {
   Inbox,
   HelpCircle,
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { AnimatePresence } from 'framer-motion';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { PinnedMessagesPanel } from '@/components/messaging/PinnedMessagesPanel';
-import { SearchModal } from '@/components/search/SearchModal';
+const SearchModal = dynamic(() => import('@/components/search/SearchModal').then(m => ({ default: m.SearchModal })), { ssr: false });
 import { useUIStore } from '@/stores/ui.store';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { ChannelType, type ChannelPayload } from '@constchat/protocol';
@@ -70,7 +71,9 @@ export function ChannelHeader({
       className="relative flex items-center gap-2 px-4 h-12 flex-shrink-0"
       style={{
         borderBottom: '1px solid var(--color-border-subtle)',
-        background: 'var(--color-surface-elevated)',
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(var(--glass-blur))',
+        WebkitBackdropFilter: 'blur(var(--glass-blur))',
       }}
     >
       {showMobileNavToggle && (
@@ -87,13 +90,13 @@ export function ChannelHeader({
       {/* Channel icon + name */}
       <div
         className="flex items-center gap-1.5 flex-shrink-0"
-        style={{ color: 'var(--color-text-secondary)' }}
+        style={{ color: 'var(--color-text-accent)' }}
       >
         {getChannelIcon(channel.type)}
       </div>
       <h1
-        className="text-sm font-semibold truncate"
-        style={{ color: 'var(--color-text-primary)' }}
+        className="text-sm font-bold truncate"
+        style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.01em' }}
       >
         {channel.name}
       </h1>
@@ -102,8 +105,8 @@ export function ChannelHeader({
       {channel.topic && (
         <>
           <div
-            className="w-px h-5 mx-1 flex-shrink-0"
-            style={{ background: 'var(--color-border-default)' }}
+            className="w-px h-4 mx-2 flex-shrink-0"
+            style={{ background: 'var(--color-border-default)', opacity: 0.5 }}
           />
           <p
             className="text-xs truncate flex-1 min-w-0"
@@ -152,17 +155,25 @@ export function ChannelHeader({
               className={iconButtonClass}
               style={{
                 color: active
-                  ? 'var(--color-text-primary)'
+                  ? 'var(--color-text-accent)'
                   : 'var(--color-text-secondary)',
+                background: active
+                  ? 'var(--color-accent-muted)'
+                  : 'transparent',
+                borderRadius: 'var(--radius-lg)',
               }}
               onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'var(--color-surface-raised)';
+                e.currentTarget.style.background = active
+                  ? 'var(--color-accent-muted)'
+                  : 'rgba(255,255,255,0.06)';
                 e.currentTarget.style.color = 'var(--color-text-primary)';
               }}
               onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'transparent';
+                e.currentTarget.style.background = active
+                  ? 'var(--color-accent-muted)'
+                  : 'transparent';
                 e.currentTarget.style.color = active
-                  ? 'var(--color-text-primary)'
+                  ? 'var(--color-text-accent)'
                   : 'var(--color-text-secondary)';
               }}
               aria-label={label}

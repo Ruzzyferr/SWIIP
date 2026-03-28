@@ -85,50 +85,24 @@ function LoginContent() {
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-surface-base">
-      {/* Background geometric decoration */}
+    <div className="relative min-h-screen flex items-center justify-center overflow-hidden" style={{ background: 'var(--color-surface-base)' }}>
+      {/* Atmospheric background */}
       <div
         aria-hidden="true"
         className="pointer-events-none absolute inset-0 overflow-hidden"
       >
-        {/* Radial glow top-left */}
         <div
-          className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full"
-          style={{
-            background:
-              'radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%)',
-          }}
+          className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full opacity-[0.07]"
+          style={{ background: 'radial-gradient(circle, #6c5ce7, transparent 65%)' }}
         />
-        {/* Radial glow bottom-right */}
         <div
-          className="absolute -bottom-48 -right-48 w-[700px] h-[700px] rounded-full"
-          style={{
-            background:
-              'radial-gradient(circle, rgba(99,102,241,0.06) 0%, transparent 70%)',
-          }}
+          className="absolute -bottom-48 -right-48 w-[700px] h-[700px] rounded-full opacity-[0.05]"
+          style={{ background: 'radial-gradient(circle, #a29bfe, transparent 65%)' }}
         />
-        {/* Grid pattern */}
-        <svg
-          className="absolute inset-0 w-full h-full opacity-[0.025]"
-          xmlns="http://www.w3.org/2000/svg"
-        >
-          <defs>
-            <pattern
-              id="grid"
-              width="40"
-              height="40"
-              patternUnits="userSpaceOnUse"
-            >
-              <path
-                d="M 40 0 L 0 0 0 40"
-                fill="none"
-                stroke="white"
-                strokeWidth="0.5"
-              />
-            </pattern>
-          </defs>
-          <rect width="100%" height="100%" fill="url(#grid)" />
-        </svg>
+        <div
+          className="absolute top-[40%] right-[20%] w-[400px] h-[400px] rounded-full opacity-[0.04]"
+          style={{ background: 'radial-gradient(circle, #fd79a8, transparent 65%)' }}
+        />
       </div>
 
       {/* Auth card */}
@@ -146,7 +120,7 @@ function LoginContent() {
           >
             <div
               className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ background: 'var(--color-accent-primary)' }}
+              style={{ background: 'var(--color-accent-gradient)' }}
             >
               <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
                 <path
@@ -181,8 +155,11 @@ function LoginContent() {
           variants={itemVariants}
           className="rounded-2xl p-6"
           style={{
-            background: 'var(--color-surface-elevated)',
+            background: 'var(--glass-bg)',
+            backdropFilter: 'blur(var(--glass-blur))',
+            WebkitBackdropFilter: 'blur(var(--glass-blur))',
             border: '1px solid var(--color-border-subtle)',
+            boxShadow: 'var(--shadow-float)',
           }}
         >
           {/* Server error */}
@@ -322,20 +299,25 @@ function LoginContent() {
             <button
               type="submit"
               disabled={isSubmitting}
-              className="w-full py-2.5 rounded-lg text-sm font-semibold text-white transition-all duration-fast mt-2 flex items-center justify-center gap-2"
+              className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all mt-2 flex items-center justify-center gap-2"
               style={{
                 background: isSubmitting
                   ? 'var(--color-accent-hover)'
-                  : 'var(--color-accent-primary)',
+                  : 'var(--color-accent-gradient)',
                 opacity: isSubmitting ? 0.8 : 1,
+                boxShadow: isSubmitting ? 'none' : '0 4px 15px rgba(108,92,231,0.3)',
               }}
               onMouseEnter={(e) => {
-                if (!isSubmitting)
-                  e.currentTarget.style.background = 'var(--color-accent-hover)';
+                if (!isSubmitting) {
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(108,92,231,0.45)';
+                  e.currentTarget.style.transform = 'translateY(-1px)';
+                }
               }}
               onMouseLeave={(e) => {
-                if (!isSubmitting)
-                  e.currentTarget.style.background = 'var(--color-accent-primary)';
+                if (!isSubmitting) {
+                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(108,92,231,0.3)';
+                  e.currentTarget.style.transform = 'translateY(0)';
+                }
               }}
             >
               {isSubmitting ? (

@@ -40,7 +40,7 @@ function MemberItem({
         opacity: status === 'offline' ? 0.4 : 1,
       }}
       onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'var(--color-surface-raised)';
+        e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
       }}
       onMouseLeave={(e) => {
         e.currentTarget.style.background = 'transparent';
@@ -163,7 +163,9 @@ export function MemberSidebar({ guildId }: MemberSidebarProps) {
       className="flex flex-col h-full"
       style={{
         width: 'var(--layout-member-sidebar-width)',
-        background: 'var(--color-surface-elevated)',
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(var(--glass-blur))',
+        WebkitBackdropFilter: 'blur(var(--glass-blur))',
         borderLeft: '1px solid var(--color-border-subtle)',
         flexShrink: 0,
       }}

@@ -4,13 +4,14 @@ import { type ReactNode, useEffect, useState, useCallback } from 'react';
 import { AppProvider } from '@/components/providers/AppProvider';
 import { ServerRail } from '@/components/layout/ServerRail';
 import { ModalRoot } from '@/components/modals/ModalRoot';
-import { SettingsOverlay } from '@/components/layout/SettingsOverlay';
-import { ServerSettingsWrapper } from '@/components/settings/ServerSettingsWrapper';
+import dynamic from 'next/dynamic';
+const SettingsOverlay = dynamic(() => import('@/components/layout/SettingsOverlay').then(m => ({ default: m.SettingsOverlay })), { ssr: false });
+const ServerSettingsWrapper = dynamic(() => import('@/components/settings/ServerSettingsWrapper').then(m => ({ default: m.ServerSettingsWrapper })), { ssr: false });
 import { DesktopTitleBar } from '@/components/layout/DesktopTitleBar';
 import { UpdateBanner } from '@/components/layout/UpdateBanner';
 import { ConnectionBanner } from '@/components/layout/ConnectionBanner';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
-import { KeyboardShortcutsModal } from '@/components/modals/KeyboardShortcutsModal';
+const KeyboardShortcutsModal = dynamic(() => import('@/components/modals/KeyboardShortcutsModal').then(m => ({ default: m.KeyboardShortcutsModal })), { ssr: false });
 import { useUIStore } from '@/stores/ui.store';
 import { Toaster } from 'sonner';
 
@@ -20,7 +21,6 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [isDesktop, setIsDesktop] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
 
-  // Ctrl+/ to open keyboard shortcuts modal
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if ((e.ctrlKey || e.metaKey) && e.key === '/') {
@@ -44,55 +44,63 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <AppProvider>
-      <div className="flex flex-col h-screen w-screen overflow-hidden">
+      <div className="flex flex-col h-screen w-screen overflow-hidden" style={{ background: 'var(--color-surface-base)' }}>
         <DesktopTitleBar />
-        {/* Spacer for fixed-positioned title bar (32px) */}
         {isDesktop && <div className="shrink-0" style={{ height: 32 }} />}
         {isDesktop && <UpdateBanner />}
         <ConnectionBanner />
-        <div
-          className="flex flex-1 overflow-hidden"
-          style={{ minHeight: 0 }}
-        >
-          {/* Server rail — fixed left column */}
+
+        <div className="flex flex-1 overflow-hidden relative" style={{ minHeight: 0 }}>
+          {/* Atmospheric ambient glow — top left corner */}
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              top: -100,
+              left: -100,
+              width: 500,
+              height: 500,
+              borderRadius: '50%',
+              background: 'radial-gradient(circle, rgba(108,92,231,0.04), transparent 70%)',
+              filter: 'blur(40px)',
+            }}
+          />
+
+          {/* Server rail */}
           {(!isMobile || isMobileNavOpen) && (
             <ErrorBoundary fallbackTitle="Server list failed to load">
               <ServerRail />
             </ErrorBoundary>
           )}
 
-          {/* Main content area */}
+          {/* Main content */}
           <ErrorBoundary fallbackTitle="Something went wrong">
-            <div className="flex-1 flex min-w-0 overflow-hidden">
+            <div className="flex-1 flex min-w-0 overflow-hidden" style={{ position: 'relative' }}>
               {children}
             </div>
           </ErrorBoundary>
         </div>
       </div>
 
-      {/* Global modals */}
       <ModalRoot />
-
-      {/* Settings overlay */}
       <SettingsOverlay />
-
-      {/* Server settings overlay */}
       <ServerSettingsWrapper />
-
-      {/* Keyboard shortcuts modal */}
       <KeyboardShortcutsModal open={showShortcuts} onClose={() => setShowShortcuts(false)} />
 
-      {/* Toast notifications */}
+      {/* ARIA live region for screen readers */}
+      <div aria-live="polite" aria-atomic="true" className="sr-only" id="swiip-live-region" />
+
       <Toaster
         theme="dark"
         position="bottom-right"
         toastOptions={{
           style: {
-            background: 'var(--color-surface-overlay)',
+            background: 'var(--color-surface-floating)',
             color: 'var(--color-text-primary)',
-            border: '1px solid var(--color-border-subtle)',
-            borderRadius: 'var(--radius-lg)',
-            fontSize: '14px',
+            border: '1px solid var(--color-border-default)',
+            borderRadius: 'var(--radius-xl)',
+            fontSize: '13px',
+            backdropFilter: 'blur(20px)',
+            boxShadow: 'var(--shadow-float)',
           },
         }}
       />

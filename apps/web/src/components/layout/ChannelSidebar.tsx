@@ -50,16 +50,16 @@ function GuildHeaderDropdown({
     <div className="relative flex-shrink-0">
       <button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center justify-between px-4 h-12 w-full transition-colors duration-fast"
+        className="flex items-center justify-between px-4 h-12 w-full transition-all duration-200"
         style={{ borderBottom: '1px solid var(--color-border-subtle)' }}
-        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-surface-raised)'; }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.03)'; }}
         onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
         aria-label={`${guild.name} — server options`}
       >
-        <span className="font-semibold truncate text-sm" style={{ color: 'var(--color-text-primary)' }}>
+        <span className="font-semibold truncate text-sm" style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.01em' }}>
           {guild.name}
         </span>
-        <ChevronDown size={16} style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} />
+        <ChevronDown size={14} style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }} />
       </button>
 
       <AnimatePresence>
@@ -494,8 +494,11 @@ export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
         ...(isMobile
           ? { flex: 1, minWidth: 0 }
           : { width: 'var(--layout-channel-sidebar-width)', flexShrink: 0 }),
-        background: 'var(--color-surface-elevated)',
+        background: 'var(--glass-bg)',
+        backdropFilter: 'blur(var(--glass-blur))',
+        WebkitBackdropFilter: 'blur(var(--glass-blur))',
         borderRight: isMobile ? 'none' : '1px solid var(--color-border-subtle)',
+        position: 'relative' as const,
       }}
     >
       {/* Server header with dropdown */}
