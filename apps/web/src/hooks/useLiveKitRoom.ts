@@ -18,17 +18,19 @@ import {
   type TrackPublication,
 } from 'livekit-client';
 import { OpCode, ClientEventType } from '@constchat/protocol';
-import { KrispNoiseFilter, type KrispNoiseFilterProcessor } from '@livekit/krisp-noise-filter';
 import { getGatewayClient } from '@/lib/gateway/GatewayClient';
 import { useVoiceStore } from '@/stores/voice.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { playJoinSound, playLeaveSound } from '@/lib/sounds';
 
-// Singleton Krisp processor — reused across reconnections
-let krispProcessor: KrispNoiseFilterProcessor | null = null;
-function getKrispProcessor(): KrispNoiseFilterProcessor {
+// Krisp noise filter — lazy loaded to avoid "Worker is not defined" during SSR/prerender.
+// The type is inferred as `any` since we can't statically import the type without triggering
+// the Worker instantiation at module level.
+let krispProcessor: any = null;
+async function getKrispProcessor(): Promise<any> {
   if (!krispProcessor) {
-    krispProcessor = KrispNoiseFilter(); // factory function, no `new`
+    const { KrispNoiseFilter } = await import('@livekit/krisp-noise-filter');
+    krispProcessor = KrispNoiseFilter();
   }
   return krispProcessor;
 }
@@ -152,8 +154,6 @@ export function useLiveKitRoom() {
         // Browser-level NS disabled — Krisp handles it
         noiseSuppression: false,
         autoGainControl: true,
-        // Pass Krisp processor directly in capture defaults
-        processor: krispEnabled ? getKrispProcessor() : undefined,
       },
     });
 
@@ -461,6 +461,21 @@ export function useLiveKitRoom() {
           useVoiceStore.getState().setSelfMuted(true);
         }
 
+        // Apply Krisp noise filter after mic is published
+        if (krispEnabled) {
+          try {
+            const krisp = await getKrispProcessor();
+            const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+            const audioTrack = micPub?.audioTrack;
+            if (audioTrack) {
+              await audioTrack.setProcessor(krisp);
+              console.debug('[LiveKit] Krisp noise filter applied');
+            }
+          } catch (err) {
+            console.warn('[LiveKit] Krisp init failed:', err);
+          }
+        }
+
         // Register self as participant + bind speaking listener
         if (currentChannelId && userId) {
           const isMuted = useVoiceStore.getState().selfMuted;
@@ -604,8 +619,9 @@ export function useLiveKitRoom() {
     if (!localAudioTrack) return;
 
     if (noiseSuppression) {
-      const krisp = getKrispProcessor();
-      localAudioTrack.setProcessor(krisp).then(() => {
+      getKrispProcessor().then((krisp) => {
+        return localAudioTrack.setProcessor(krisp);
+      }).then(() => {
         console.debug('[LiveKit] Krisp noise filter enabled');
       }).catch((err) => {
         console.warn('[LiveKit] Krisp enable failed:', err);

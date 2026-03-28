@@ -14,6 +14,7 @@ RUN pnpm install --frozen-lockfile --filter @constchat/api...
 # ── Stage 2: builder ─────────────────────────────────────────────────────────
 FROM node:20-slim AS builder
 WORKDIR /app
+RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
 RUN npm install -g pnpm
 
 COPY --from=deps /app ./
