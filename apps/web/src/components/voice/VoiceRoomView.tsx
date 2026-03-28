@@ -287,7 +287,8 @@ function getGridLayout(count: number): { cols: number; rows: number } {
   if (count <= 4) return { cols: 2, rows: 2 };
   if (count <= 6) return { cols: 3, rows: 2 };
   if (count <= 9) return { cols: 3, rows: 3 };
-  return { cols: 4, rows: Math.ceil(count / 4) };
+  if (count <= 16) return { cols: 4, rows: Math.ceil(count / 4) };
+  return { cols: 5, rows: Math.ceil(count / 5) };
 }
 
 // ---------------------------------------------------------------------------
@@ -335,8 +336,8 @@ function VoiceRoomContent({
 
   // ── SPOTLIGHT MODE: Someone is screen sharing ──
   if (screenSharers.length > 0) {
-    // Calculate screen share grid layout
-    const screenGridCols = screenSharers.length === 1 ? 1 : 2;
+    // Calculate screen share grid layout — supports any number of sharers
+    const screenGridCols = screenSharers.length <= 1 ? 1 : screenSharers.length <= 4 ? 2 : 3;
 
     return (
       <LayoutGroup>

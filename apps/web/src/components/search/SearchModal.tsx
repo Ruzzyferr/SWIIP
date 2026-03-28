@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X, Hash, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Avatar } from '@/components/ui/Avatar';
-import { searchMessages } from '@/lib/api/messages.api';
+import { searchMessages, parseSearchQuery } from '@/lib/api/messages.api';
 import { useUIStore } from '@/stores/ui.store';
 import type { MessagePayload } from '@constchat/protocol';
 
@@ -62,7 +62,13 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
     debounceRef.current = setTimeout(async () => {
       setLoading(true);
       try {
-        const res = await searchMessages(activeGuildId, query.trim());
+        const { text, authorId, before, after, has, channelId } = parseSearchQuery(query.trim());
+        const res = await searchMessages(activeGuildId, text || query.trim(), channelId, {
+          authorId,
+          before,
+          after,
+          has,
+        });
         setResults(res);
         setSelectedIndex(0);
       } catch {
@@ -207,13 +213,40 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
             })}
 
             {!query.trim() && (
-              <div className="py-8 text-center">
-                <Search size={24} className="mx-auto mb-2" style={{ color: 'var(--color-text-disabled)' }} />
-                <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
-                  Search for messages in this server
-                </p>
-                <p className="text-xs mt-1" style={{ color: 'var(--color-text-disabled)' }}>
-                  Tip: Use Ctrl+K to open search anytime
+              <div className="py-6 px-6">
+                <div className="text-center mb-4">
+                  <Search size={24} className="mx-auto mb-2" style={{ color: 'var(--color-text-disabled)' }} />
+                  <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
+                    Search for messages in this server
+                  </p>
+                </div>
+                <div className="space-y-1.5">
+                  <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-disabled)' }}>
+                    Search Filters
+                  </p>
+                  {[
+                    { filter: 'from:', desc: 'user', example: 'from:username' },
+                    { filter: 'in:', desc: 'channel', example: 'in:general' },
+                    { filter: 'has:', desc: 'file, image, link', example: 'has:image' },
+                    { filter: 'before:', desc: 'date', example: 'before:2025-01-01' },
+                    { filter: 'after:', desc: 'date', example: 'after:2025-01-01' },
+                  ].map(({ filter, desc, example }) => (
+                    <div key={filter} className="flex items-center gap-2 text-xs">
+                      <code
+                        className="px-1.5 py-0.5 rounded font-mono"
+                        style={{ background: 'var(--color-surface-raised)', color: 'var(--color-accent-primary)' }}
+                      >
+                        {filter}
+                      </code>
+                      <span style={{ color: 'var(--color-text-tertiary)' }}>{desc}</span>
+                      <span className="ml-auto font-mono" style={{ color: 'var(--color-text-disabled)' }}>
+                        {example}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+                <p className="text-xs mt-3 text-center" style={{ color: 'var(--color-text-disabled)' }}>
+                  Tip: Use <kbd className="font-mono">Ctrl+K</kbd> to open search anytime
                 </p>
               </div>
             )}

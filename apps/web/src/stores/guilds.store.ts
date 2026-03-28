@@ -37,6 +37,12 @@ interface GuildsState {
   setRole: (role: RolePayload) => void;
   removeRole: (id: string) => void;
 
+  // Custom emoji — guildId → emoji[]
+  customEmojis: Record<string, Array<{ id: string; name: string; animated: boolean; url: string }>>;
+  setCustomEmojis: (guildId: string, emojis: Array<{ id: string; name: string; animated: boolean; url: string }>) => void;
+  addCustomEmoji: (guildId: string, emoji: { id: string; name: string; animated: boolean; url: string }) => void;
+  removeCustomEmoji: (guildId: string, emojiId: string) => void;
+
   // Selectors
   getGuildChannels: (guildId: string) => ChannelPayload[];
   getGuildMembers: (guildId: string) => MemberPayload[];
@@ -49,6 +55,7 @@ export const useGuildsStore = create<GuildsState>()(
     members: {},
     roles: {},
     guildOrder: [],
+    customEmojis: {},
 
     setGuilds: (guilds) =>
       set((state) => {
@@ -191,6 +198,25 @@ export const useGuildsStore = create<GuildsState>()(
     removeRole: (id) =>
       set((state) => {
         delete state.roles[id];
+      }),
+
+    setCustomEmojis: (guildId, emojis) =>
+      set((state) => {
+        state.customEmojis[guildId] = emojis;
+      }),
+
+    addCustomEmoji: (guildId, emoji) =>
+      set((state) => {
+        if (!state.customEmojis[guildId]) state.customEmojis[guildId] = [];
+        state.customEmojis[guildId].push(emoji);
+      }),
+
+    removeCustomEmoji: (guildId, emojiId) =>
+      set((state) => {
+        const list = state.customEmojis[guildId];
+        if (list) {
+          state.customEmojis[guildId] = list.filter((e) => e.id !== emojiId);
+        }
       }),
 
     getGuildChannels: (guildId) => {

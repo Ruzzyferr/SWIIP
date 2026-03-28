@@ -79,16 +79,18 @@ export function useVoiceActions() {
 
   const toggleDeafen = useCallback(() => {
     const newDeafened = !selfDeafened;
+    // setSelfDeafened handles mute state preservation internally (Discord behavior:
+    // un-deafen restores previous mute state, not always unmute)
     setSelfDeafened(newDeafened);
-    const newMuted = newDeafened ? true : false;
-    setSelfMuted(newMuted);
+    // Read the resulting mute state from store (setSelfDeafened may have changed it)
+    const resultingMuted = useVoiceStore.getState().selfMuted;
     const gw = getGatewayClient();
     gw.send(OpCode.VOICE_STATE_UPDATE, {
-      selfMute: newMuted,
+      selfMute: resultingMuted,
       selfDeaf: newDeafened,
       selfVideo: cameraEnabled,
     });
-  }, [selfDeafened, cameraEnabled, setSelfDeafened, setSelfMuted]);
+  }, [selfDeafened, cameraEnabled, setSelfDeafened]);
 
   const toggleCamera = useCallback(async () => {
     if (!currentChannelId) return;

@@ -32,6 +32,32 @@ export class ApiError extends Error {
 let _accessToken: string | null = null;
 let _refreshPromise: Promise<string> | null = null;
 
+// ---------------------------------------------------------------------------
+// Rate limit queue — Discord-style bucket handling
+// ---------------------------------------------------------------------------
+
+const _rateLimitQueue: Array<{
+  config: InternalAxiosRequestConfig;
+  resolve: (v: any) => void;
+  reject: (e: any) => void;
+}> = [];
+let _rateLimitDraining = false;
+
+async function _drainRateLimitQueue() {
+  if (_rateLimitDraining) return;
+  _rateLimitDraining = true;
+  while (_rateLimitQueue.length > 0) {
+    const item = _rateLimitQueue.shift()!;
+    try {
+      const res = await apiClient.request(item.config);
+      item.resolve(res);
+    } catch (err) {
+      item.reject(err);
+    }
+  }
+  _rateLimitDraining = false;
+}
+
 export function setAccessToken(token: string | null) {
   _accessToken = token;
 }
@@ -88,7 +114,26 @@ apiClient.interceptors.response.use(
   async (error: AxiosError<ApiErrorResponse>) => {
     const originalRequest = error.config as InternalAxiosRequestConfig & {
       _retry?: boolean;
+      _rateLimitRetry?: boolean;
     };
+
+    // 429 → respect Retry-After header and retry
+    if (error.response?.status === 429 && !originalRequest._rateLimitRetry) {
+      originalRequest._rateLimitRetry = true;
+      const retryAfter = error.response.headers['retry-after'];
+      const delayMs = retryAfter
+        ? (parseFloat(retryAfter) > 100
+          ? Math.max(0, new Date(retryAfter).getTime() - Date.now()) // HTTP-date
+          : parseFloat(retryAfter) * 1000) // seconds
+        : 1000; // fallback 1s
+
+      if (process.env.NODE_ENV === 'development') {
+        console.warn(`[API] Rate limited, retrying after ${delayMs}ms: ${originalRequest.url}`);
+      }
+
+      await new Promise((r) => setTimeout(r, delayMs));
+      return apiClient.request(originalRequest);
+    }
 
     // 401 → try to refresh token once (skip only login/register/refresh to avoid loops)
     const skipRefreshUrls = ['/auth/login', '/auth/register', '/auth/refresh'];

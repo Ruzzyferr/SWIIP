@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -16,6 +16,9 @@ import {
   Pencil,
   Volume2,
   Megaphone,
+  Smile,
+  Plus,
+  Loader2,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -37,6 +40,7 @@ import { BanListPage } from './BanListPage';
 const NAV_ITEMS = [
   { id: 'overview', label: 'Overview', icon: Settings, section: 'Server Settings' },
   { id: 'roles', label: 'Roles', icon: Shield, section: 'Server Settings' },
+  { id: 'emoji', label: 'Emoji', icon: Smile, section: 'Server Settings' },
   { id: 'members', label: 'Members', icon: Users, section: 'Server Settings' },
   { id: 'channels', label: 'Channels', icon: Hash, section: 'Server Settings' },
   { id: 'bans', label: 'Bans', icon: Ban, section: 'Moderation' },
@@ -486,7 +490,7 @@ function ChannelsPage({ guildId }: { guildId: string }) {
         {uncategorized.length > 0 && (
           <div className="space-y-0.5">
             {uncategorized.map((ch) => (
-              <ChannelRow key={ch.id} channel={ch} getChannelIcon={getChannelIcon}
+              <ChannelRow key={ch.id} channel={ch} guildId={guildId} getChannelIcon={getChannelIcon}
                 editingId={editingId} editName={editName} editTopic={editTopic}
                 saving={saving} setEditName={setEditName} setEditTopic={setEditTopic}
                 onEdit={handleEdit} onSave={handleSave} onCancel={() => setEditingId(null)}
@@ -511,7 +515,7 @@ function ChannelsPage({ guildId }: { guildId: string }) {
               </div>
               <div className="space-y-0.5 ml-2">
                 {children.map((ch) => (
-                  <ChannelRow key={ch.id} channel={ch} getChannelIcon={getChannelIcon}
+                  <ChannelRow key={ch.id} channel={ch} guildId={guildId} getChannelIcon={getChannelIcon}
                     editingId={editingId} editName={editName} editTopic={editTopic}
                     saving={saving} setEditName={setEditName} setEditTopic={setEditTopic}
                     onEdit={handleEdit} onSave={handleSave} onCancel={() => setEditingId(null)}
@@ -531,8 +535,140 @@ function ChannelsPage({ guildId }: { guildId: string }) {
   );
 }
 
+// Channel-level permission overrides (Discord-style allow/deny per role)
+const CHANNEL_PERMISSIONS = [
+  { bit: 0x400, label: 'View Channel', description: 'View this channel' },
+  { bit: 0x800, label: 'Send Messages', description: 'Send messages in this channel' },
+  { bit: 0x4000, label: 'Embed Links', description: 'Links show embedded content' },
+  { bit: 0x8000, label: 'Attach Files', description: 'Upload files and images' },
+  { bit: 0x10000, label: 'Read Message History', description: 'View past messages' },
+  { bit: 0x2000, label: 'Manage Messages', description: 'Delete or pin messages from others' },
+  { bit: 0x100000, label: 'Connect', description: 'Join this voice channel' },
+  { bit: 0x200000, label: 'Speak', description: 'Talk in this voice channel' },
+  { bit: 0x2000000, label: 'Use Voice Activity', description: 'Use voice activity detection' },
+];
+
+function ChannelPermOverrides({ channel, guildId }: { channel: any; guildId: string }) {
+  const roles = useGuildsStore((s) => s.roles);
+  const updateChannelStore = useGuildsStore((s) => s.updateChannel);
+  const guildRoles = Object.values(roles).filter((r) => r.guildId === guildId).sort((a, b) => b.position - a.position);
+  const [selectedRoleId, setSelectedRoleId] = useState<string | null>(null);
+  const [overrides, setOverrides] = useState<Record<string, { allow: string; deny: string }>>(
+    () => {
+      const map: Record<string, { allow: string; deny: string }> = {};
+      for (const ow of (channel.permissionOverwrites ?? [])) {
+        map[ow.id] = { allow: ow.allow, deny: ow.deny };
+      }
+      return map;
+    }
+  );
+  const [saving, setSaving] = useState(false);
+
+  const selectedOverride = selectedRoleId ? overrides[selectedRoleId] : null;
+
+  const getState = (bit: number): 'allow' | 'deny' | 'inherit' => {
+    if (!selectedOverride) return 'inherit';
+    const allow = BigInt(selectedOverride.allow || '0');
+    const deny = BigInt(selectedOverride.deny || '0');
+    if ((allow & BigInt(bit)) === BigInt(bit)) return 'allow';
+    if ((deny & BigInt(bit)) === BigInt(bit)) return 'deny';
+    return 'inherit';
+  };
+
+  const cycleState = (bit: number) => {
+    if (!selectedRoleId) return;
+    const current = getState(bit);
+    const next = current === 'inherit' ? 'allow' : current === 'allow' ? 'deny' : 'inherit';
+
+    setOverrides((prev) => {
+      const cur = prev[selectedRoleId] ?? { allow: '0', deny: '0' };
+      let allow = BigInt(cur.allow || '0');
+      let deny = BigInt(cur.deny || '0');
+      const b = BigInt(bit);
+      // Clear both
+      allow = allow & ~b;
+      deny = deny & ~b;
+      if (next === 'allow') allow = allow | b;
+      if (next === 'deny') deny = deny | b;
+      return { ...prev, [selectedRoleId]: { allow: allow.toString(), deny: deny.toString() } };
+    });
+  };
+
+  const handleSave = async () => {
+    if (!selectedRoleId) return;
+    setSaving(true);
+    try {
+      const { setChannelPermissionOverwrite } = await import('@/lib/api/channels.api');
+      const ov = overrides[selectedRoleId] ?? { allow: '0', deny: '0' };
+      const updated = await setChannelPermissionOverwrite(channel.id, selectedRoleId, {
+        type: 'role',
+        allow: ov.allow,
+        deny: ov.deny,
+      });
+      updateChannelStore(channel.id, updated);
+      toastSuccess('Permission overrides saved');
+    } catch (err: any) {
+      toastError(err?.message ?? 'Failed to save permission overrides');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div className="mt-2 space-y-2">
+      <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-disabled)' }}>
+        Permission Overrides
+      </p>
+      <div className="flex gap-2">
+        <select
+          value={selectedRoleId ?? ''}
+          onChange={(e) => setSelectedRoleId(e.target.value || null)}
+          className="flex-1 rounded px-2 py-1 text-xs outline-none"
+          style={{ background: 'var(--color-surface-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border-default)' }}
+        >
+          <option value="">Select role...</option>
+          {guildRoles.map((r) => (
+            <option key={r.id} value={r.id}>{r.name}</option>
+          ))}
+        </select>
+      </div>
+      {selectedRoleId && (
+        <div className="space-y-1">
+          {CHANNEL_PERMISSIONS.map(({ bit, label, description }) => {
+            const state = getState(bit);
+            return (
+              <button
+                key={bit}
+                onClick={() => cycleState(bit)}
+                className="w-full flex items-center gap-2 px-2 py-1 rounded text-left text-xs"
+                style={{ background: 'var(--color-surface-base)' }}
+              >
+                <span
+                  className="w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold flex-shrink-0"
+                  style={{
+                    background: state === 'allow' ? 'var(--color-success-default)' : state === 'deny' ? 'var(--color-danger-default)' : 'var(--color-surface-overlay)',
+                    color: state === 'inherit' ? 'var(--color-text-disabled)' : '#fff',
+                  }}
+                >
+                  {state === 'allow' ? '✓' : state === 'deny' ? '✕' : '—'}
+                </span>
+                <div className="flex-1 min-w-0">
+                  <span style={{ color: 'var(--color-text-primary)' }}>{label}</span>
+                  <span className="ml-1.5" style={{ color: 'var(--color-text-disabled)' }}>{description}</span>
+                </div>
+              </button>
+            );
+          })}
+          <Button onClick={handleSave} loading={saving} size="sm">Save Overrides</Button>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ChannelRow({
   channel,
+  guildId,
   getChannelIcon,
   editingId,
   editName,
@@ -546,6 +682,7 @@ function ChannelRow({
   onDelete,
 }: {
   channel: any;
+  guildId: string;
   getChannelIcon: (type: ChannelType) => React.ReactNode;
   editingId: string | null;
   editName: string;
@@ -560,73 +697,84 @@ function ChannelRow({
 }) {
   const isEditing = editingId === channel.id;
   const [confirmDelete, setConfirmDelete] = useState(false);
+  const [showPerms, setShowPerms] = useState(false);
 
   return (
     <div
-      className="flex items-center gap-2 px-3 py-2 rounded-lg group"
+      className="rounded-lg group"
       style={{ background: 'var(--color-surface-raised)' }}
     >
-      {getChannelIcon(channel.type)}
-      {isEditing ? (
-        <div className="flex-1 space-y-1">
-          <input
-            value={editName}
-            onChange={(e) => setEditName(e.target.value)}
-            className="w-full rounded px-2 py-1 text-sm outline-none"
-            style={{ background: 'var(--color-surface-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border-default)' }}
-          />
-          <input
-            value={editTopic}
-            onChange={(e) => setEditTopic(e.target.value)}
-            placeholder="Channel topic"
-            className="w-full rounded px-2 py-1 text-xs outline-none"
-            style={{ background: 'var(--color-surface-base)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border-default)' }}
-          />
-          <div className="flex gap-1">
-            <Button onClick={onSave} loading={saving} size="sm">Save</Button>
-            <Button variant="ghost" onClick={onCancel} size="sm">Cancel</Button>
+      <div className="flex items-center gap-2 px-3 py-2">
+        {getChannelIcon(channel.type)}
+        {isEditing ? (
+          <div className="flex-1 space-y-1">
+            <input
+              value={editName}
+              onChange={(e) => setEditName(e.target.value)}
+              className="w-full rounded px-2 py-1 text-sm outline-none"
+              style={{ background: 'var(--color-surface-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border-default)' }}
+            />
+            <input
+              value={editTopic}
+              onChange={(e) => setEditTopic(e.target.value)}
+              placeholder="Channel topic"
+              className="w-full rounded px-2 py-1 text-xs outline-none"
+              style={{ background: 'var(--color-surface-base)', color: 'var(--color-text-secondary)', border: '1px solid var(--color-border-default)' }}
+            />
+            <div className="flex gap-1">
+              <Button onClick={onSave} loading={saving} size="sm">Save</Button>
+              <Button variant="ghost" onClick={onCancel} size="sm">Cancel</Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setShowPerms((v) => !v)}
+              >
+                {showPerms ? 'Hide Permissions' : 'Permissions'}
+              </Button>
+            </div>
+            {showPerms && <ChannelPermOverrides channel={channel} guildId={guildId} />}
           </div>
-        </div>
-      ) : (
-        <>
-          <span className="text-sm flex-1 truncate" style={{ color: 'var(--color-text-primary)' }}>
-            {channel.name}
-          </span>
-          <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onClick={() => onEdit(channel)}
-              className="p-1 rounded transition-colors"
-              style={{ color: 'var(--color-text-tertiary)' }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-primary)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-tertiary)'; }}
-            >
-              <Pencil size={12} />
-            </button>
-            {!confirmDelete ? (
-              <button onClick={() => setConfirmDelete(true)}
+        ) : (
+          <>
+            <span className="text-sm flex-1 truncate" style={{ color: 'var(--color-text-primary)' }}>
+              {channel.name}
+            </span>
+            <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+              <button onClick={() => onEdit(channel)}
                 className="p-1 rounded transition-colors"
                 style={{ color: 'var(--color-text-tertiary)' }}
-                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-danger-default)'; }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-primary)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-tertiary)'; }}
               >
-                <Trash2 size={12} />
+                <Pencil size={12} />
               </button>
-            ) : (
-              <div className="flex items-center gap-1">
-                <button onClick={() => onDelete(channel.id)}
-                  className="px-2 py-0.5 rounded text-xs text-white"
-                  style={{ background: 'var(--color-danger-default)' }}>
-                  Delete
+              {!confirmDelete ? (
+                <button onClick={() => setConfirmDelete(true)}
+                  className="p-1 rounded transition-colors"
+                  style={{ color: 'var(--color-text-tertiary)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-danger-default)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-tertiary)'; }}
+                >
+                  <Trash2 size={12} />
                 </button>
-                <button onClick={() => setConfirmDelete(false)}
-                  className="px-2 py-0.5 rounded text-xs"
-                  style={{ color: 'var(--color-text-secondary)', background: 'var(--color-surface-overlay)' }}>
-                  No
-                </button>
-              </div>
-            )}
-          </div>
-        </>
-      )}
+              ) : (
+                <div className="flex items-center gap-1">
+                  <button onClick={() => onDelete(channel.id)}
+                    className="px-2 py-0.5 rounded text-xs text-white"
+                    style={{ background: 'var(--color-danger-default)' }}>
+                    Delete
+                  </button>
+                  <button onClick={() => setConfirmDelete(false)}
+                    className="px-2 py-0.5 rounded text-xs"
+                    style={{ color: 'var(--color-text-secondary)', background: 'var(--color-surface-overlay)' }}>
+                    No
+                  </button>
+                </div>
+              )}
+            </div>
+          </>
+        )}
+      </div>
     </div>
   );
 }
@@ -645,6 +793,157 @@ function PlaceholderPage({ title }: { title: string }) {
       <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
         This section is coming soon.
       </p>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
+// Emoji management page
+// ---------------------------------------------------------------------------
+
+function EmojiPage({ guildId }: { guildId: string }) {
+  const customEmojis = useGuildsStore((s) => s.customEmojis[guildId] ?? []);
+  const setCustomEmojis = useGuildsStore((s) => s.setCustomEmojis);
+  const addCustomEmoji = useGuildsStore((s) => s.addCustomEmoji);
+  const removeCustomEmojiStore = useGuildsStore((s) => s.removeCustomEmoji);
+  const [uploading, setUploading] = useState(false);
+  const [newName, setNewName] = useState('');
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // Load custom emojis on mount
+  useEffect(() => {
+    import('@/lib/api/guilds.api').then(({ getGuildEmojis }) => {
+      getGuildEmojis(guildId)
+        .then((emojis) => setCustomEmojis(guildId, emojis))
+        .catch(() => {});
+    });
+  }, [guildId, setCustomEmojis]);
+
+  const handleUpload = async (file: File) => {
+    if (!newName.trim()) {
+      toastError('Please enter an emoji name');
+      return;
+    }
+    setUploading(true);
+    try {
+      // Convert file to base64 data URI
+      const reader = new FileReader();
+      const dataUri = await new Promise<string>((resolve, reject) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      const { createGuildEmoji } = await import('@/lib/api/guilds.api');
+      const emoji = await createGuildEmoji(guildId, { name: newName.trim(), image: dataUri });
+      addCustomEmoji(guildId, emoji);
+      setNewName('');
+      toastSuccess(`Emoji :${emoji.name}: created`);
+    } catch (err: any) {
+      toastError(err?.message ?? 'Failed to upload emoji');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleDelete = async (emojiId: string, emojiName: string) => {
+    if (!window.confirm(`Delete :${emojiName}:?`)) return;
+    try {
+      const { deleteGuildEmoji } = await import('@/lib/api/guilds.api');
+      await deleteGuildEmoji(guildId, emojiId);
+      removeCustomEmojiStore(guildId, emojiId);
+      toastSuccess(`Emoji :${emojiName}: deleted`);
+    } catch (err: any) {
+      toastError(err?.message ?? 'Failed to delete emoji');
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <h2 className="text-lg font-bold" style={{ color: 'var(--color-text-primary)' }}>
+        Custom Emoji
+      </h2>
+
+      {/* Upload section */}
+      <div
+        className="p-4 rounded-lg space-y-3"
+        style={{ background: 'var(--color-surface-raised)' }}
+      >
+        <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+          Upload Emoji
+        </p>
+        <div className="flex gap-2 items-end">
+          <div className="flex-1">
+            <label className="text-xs mb-1 block" style={{ color: 'var(--color-text-tertiary)' }}>
+              Name
+            </label>
+            <input
+              value={newName}
+              onChange={(e) => setNewName(e.target.value.replace(/[^a-zA-Z0-9_]/g, '').slice(0, 32))}
+              placeholder="emoji_name"
+              className="w-full rounded px-2 py-1.5 text-sm outline-none"
+              style={{ background: 'var(--color-surface-base)', color: 'var(--color-text-primary)', border: '1px solid var(--color-border-default)' }}
+            />
+          </div>
+          <Button
+            onClick={() => fileRef.current?.click()}
+            loading={uploading}
+            size="sm"
+          >
+            <Plus size={14} />
+            Upload
+          </Button>
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/png,image/jpeg,image/gif,image/webp"
+            className="hidden"
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) handleUpload(file);
+              e.target.value = '';
+            }}
+          />
+        </div>
+        <p className="text-xs" style={{ color: 'var(--color-text-disabled)' }}>
+          PNG, JPEG, GIF, or WebP. Max 256KB, 128x128px recommended.
+        </p>
+      </div>
+
+      {/* Emoji list */}
+      <div className="space-y-1">
+        <p className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-disabled)' }}>
+          {customEmojis.length} Emoji{customEmojis.length !== 1 ? 's' : ''}
+        </p>
+        {customEmojis.length === 0 ? (
+          <p className="text-sm py-4 text-center" style={{ color: 'var(--color-text-tertiary)' }}>
+            No custom emoji yet. Upload one above!
+          </p>
+        ) : (
+          customEmojis.map((emoji) => (
+            <div
+              key={emoji.id}
+              className="flex items-center gap-3 px-3 py-2 rounded-lg group"
+              style={{ background: 'var(--color-surface-raised)' }}
+            >
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src={emoji.url} alt={emoji.name} className="w-8 h-8 object-contain" />
+              <span className="text-sm flex-1" style={{ color: 'var(--color-text-primary)' }}>
+                :{emoji.name}:
+              </span>
+              <button
+                onClick={() => handleDelete(emoji.id, emoji.name)}
+                className="p-1 rounded opacity-0 group-hover:opacity-100 transition-opacity"
+                style={{ color: 'var(--color-text-tertiary)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-danger-default)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-tertiary)'; }}
+              >
+                <Trash2 size={14} />
+              </button>
+            </div>
+          ))
+        )}
+      </div>
     </div>
   );
 }
@@ -737,6 +1036,8 @@ export function ServerSettings({ guildId, onClose }: ServerSettingsProps) {
         );
       case 'roles':
         return <RolesPage guildId={guildId} />;
+      case 'emoji':
+        return <EmojiPage guildId={guildId} />;
       case 'members':
         return <MembersPage guildId={guildId} />;
       case 'channels':

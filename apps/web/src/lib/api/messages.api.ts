@@ -110,16 +110,54 @@ export async function removeReaction(
   );
 }
 
+export interface SearchMessagesParams {
+  q: string;
+  channelId?: string;
+  authorId?: string;
+  before?: string; // ISO date
+  after?: string;  // ISO date
+  has?: string;    // 'file' | 'image' | 'link' | 'embed'
+}
+
 export async function searchMessages(
   guildId: string,
   query: string,
-  channelId?: string
+  channelId?: string,
+  extra?: Omit<SearchMessagesParams, 'q' | 'channelId'>
 ): Promise<MessagePayload[]> {
   const res = await apiClient.get<MessagePayload[]>(
     `/guilds/${guildId}/messages/search`,
-    { params: { q: query, channelId } }
+    { params: { q: query, channelId, ...extra } }
   );
   return res.data;
+}
+
+/**
+ * Parse Discord-style search syntax: from:user before:date after:date has:file in:channel
+ * Returns the plain text query and extracted filters.
+ */
+export function parseSearchQuery(raw: string): {
+  text: string;
+  authorId?: string;
+  before?: string;
+  after?: string;
+  has?: string;
+  channelId?: string;
+} {
+  const filters: Record<string, string> = {};
+  const text = raw.replace(/\b(from|before|after|has|in):(\S+)/gi, (_, key, value) => {
+    filters[key.toLowerCase()] = value;
+    return '';
+  }).trim();
+
+  return {
+    text,
+    authorId: filters.from,
+    before: filters.before,
+    after: filters.after,
+    has: filters.has,
+    channelId: filters.in,
+  };
 }
 
 export interface UploadAttachmentResponse {

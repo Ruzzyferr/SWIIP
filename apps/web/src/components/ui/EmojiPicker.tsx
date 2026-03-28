@@ -22,7 +22,10 @@ import {
   Flag,
   Search,
   X,
+  Star,
 } from 'lucide-react';
+import { useGuildsStore } from '@/stores/guilds.store';
+import { useUIStore } from '@/stores/ui.store';
 
 // ---------------------------------------------------------------------------
 // Emoji data — compact inline dataset (most popular per category)
@@ -745,9 +748,11 @@ interface EmojiPickerProps {
   onClose: () => void;
   triggerRef: React.RefObject<HTMLElement | null>;
   placement?: 'top' | 'bottom';
+  /** If provided, shows custom emojis for this guild */
+  guildId?: string;
 }
 
-export function EmojiPicker({ onSelect, onClose, triggerRef, placement = 'top' }: EmojiPickerProps) {
+export function EmojiPicker({ onSelect, onClose, triggerRef, placement = 'top', guildId }: EmojiPickerProps) {
   const [search, setSearch] = useState('');
   const [activeCategory, setActiveCategory] = useState('smileys');
   const [skinToneIndex, setSkinToneIndex] = useState(getSavedSkinTone);
@@ -840,6 +845,12 @@ export function EmojiPicker({ onSelect, onClose, triggerRef, placement = 'top' }
   }, [search]);
 
   const recentEmojis = useMemo(() => getRecentEmojis(), []);
+
+  // Custom guild emojis
+  const activeGuildId = guildId ?? useUIStore.getState().activeGuildId;
+  const customEmojis = useGuildsStore(
+    (s) => (activeGuildId && activeGuildId !== '@me') ? s.customEmojis[activeGuildId] ?? [] : []
+  );
 
   const handleSelect = useCallback(
     (emoji: string, name: string) => {
@@ -948,6 +959,14 @@ export function EmojiPicker({ onSelect, onClose, triggerRef, placement = 'top' }
             className="flex items-center gap-0.5 px-2"
             style={{ borderBottom: '1px solid var(--color-border-subtle)' }}
           >
+            {customEmojis.length > 0 && (
+              <CategoryTab
+                icon={<Star size={15} />}
+                label="Server Emoji"
+                active={activeCategory === 'custom'}
+                onClick={() => scrollToCategory('custom')}
+              />
+            )}
             {recentEmojis.length > 0 && (
               <CategoryTab
                 icon={<Clock size={15} />}
@@ -1055,6 +1074,48 @@ export function EmojiPicker({ onSelect, onClose, triggerRef, placement = 'top' }
             )
           ) : (
             <>
+              {/* Custom server emojis */}
+              {customEmojis.length > 0 && (
+                <div id="emoji-cat-custom" className="py-1">
+                  <p
+                    className="text-xs font-semibold uppercase px-1 pb-1.5 pt-1 sticky top-0"
+                    style={{
+                      color: 'var(--color-text-tertiary)',
+                      background: 'var(--color-surface-floating)',
+                      zIndex: 1,
+                    }}
+                  >
+                    Server Emoji
+                  </p>
+                  <div className="grid gap-0.5" style={{ gridTemplateColumns: 'repeat(8, 1fr)' }}>
+                    {customEmojis.map((ce) => (
+                      <button
+                        key={ce.id}
+                        onClick={() => onSelect(`:${ce.name}:`, ce.name)}
+                        className="w-9 h-9 rounded-md flex items-center justify-center transition-colors duration-100"
+                        style={{ fontSize: 22 }}
+                        onMouseEnter={(e) => {
+                          e.currentTarget.style.background = 'var(--color-surface-overlay)';
+                        }}
+                        onMouseLeave={(e) => {
+                          e.currentTarget.style.background = 'transparent';
+                        }}
+                        title={`:${ce.name}:`}
+                        aria-label={ce.name}
+                      >
+                        {/* eslint-disable-next-line @next/next/no-img-element */}
+                        <img
+                          src={ce.url}
+                          alt={ce.name}
+                          className="w-6 h-6 object-contain"
+                          loading="lazy"
+                        />
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               {/* Recent emojis */}
               {recentEmojis.length > 0 && (
                 <div id="emoji-cat-recent" className="py-1">

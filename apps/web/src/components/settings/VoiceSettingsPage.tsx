@@ -390,7 +390,7 @@ export function VoiceSettingsPage() {
             Noise Suppression
           </p>
           <p className="text-xs" style={{ color: 'var(--color-text-disabled)' }}>
-            Krisp AI-powered noise filter — removes background noise from your microphone
+            Krisp AI-powered noise filter for your microphone
           </p>
         </div>
         <button

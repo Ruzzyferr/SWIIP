@@ -7,7 +7,9 @@ import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePresenceStore } from '@/stores/presence.store';
 import { updateProfile, uploadAvatar, uploadBanner } from '@/lib/api/users.api';
+import { getGatewayClient } from '@/lib/gateway/GatewayClient';
 import { toastError } from '@/lib/toast';
+import type { PresenceStatus } from '@constchat/protocol';
 
 // ---------------------------------------------------------------------------
 // Inline editable field
@@ -155,9 +157,13 @@ export function AccountPage() {
 
   if (!user) return null;
 
+  const setPresence = usePresenceStore((s) => s.setPresence);
   const displayName = (user as any).displayName ?? user.globalName ?? user.username;
   const status = getPresence(user.id);
+  const customStatus = usePresenceStore((s) => s.users[user.id]?.customStatus ?? '');
   const bio = (user as any).bio ?? '';
+  const [statusDraft, setStatusDraft] = useState(customStatus);
+  const [editingStatus, setEditingStatus] = useState(false);
   const bannerUrl = (user as any).bannerId
     ? undefined // Will be handled by CDN URL from backend
     : undefined;
@@ -354,6 +360,118 @@ export function AccountPage() {
                 multiline
                 maxLength={190}
               />
+
+              <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />
+
+              {/* Online Status Picker */}
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--color-text-disabled)' }}>
+                  Status
+                </p>
+                <div className="flex gap-2">
+                  {([
+                    { value: 'online', label: 'Online', color: '#23a55a' },
+                    { value: 'idle', label: 'Idle', color: '#f0b232' },
+                    { value: 'dnd', label: 'Do Not Disturb', color: '#f23f43' },
+                    { value: 'invisible', label: 'Invisible', color: '#80848e' },
+                  ] as const).map((opt) => (
+                    <button
+                      key={opt.value}
+                      onClick={() => {
+                        const gw = getGatewayClient();
+                        gw.updatePresence(opt.value);
+                        setPresence(user.id, { status: opt.value, customStatus });
+                      }}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                      style={{
+                        background: status === opt.value ? 'var(--color-surface-base)' : 'transparent',
+                        border: status === opt.value ? '1px solid var(--color-border-strong)' : '1px solid transparent',
+                        color: 'var(--color-text-primary)',
+                      }}
+                    >
+                      <span className="w-2.5 h-2.5 rounded-full" style={{ background: opt.color }} />
+                      {opt.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />
+
+              {/* Custom Status */}
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide mb-1" style={{ color: 'var(--color-text-disabled)' }}>
+                  Custom Status
+                </p>
+                {editingStatus ? (
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="text"
+                      value={statusDraft}
+                      onChange={(e) => setStatusDraft(e.target.value)}
+                      maxLength={128}
+                      placeholder="What are you up to?"
+                      className="flex-1 bg-transparent rounded-lg px-3 py-2 text-sm outline-none"
+                      style={{
+                        color: 'var(--color-text-primary)',
+                        background: 'var(--color-surface-base)',
+                        border: '1px solid var(--color-border-default)',
+                      }}
+                      autoFocus
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter') {
+                          const gw = getGatewayClient();
+                          gw.updatePresence(status ?? 'online', [], statusDraft || undefined);
+                          setPresence(user.id, { status: status ?? 'online', customStatus: statusDraft });
+                          setEditingStatus(false);
+                        }
+                        if (e.key === 'Escape') {
+                          setStatusDraft(customStatus);
+                          setEditingStatus(false);
+                        }
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        const gw = getGatewayClient();
+                        gw.updatePresence(status ?? 'online', [], statusDraft || undefined);
+                        setPresence(user.id, { status: status ?? 'online', customStatus: statusDraft });
+                        setEditingStatus(false);
+                      }}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ background: 'var(--color-success-default)', color: '#fff' }}
+                    >
+                      <Check size={14} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        setStatusDraft(customStatus);
+                        setEditingStatus(false);
+                      }}
+                      className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
+                      style={{ background: 'var(--color-surface-overlay)', color: 'var(--color-text-secondary)' }}
+                    >
+                      <X size={14} />
+                    </button>
+                  </div>
+                ) : (
+                  <div className="flex justify-between items-center">
+                    <p className="text-sm" style={{ color: customStatus ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)' }}>
+                      {customStatus || 'No custom status set'}
+                    </p>
+                    <Button
+                      variant="secondary"
+                      size="sm"
+                      onClick={() => {
+                        setStatusDraft(customStatus);
+                        setEditingStatus(true);
+                      }}
+                    >
+                      Edit
+                    </Button>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
         </div>

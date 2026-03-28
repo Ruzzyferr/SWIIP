@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef } from 'react';
+import { OpCode } from '@constchat/protocol';
 import { getGatewayClient } from '@/lib/gateway/GatewayClient';
 import { setAccessToken } from '@/lib/api/client';
 import { useAuthStore } from '@/stores/auth.store';
@@ -10,6 +11,7 @@ import { useMessagesStore } from '@/stores/messages.store';
 import { usePresenceStore } from '@/stores/presence.store';
 import { useVoiceStore } from '@/stores/voice.store';
 import { useDMsStore } from '@/stores/dms.store';
+import { useUIStore } from '@/stores/ui.store';
 import { getGuildMembers, getGuildMember, getGuild } from '@/lib/api/guilds.api';
 import { toastError, toastInfo } from '@/lib/toast';
 
@@ -57,6 +59,11 @@ export function useGatewayBridge() {
 
     // Sync access token for API calls
     setAccessToken(accessToken);
+
+    // Request notification permission for desktop notifications (Discord pattern)
+    if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+      Notification.requestPermission().catch(() => {});
+    }
 
     // --- Connection lifecycle ---
     gw.on('disconnected', (code, _reason) => {
@@ -145,18 +152,35 @@ export function useGatewayBridge() {
         }
       }
 
-      // Ensure member maps are loaded even if READY payload omits full members.
+      // Lazy load guild members — only fetch the active guild immediately,
+      // defer others until the user navigates to them (Discord pattern: avoids
+      // request burst of N guilds on connect).
+      const activeGuildId = useUIStore.getState().activeGuildId;
       for (const guild of data.guilds) {
-        getGuildMembers(guild.id)
-          .then((members) => setMembers(guild.id, members))
-          .catch(() => {
-            // Non-fatal; sidebar can still hydrate via realtime updates.
-          });
+        if (guild.id === activeGuildId) {
+          getGuildMembers(guild.id)
+            .then((members) => setMembers(guild.id, members))
+            .catch(() => {});
+        }
+        // Other guilds' members will be loaded on-demand when user navigates to them
       }
     });
 
     gw.on('resumed', () => {
       setGatewayStatus('connected');
+
+      // After gateway resume, re-sync voice state if we're in a voice channel.
+      // The gateway may have lost track of our voice session during the disconnect.
+      const voiceState = useVoiceStore.getState();
+      if (voiceState.currentChannelId && voiceState.connectionState === 'connected') {
+        console.debug('[Gateway] Resumed — re-syncing voice state');
+        const gw = getGatewayClient();
+        gw.send(OpCode.VOICE_STATE_UPDATE, {
+          selfMute: voiceState.selfMuted,
+          selfDeaf: voiceState.selfDeafened,
+          selfVideo: voiceState.cameraEnabled,
+        });
+      }
     });
 
     gw.on('invalid_session', (resumable) => {
@@ -170,6 +194,32 @@ export function useGatewayBridge() {
       addMessage(data.message.channelId, data.message);
       // Track lastMessageId on the channel for unread detection
       updateChannel(data.message.channelId, { lastMessageId: data.message.id } as any);
+
+      // Native notification when window is hidden/unfocused (Discord pattern)
+      const currentUserId = useAuthStore.getState().user?.id;
+      if (
+        data.message.author.id !== currentUserId &&
+        typeof document !== 'undefined' &&
+        document.hidden &&
+        typeof Notification !== 'undefined' &&
+        Notification.permission === 'granted'
+      ) {
+        const displayName = data.message.author.globalName || data.message.author.username;
+        const body = data.message.content.length > 100
+          ? data.message.content.slice(0, 100) + '…'
+          : data.message.content || '(attachment)';
+        try {
+          const n = new Notification(displayName, { body, silent: false });
+          n.onclick = () => {
+            window.focus();
+            n.close();
+          };
+          // Auto-close after 5 seconds
+          setTimeout(() => n.close(), 5000);
+        } catch {
+          // Notification API error — ignore
+        }
+      }
     });
 
     gw.on('message_update', (data) => {

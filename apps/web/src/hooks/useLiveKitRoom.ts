@@ -9,6 +9,7 @@ import {
   Track,
   VideoPresets,
   RemoteAudioTrack,
+  DefaultReconnectPolicy,
   type RemoteParticipant,
   type RemoteTrack,
   type RemoteTrackPublication,
@@ -19,20 +20,53 @@ import {
 } from 'livekit-client';
 import { OpCode, ClientEventType } from '@constchat/protocol';
 import { getGatewayClient } from '@/lib/gateway/GatewayClient';
+import { getPlatformProvider } from '@/lib/platform';
 import { useVoiceStore } from '@/stores/voice.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { playJoinSound, playLeaveSound } from '@/lib/sounds';
 
-// Krisp noise filter — lazy loaded to avoid "Worker is not defined" during SSR/prerender.
-// The type is inferred as `any` since we can't statically import the type without triggering
-// the Worker instantiation at module level.
-let krispProcessor: any = null;
-async function getKrispProcessor(): Promise<any> {
-  if (!krispProcessor) {
-    const { KrispNoiseFilter } = await import('@livekit/krisp-noise-filter');
-    krispProcessor = KrispNoiseFilter();
+// --- Krisp Noise Filter ---
+// Dynamic import avoids "Worker is not defined" during Next.js SSR/prerender.
+// IMPORTANT: We cache the KrispNoiseFilter *constructor* (factory), NOT the instance.
+// Each Room connection gets a FRESH processor instance to avoid stale WASM state
+// that causes buzzing/vacuum noise after reconnects.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let krispFactory: (() => any) | null = null;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+let krispLoadPromise: Promise<(() => any) | null> | null = null;
+
+async function loadKrispFactory(): Promise<(() => any) | null> {
+  if (krispFactory) return krispFactory;
+  if (krispLoadPromise) return krispLoadPromise;
+
+  krispLoadPromise = (async () => {
+    try {
+      const { KrispNoiseFilter } = await import('@livekit/krisp-noise-filter');
+      krispFactory = KrispNoiseFilter;
+      console.debug('[Krisp] Noise filter factory loaded successfully');
+      return krispFactory;
+    } catch (err) {
+      console.warn('[Krisp] Failed to load noise filter, falling back to browser NS:', err);
+      krispLoadPromise = null;
+      return null;
+    }
+  })();
+
+  return krispLoadPromise;
+}
+
+/** Creates a fresh Krisp processor instance (one per Room connection). */
+async function createKrispProcessor(): Promise<any> {
+  const factory = await loadKrispFactory();
+  if (!factory) return null;
+  try {
+    const processor = factory();
+    console.debug('[Krisp] Created fresh noise filter instance');
+    return processor;
+  } catch (err) {
+    console.warn('[Krisp] Failed to create processor instance:', err);
+    return null;
   }
-  return krispProcessor;
 }
 
 /** Map of participantIdentity → { camera?: MediaStreamTrack, screen?: MediaStreamTrack } */
@@ -56,6 +90,7 @@ export function useLiveKitRoom() {
   const credentialTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const trackOwnerRef = useRef<Map<string, string>>(new Map()); // trackSid -> userId
+  const screenShareWasActive = useRef(false); // tracks screen share state across reconnects
   const [videoTracks, setVideoTracks] = useState<VideoTrackMap>({});
 
   const livekitToken = useVoiceStore((s) => s.livekitToken);
@@ -137,10 +172,17 @@ export function useLiveKitRoom() {
 
     console.debug('[LiveKit] Credentials received, connecting to', livekitUrl);
 
-    const krispEnabled = useVoiceStore.getState().settings.noiseSuppression;
+    const nsEnabled = useVoiceStore.getState().settings.noiseSuppression;
+    const platform = getPlatformProvider();
+    // When Krisp is available, disable browser NS (Krisp handles it).
+    // Browser NS is the fallback if Krisp fails to load.
     const room = new Room({
       adaptiveStream: true,
       dynacast: true,
+      // Reconnect policy — platform-aware delays.
+      // Desktop: faster initial retry, more attempts (always-on expectation).
+      // Web: more conservative (browser tab may be backgrounded).
+      reconnectPolicy: new DefaultReconnectPolicy(platform.livekitReconnectDelays),
       publishDefaults: {
         // Disable simulcast for screen share — send one high-quality stream
         screenShareSimulcastLayers: [],
@@ -151,7 +193,8 @@ export function useLiveKitRoom() {
       },
       audioCaptureDefaults: {
         echoCancellation: true,
-        // Browser-level NS disabled — Krisp handles it
+        // Disable browser NS initially — Krisp will be applied after mic publish.
+        // If Krisp fails, we re-enable browser NS as fallback.
         noiseSuppression: false,
         autoGainControl: true,
       },
@@ -247,9 +290,48 @@ export function useLiveKitRoom() {
               }
             }
           }
+          // Apply persisted volume settings to all remote tracks
+          // (covers both initial connect and reconnect scenarios)
+          setTimeout(() => applyVolumes(), 200);
+          // Retry to cover cases where tracks aren't fully subscribed yet
+          setTimeout(() => applyVolumes(), 800);
+
+          // Re-publish screen share if it was active before reconnect
+          if (screenShareWasActive.current) {
+            screenShareWasActive.current = false;
+            const hasScreenTrack = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+            if (!hasScreenTrack) {
+              console.debug('[LiveKit] Re-publishing screen share after reconnect');
+              const quality = useVoiceStore.getState().screenShareQuality;
+              const presets = {
+                '720p30': { maxBitrate: 5_000_000, fps: 30 },
+                '1080p30': { maxBitrate: 8_000_000, fps: 30 },
+                '1080p60': { maxBitrate: 12_000_000, fps: 60 },
+              } as const;
+              const preset = presets[quality as keyof typeof presets] ?? presets['1080p30'];
+              const wantAudio = useVoiceStore.getState().screenShareAudio;
+              // Direct re-publish — no toggle trick
+              room.localParticipant.setScreenShareEnabled(true, {
+                contentHint: preset.fps >= 60 ? 'motion' : 'detail',
+                audio: wantAudio,
+                selfBrowserSurface: 'exclude',
+                surfaceSwitching: 'include',
+                systemAudio: 'exclude',
+                preferCurrentTab: false,
+              }, {
+                simulcast: false,
+                videoEncoding: { maxBitrate: preset.maxBitrate, maxFramerate: preset.fps },
+              }).catch((err) => {
+                console.warn('[LiveKit] Failed to re-publish screen share:', err);
+                useVoiceStore.getState().setScreenShareEnabled(false);
+              });
+            }
+          }
           break;
         case ConnectionState.Reconnecting:
           setConnectionState('reconnecting');
+          // Save screen share state before reconnect tears it down
+          screenShareWasActive.current = useVoiceStore.getState().screenShareEnabled;
           break;
         case ConnectionState.Disconnected:
           setConnectionState('disconnected');
@@ -264,12 +346,38 @@ export function useLiveKitRoom() {
       }
     });
 
-    // Connection quality monitoring
+    // Connection quality monitoring + adaptive video quality
     room.on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
-      // Only track local participant's quality for the UI indicator
-      if (participant.isLocal) {
-        // ConnectionQuality enum: 0=LOST, 1=POOR, 2=GOOD, 3=EXCELLENT
-        setConnectionQuality(quality as unknown as number);
+      if (!participant.isLocal) return;
+      // ConnectionQuality enum: 0=LOST, 1=POOR, 2=GOOD, 3=EXCELLENT
+      const q = quality as unknown as number;
+      setConnectionQuality(q);
+
+      // Adaptive video: reduce resolution on poor connection (Discord behaviour)
+      const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
+      if (camPub?.track) {
+        if (q <= 1) {
+          // POOR or LOST → drop to 360p, low framerate
+          camPub.track.mediaStreamTrack.applyConstraints({
+            width: { ideal: 640 },
+            height: { ideal: 360 },
+            frameRate: { ideal: 15 },
+          }).catch(() => {});
+        } else if (q === 2) {
+          // GOOD → 720p
+          camPub.track.mediaStreamTrack.applyConstraints({
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30 },
+          }).catch(() => {});
+        } else {
+          // EXCELLENT → full 1080p
+          camPub.track.mediaStreamTrack.applyConstraints({
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            frameRate: { ideal: 30 },
+          }).catch(() => {});
+        }
       }
     });
 
@@ -327,6 +435,13 @@ export function useLiveKitRoom() {
           }
         }
         await attachAudio(track);
+        // Apply persisted volume to newly subscribed audio tracks.
+        // Use initial delay + retry to ensure Web Audio pipeline is ready.
+        if (track.kind === Track.Kind.Audio) {
+          setTimeout(() => applyVolumes(), 200);
+          // Retry after 500ms in case the first apply was too early
+          setTimeout(() => applyVolumes(), 700);
+        }
       },
     );
 
@@ -416,7 +531,6 @@ export function useLiveKitRoom() {
     room.on(RoomEvent.LocalTrackUnpublished, (publication: LocalTrackPublication, participant: LocalParticipant) => {
       if (publication.source === Track.Source.Camera) {
         updateVideoTrack(participant.identity, 'camera', undefined);
-        // Clear selfVideo flag so the VideoGrid tile is properly removed
         if (currentChannelId) {
           setParticipantVideo(currentChannelId, participant.identity, false);
         }
@@ -425,14 +539,43 @@ export function useLiveKitRoom() {
         if (currentChannelId) {
           setParticipantScreenShare(currentChannelId, participant.identity, false);
         }
-        // If screen share was stopped externally (e.g. browser "Stop sharing"), sync store + notify gateway
-        useVoiceStore.getState().setScreenShareEnabled(false);
-        const gw = getGatewayClient();
-        gw.send(OpCode.DISPATCH, { t: ClientEventType.SCREEN_SHARE_STOP, d: {} });
+        // Only sync screen share stop if NOT reconnecting and not flagged for re-publish.
+        // During LiveKit reconnect, tracks get unpublished/republished automatically.
+        // screenShareWasActive ref prevents false stop during reconnect transitions.
+        if (!screenShareWasActive.current && room.state !== ConnectionState.Reconnecting) {
+          useVoiceStore.getState().setScreenShareEnabled(false);
+          const gw = getGatewayClient();
+          gw.send(OpCode.DISPATCH, { t: ClientEventType.SCREEN_SHARE_STOP, d: {} });
+        }
       }
     });
 
-    // Connect — use Google STUN for local dev (avoids Twilio DNS errors)
+    // MediaDevicesError: mic unplugged or permission revoked mid-call
+    room.on(RoomEvent.MediaDevicesError, (error: Error) => {
+      console.error('[LiveKit] Media device error:', error);
+      if (error.name === 'NotAllowedError') {
+        setError('Microphone permission was revoked. Please re-enable it in browser settings.');
+      } else if (error.name === 'NotFoundError' || error.name === 'NotReadableError') {
+        setError('Audio device disconnected. Plug in a microphone and try again.');
+        useVoiceStore.getState().setSelfMuted(true);
+      } else {
+        setError(`Audio device error: ${error.message}`);
+      }
+    });
+
+    // AudioPlaybackStatusChanged: browser blocked autoplay — prompt user
+    room.on(RoomEvent.AudioPlaybackStatusChanged, () => {
+      if (!room.canPlaybackAudio) {
+        console.warn('[LiveKit] Audio playback blocked by browser — requesting user gesture');
+        // Try to start audio; if it fails, the user must interact with the page
+        room.startAudio().catch(() => {
+          setError('Click anywhere to enable voice audio (browser autoplay policy).');
+        });
+      }
+    });
+
+    // Connect with STUN + TURN servers for reliable connectivity behind NAT/firewalls
+    // Discord uses TURN relay for users behind symmetric NAT — we do the same.
     setConnectionState('connecting');
     room
       .connect(livekitUrl, livekitToken, {
@@ -440,40 +583,58 @@ export function useLiveKitRoom() {
           iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
             { urls: 'stun:stun1.l.google.com:19302' },
+            // TURN servers — LiveKit Cloud provides these via the token's ICE config.
+            // For self-hosted, specify your TURN server here:
+            // { urls: 'turn:turn.yourdomain.com:3478', username: '...', credential: '...' },
           ],
         },
       })
       .then(async () => {
         console.debug('[LiveKit] Connected successfully');
+        // Resume AudioContext if browser suspended it (autoplay policy)
         await room.startAudio().catch(() => {});
 
         // Try to publish microphone — handle permission denial gracefully
         try {
           await room.localParticipant.setMicrophoneEnabled(true, {
-            // Browser-level NS disabled — Krisp processor handles noise suppression
-            noiseSuppression: false,
+            noiseSuppression: false, // Krisp handles NS
             echoCancellation: true,
             autoGainControl: true,
           });
+
+          // Apply Krisp noise filter to the mic track after publish
+          if (nsEnabled) {
+            const krisp = await createKrispProcessor();
+            if (krisp) {
+              try {
+                const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+                if (micPub?.track) {
+                  // Clean any stale processor before applying fresh one
+                  try { await micPub.track.stopProcessor(); } catch {}
+                  await micPub.track.setProcessor(krisp);
+                  console.debug('[Krisp] Applied fresh instance to microphone track');
+                }
+              } catch (krispErr) {
+                console.warn('[Krisp] Failed to apply processor, enabling browser NS fallback:', krispErr);
+                await room.localParticipant.setMicrophoneEnabled(true, {
+                  noiseSuppression: true,
+                  echoCancellation: true,
+                  autoGainControl: true,
+                });
+              }
+            } else {
+              console.debug('[LiveKit] Krisp unavailable, using browser noise suppression');
+              await room.localParticipant.setMicrophoneEnabled(true, {
+                noiseSuppression: true,
+                echoCancellation: true,
+                autoGainControl: true,
+              });
+            }
+          }
         } catch (micErr) {
           console.warn('[LiveKit] Microphone access denied or failed — joining muted', micErr);
           // Still connected, just muted
           useVoiceStore.getState().setSelfMuted(true);
-        }
-
-        // Apply Krisp noise filter after mic is published
-        if (krispEnabled) {
-          try {
-            const krisp = await getKrispProcessor();
-            const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
-            const audioTrack = micPub?.audioTrack;
-            if (audioTrack) {
-              await audioTrack.setProcessor(krisp);
-              console.debug('[LiveKit] Krisp noise filter applied');
-            }
-          } catch (err) {
-            console.warn('[LiveKit] Krisp init failed:', err);
-          }
         }
 
         // Register self as participant + bind speaking listener
@@ -609,35 +770,67 @@ export function useLiveKitRoom() {
     }
   }, [outputDeviceId]);
 
-  // Toggle Krisp noise suppression at runtime
+  // Toggle Krisp noise suppression at runtime WITHOUT restarting the mic track.
+  // Discord's approach: apply/remove the audio processor on the existing track,
+  // never call setMicrophoneEnabled again — avoids the brief audio dropout.
   useEffect(() => {
     const room = roomRef.current;
     if (!room || room.state !== ConnectionState.Connected) return;
 
-    const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
-    const localAudioTrack = micPub?.audioTrack;
-    if (!localAudioTrack) return;
+    const isMuted = useVoiceStore.getState().selfMuted;
+    if (isMuted) return;
 
-    if (noiseSuppression) {
-      getKrispProcessor().then((krisp) => {
-        return localAudioTrack.setProcessor(krisp);
-      }).then(() => {
-        console.debug('[LiveKit] Krisp noise filter enabled');
-      }).catch((err) => {
-        console.warn('[LiveKit] Krisp enable failed:', err);
-      });
-    } else {
-      // Stop processor — destroy and recreate next time
-      const existing = localAudioTrack.getProcessor();
-      if (existing) {
-        existing.destroy().then(() => {
-          krispProcessor = null; // reset singleton so a fresh one is created next enable
-          console.debug('[LiveKit] Krisp noise filter disabled');
-        }).catch((err) => {
-          console.warn('[LiveKit] Krisp disable failed:', err);
-        });
+    (async () => {
+      const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+      if (!micPub?.track) return;
+
+      if (noiseSuppression) {
+        // Try to apply fresh Krisp instance directly — no track restart
+        const krisp = await createKrispProcessor();
+        if (krisp) {
+          try {
+            // Stop any existing processor first to avoid stacking
+            try { await micPub.track.stopProcessor(); } catch {}
+            await micPub.track.setProcessor(krisp);
+            console.debug('[Krisp] Enabled noise filter (no track restart)');
+            return;
+          } catch (err) {
+            console.warn('[Krisp] Failed to enable, falling back to browser NS:', err);
+          }
+        }
+        // Fallback: use browser NS via MediaTrackConstraints (no track restart)
+        try {
+          const mediaTrack = micPub.track.mediaStreamTrack;
+          await mediaTrack.applyConstraints({
+            noiseSuppression: true,
+            echoCancellation: true,
+            autoGainControl: true,
+          });
+          console.debug('[LiveKit] Browser NS enabled via applyConstraints');
+        } catch (err) {
+          console.warn('[LiveKit] applyConstraints failed:', err);
+        }
+      } else {
+        // Disable Krisp processor if active — no track restart
+        try {
+          await micPub.track.stopProcessor();
+          console.debug('[Krisp] Disabled noise filter');
+        } catch {
+          // No processor was active, that's fine
+        }
+        // Disable browser NS via applyConstraints — no track restart
+        try {
+          const mediaTrack = micPub.track.mediaStreamTrack;
+          await mediaTrack.applyConstraints({
+            noiseSuppression: false,
+            echoCancellation: true,
+            autoGainControl: true,
+          });
+        } catch {
+          // Constraints not supported — ignore
+        }
       }
-    }
+    })();
   }, [noiseSuppression]);
 
   // Sync camera enabled state to LiveKit
@@ -683,7 +876,10 @@ export function useLiveKitRoom() {
         audio: wantAudio,
         selfBrowserSurface: 'exclude',
         surfaceSwitching: 'include',
-        systemAudio: 'include',
+        // Always exclude system audio — it captures ALL system output including
+        // voice chat playback, creating feedback. Tab/window audio capture still
+        // works via the `audio` flag without system-wide capture.
+        systemAudio: 'exclude',
         preferCurrentTab: false,
       }, {
         // Publish options — disable simulcast so remote gets full resolution
@@ -717,7 +913,7 @@ export function useLiveKitRoom() {
     const room = roomRef.current;
     if (!room || room.state !== ConnectionState.Connected) return;
 
-    const ALONE_TIMEOUT_SEC = 300; // 5 minutes
+    const ALONE_TIMEOUT_SEC = getPlatformProvider().aloneTimeoutSec;
 
     const checkAlone = () => {
       const remoteCount = room.remoteParticipants.size;

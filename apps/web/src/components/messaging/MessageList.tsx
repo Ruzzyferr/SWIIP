@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
 import { ArrowDown, Trash2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -150,12 +150,15 @@ interface MessageListProps {
   channelId: string;
   lastReadMessageId?: string | null;
   onReply: (message: MessagePayload) => void;
+  /** Jump to a specific message by ID (e.g. from a link navigation) */
+  jumpToMessageId?: string | null;
 }
 
-export function MessageList({ channelId, lastReadMessageId, onReply }: MessageListProps) {
+export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessageId }: MessageListProps) {
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [highlightedMessageId, setHighlightedMessageId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const selectionMode = selectedIds.size > 0;
@@ -200,6 +203,17 @@ export function MessageList({ channelId, lastReadMessageId, onReply }: MessageLi
   const loading = channelData?.loading ?? false;
   const hasMore = channelData?.hasMore ?? true;
 
+  // Track new messages arriving while scrolled up for unread badge
+  const prevMessageCountRef = useRef(messages.length);
+  useEffect(() => {
+    const prevCount = prevMessageCountRef.current;
+    const newCount = messages.length;
+    if (newCount > prevCount && !atBottom) {
+      setUnreadCount((c) => c + (newCount - prevCount));
+    }
+    prevMessageCountRef.current = newCount;
+  }, [messages.length, atBottom]);
+
   // Initial load
   useEffect(() => {
     if (messages.length > 0) return;
@@ -222,9 +236,13 @@ export function MessageList({ channelId, lastReadMessageId, onReply }: MessageLi
   }, [channelId]);
 
   // Load more (older messages)
+  // Use a ref for messages to avoid re-creating this callback on every new message
+  const messagesRef = useRef(messages);
+  messagesRef.current = messages;
+
   const loadMore = useCallback(async () => {
-    if (!hasMore || loading || messages.length === 0) return;
-    const oldest = messages[0];
+    if (!hasMore || loading || messagesRef.current.length === 0) return;
+    const oldest = messagesRef.current[0];
     if (!oldest) return;
 
     setLoading(channelId, true);
@@ -238,9 +256,25 @@ export function MessageList({ channelId, lastReadMessageId, onReply }: MessageLi
     } catch {
       setLoading(channelId, false);
     }
-  }, [channelId, hasMore, loading, messages]);
+  }, [channelId, hasMore, loading, setLoading, prependMessages, setHasMore]);
 
-  const listItems = buildListItems(messages);
+  // Memoize list items — only recompute when messages change (O(n) computation)
+  const listItems = useMemo(() => buildListItems(messages), [messages]);
+
+  // Jump to message by ID (e.g. from link navigation)
+  useEffect(() => {
+    if (!jumpToMessageId || listItems.length === 0) return;
+    const index = listItems.findIndex(
+      (item) => item.kind === 'message' && item.message.id === jumpToMessageId
+    );
+    if (index >= 0) {
+      virtuosoRef.current?.scrollToIndex({ index, align: 'center', behavior: 'smooth' });
+      setHighlightedMessageId(jumpToMessageId);
+      // Clear highlight after animation
+      const timer = setTimeout(() => setHighlightedMessageId(null), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [jumpToMessageId, listItems]);
 
   const scrollToBottom = useCallback(() => {
     virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' });
@@ -298,6 +332,7 @@ export function MessageList({ channelId, lastReadMessageId, onReply }: MessageLi
                 isGrouped={item.grouped}
                 onReply={onReply}
                 showUnreadSeparator={isUnreadSeparator}
+                isHighlighted={highlightedMessageId === item.message.id}
                 selectionMode={selectionMode}
                 isSelected={selectedIds.has(item.message.id)}
                 onToggleSelect={() => toggleSelect(item.message.id)}

@@ -135,35 +135,60 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
         </div>
 
         {/* Audio Toggle */}
-        <div className="flex items-center justify-between p-3 rounded-lg" style={{ background: 'var(--color-surface-raised)' }}>
-          <div className="flex items-center gap-2.5">
-            {shareAudio ? (
-              <Volume2 size={18} style={{ color: 'var(--color-accent-primary)' }} />
-            ) : (
-              <VolumeX size={18} style={{ color: 'var(--color-text-tertiary)' }} />
-            )}
-            <div>
-              <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                Also share audio
-              </p>
-              <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-                {isDesktop ? 'Share system audio from your computer' : 'Share tab or system audio (Chrome/Edge only)'}
-              </p>
+        {(() => {
+          const isWindowCapture = isDesktop && selectedSourceId?.startsWith('window:');
+          const audioDisabled = !!isWindowCapture;
+          return (
+            <div className="space-y-1.5">
+              <div
+                className="flex items-center justify-between p-3 rounded-lg"
+                style={{
+                  background: 'var(--color-surface-raised)',
+                  opacity: audioDisabled ? 0.5 : 1,
+                }}
+              >
+                <div className="flex items-center gap-2.5">
+                  {shareAudio && !audioDisabled ? (
+                    <Volume2 size={18} style={{ color: 'var(--color-accent-primary)' }} />
+                  ) : (
+                    <VolumeX size={18} style={{ color: 'var(--color-text-tertiary)' }} />
+                  )}
+                  <div>
+                    <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                      Also share audio
+                    </p>
+                    <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+                      {isDesktop
+                        ? isWindowCapture
+                          ? 'Audio sharing is not available for window captures'
+                          : 'Captures all system audio (including voice chat)'
+                        : 'Share tab or system audio (Chrome/Edge only)'}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  onClick={() => !audioDisabled && setShareAudio(!shareAudio)}
+                  disabled={audioDisabled}
+                  className="relative w-10 h-5 rounded-full transition-colors"
+                  style={{
+                    background: shareAudio && !audioDisabled ? 'var(--color-accent-primary)' : 'var(--color-surface-overlay)',
+                    cursor: audioDisabled ? 'not-allowed' : 'pointer',
+                  }}
+                >
+                  <span
+                    className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                    style={{ transform: shareAudio && !audioDisabled ? 'translateX(20px)' : 'translateX(0)' }}
+                  />
+                </button>
+              </div>
+              {isDesktop && shareAudio && !isWindowCapture && (
+                <p className="text-xs px-1" style={{ color: 'var(--color-warning-default, #faa61a)' }}>
+                  Warning: Audio sharing captures all system sounds including voice chat. Other participants may hear echo.
+                </p>
+              )}
             </div>
-          </div>
-          <button
-            onClick={() => setShareAudio(!shareAudio)}
-            className="relative w-10 h-5 rounded-full transition-colors"
-            style={{
-              background: shareAudio ? 'var(--color-accent-primary)' : 'var(--color-surface-overlay)',
-            }}
-          >
-            <span
-              className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform"
-              style={{ transform: shareAudio ? 'translateX(20px)' : 'translateX(0)' }}
-            />
-          </button>
-        </div>
+          );
+        })()}
 
         {/* Actions */}
         <div className="flex justify-end gap-3">

@@ -1,5 +1,34 @@
 import { apiClient } from './client';
-import type { GuildPayload, ChannelPayload, MemberPayload } from '@constchat/protocol';
+import type { GuildPayload, ChannelPayload, MemberPayload, EmojiRef } from '@constchat/protocol';
+
+// ---------------------------------------------------------------------------
+// Custom Emoji types & API
+// ---------------------------------------------------------------------------
+
+export interface GuildEmoji {
+  id: string;
+  name: string;
+  animated: boolean;
+  url: string;
+  creatorId?: string;
+}
+
+export async function getGuildEmojis(guildId: string): Promise<GuildEmoji[]> {
+  const res = await apiClient.get<GuildEmoji[]>(`/guilds/${guildId}/emojis`);
+  return res.data;
+}
+
+export async function createGuildEmoji(
+  guildId: string,
+  data: { name: string; image: string } // image = base64 data URI
+): Promise<GuildEmoji> {
+  const res = await apiClient.post<GuildEmoji>(`/guilds/${guildId}/emojis`, data);
+  return res.data;
+}
+
+export async function deleteGuildEmoji(guildId: string, emojiId: string): Promise<void> {
+  await apiClient.delete(`/guilds/${guildId}/emojis/${emojiId}`);
+}
 
 export interface CreateGuildRequest {
   name: string;

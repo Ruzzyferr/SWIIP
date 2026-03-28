@@ -13,6 +13,7 @@ import { VoiceRoomView } from '@/components/voice/VoiceRoomView';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { useUIStore } from '@/stores/ui.store';
 import { useMessagesStore } from '@/stores/messages.store';
+import { useSwipeGesture } from '@/hooks/useSwipeGesture';
 import { editMessage as editMessageApi } from '@/lib/api/messages.api';
 import { acknowledgeChannel } from '@/lib/api/channels.api';
 import { ChannelType, type MessagePayload } from '@constchat/protocol';
@@ -36,11 +37,23 @@ export default function ChannelPage() {
   const [replyTo, setReplyTo] = useState<MessagePayload | null>(null);
   const [editingMessage, setEditingMessage] = useState<MessagePayload | null>(null);
 
-  // Sync active state
+  // Sync active state + lazy-load guild members on navigation (Discord pattern)
   useEffect(() => {
     setActiveGuild(guildId);
     setActiveChannel(channelId);
     setMobileNavOpen(false);
+
+    // Lazy load members for this guild if not already loaded
+    if (guildId && guildId !== '@me') {
+      const members = useGuildsStore.getState().members[guildId];
+      if (!members || Object.keys(members).length === 0) {
+        import('@/lib/api/guilds.api').then(({ getGuildMembers }) => {
+          getGuildMembers(guildId)
+            .then((m) => useGuildsStore.getState().setMembers(guildId, m))
+            .catch(() => {});
+        });
+      }
+    }
   }, [guildId, channelId, setActiveGuild, setActiveChannel, setMobileNavOpen]);
 
   // Auto-acknowledge channel as read when viewing it
@@ -79,6 +92,13 @@ export default function ChannelPage() {
     return () => media.removeEventListener('change', sync);
   }, []);
 
+  // Swipe gestures for mobile sidebar toggle
+  const swipeHandlers = useSwipeGesture({
+    onSwipeRight: () => { if (isMobile && !isMobileNavOpen) setMobileNavOpen(true); },
+    onSwipeLeft: () => { if (isMobile && isMobileNavOpen) setMobileNavOpen(false); },
+    enabled: isMobile,
+  });
+
   const handleReply = useCallback((message: MessagePayload) => {
     setReplyTo(message);
     setEditingMessage(null);
@@ -95,21 +115,21 @@ export default function ChannelPage() {
   // DM conversation — render DM-specific view
   if (isDM) {
     if (isMobile && isMobileNavOpen) {
-      return <ChannelSidebar />;
+      return <div {...swipeHandlers}><ChannelSidebar /></div>;
     }
 
     return (
-      <>
+      <div className="flex flex-1 min-w-0 overflow-hidden" {...swipeHandlers}>
         {!isMobile && <ChannelSidebar />}
         <DMChatView conversationId={channelId} />
-      </>
+      </div>
     );
   }
 
   const isVoiceChannel = channel?.type === ChannelType.VOICE;
 
   return (
-    <>
+    <div className="flex flex-1 min-w-0 overflow-hidden" {...swipeHandlers}>
       {/* Mobile: show menu panel OR content panel, not both */}
       {(!isMobile || isMobileNavOpen) && <ChannelSidebar guildId={guildId} />}
 
@@ -154,6 +174,6 @@ export default function ChannelPage() {
           )}
         </div>
       )}
-    </>
+    </div>
   );
 }

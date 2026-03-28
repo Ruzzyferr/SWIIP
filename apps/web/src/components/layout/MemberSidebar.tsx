@@ -1,6 +1,7 @@
 'use client';
 
 import { useMemo, useState, useCallback } from 'react';
+import { Virtuoso } from 'react-virtuoso';
 import { Avatar } from '@/components/ui/Avatar';
 import { MemberContextMenu } from '@/components/menus/MemberContextMenu';
 import { useGuildsStore } from '@/stores/guilds.store';
@@ -27,7 +28,9 @@ function MemberItem({
   nameColor?: string;
 }) {
   const getPresence = usePresenceStore((s) => s.getPresence);
+  const userPresence = usePresenceStore((s) => s.users[member.userId]);
   const status = getPresence(member.userId);
+  const customStatus = userPresence?.customStatus;
   const displayName = member.nick ?? member.user?.globalName ?? member.user?.username ?? member.userId;
 
   return (
@@ -52,12 +55,22 @@ function MemberItem({
         size="sm"
         status={status}
       />
-      <span
-        className="text-sm truncate"
-        style={{ color: nameColor ?? 'var(--color-text-secondary)' }}
-      >
-        {displayName}
-      </span>
+      <div className="flex-1 min-w-0 text-left">
+        <span
+          className="text-sm truncate block"
+          style={{ color: nameColor ?? 'var(--color-text-secondary)' }}
+        >
+          {displayName}
+        </span>
+        {customStatus && (
+          <span
+            className="text-xs truncate block"
+            style={{ color: 'var(--color-text-disabled)' }}
+          >
+            {customStatus}
+          </span>
+        )}
+      </div>
     </button>
   );
 }
@@ -122,9 +135,32 @@ export function MemberSidebar({ guildId }: MemberSidebarProps) {
     return groups;
   }, [members, roles, guildId, presenceUsers]);
 
+  // Flatten groups into virtualised list items: header rows + member rows
+  type ListItem =
+    | { kind: 'header'; role: RolePayload | null; count: number; key: string }
+    | { kind: 'member'; member: MemberPayload; nameColor?: string; key: string };
+
+  const listItems = useMemo(() => {
+    const items: ListItem[] = [];
+    for (const { role, members: groupMembers } of grouped) {
+      items.push({ kind: 'header', role, count: groupMembers.length, key: `h-${role?.id ?? 'online'}` });
+      for (const member of groupMembers) {
+        const topColorRole = member.roles
+          .map((rid) => roles[rid])
+          .filter((r): r is RolePayload => r != null && r.color > 0)
+          .sort((a, b) => b.position - a.position)[0];
+        const nameColor = topColorRole
+          ? '#' + topColorRole.color.toString(16).padStart(6, '0')
+          : undefined;
+        items.push({ kind: 'member', member, nameColor, key: member.userId });
+      }
+    }
+    return items;
+  }, [grouped, roles]);
+
   return (
     <aside
-      className="flex flex-col h-full overflow-y-auto scroll-thin py-4"
+      className="flex flex-col h-full"
       style={{
         width: 'var(--layout-member-sidebar-width)',
         background: 'var(--color-surface-elevated)',
@@ -133,36 +169,40 @@ export function MemberSidebar({ guildId }: MemberSidebarProps) {
       }}
       aria-label="Members"
     >
-      {grouped.map(({ role, members: groupMembers }) => (
-        <div key={role?.id ?? 'online'} className="mb-3">
-          <p
-            className="px-4 py-1 text-xs font-semibold uppercase tracking-wider"
-            style={{ color: role && role.color ? '#' + role.color.toString(16).padStart(6, '0') : 'var(--color-text-disabled)' }}
-          >
-            {role?.name ?? 'Online'} — {groupMembers.length}
-          </p>
-          <div className="px-2 space-y-0.5">
-            {groupMembers.map((member) => {
-              // Find highest-positioned role with color for name display (Discord-style)
-              const topColorRole = member.roles
-                .map((rid) => roles[rid])
-                .filter((r): r is RolePayload => r != null && r.color > 0)
-                .sort((a, b) => b.position - a.position)[0];
-              const nameColor = topColorRole
-                ? '#' + topColorRole.color.toString(16).padStart(6, '0')
-                : undefined;
-              return (
-                <MemberItem
-                  key={member.userId}
-                  member={member}
-                  onContextMenu={handleContextMenu}
-                  nameColor={nameColor}
-                />
-              );
-            })}
-          </div>
-        </div>
-      ))}
+      <Virtuoso
+        style={{ height: '100%' }}
+        totalCount={listItems.length}
+        itemContent={(index) => {
+          const item = listItems[index];
+          if (!item) return null;
+
+          if (item.kind === 'header') {
+            return (
+              <p
+                className="px-4 py-1 text-xs font-semibold uppercase tracking-wider"
+                style={{
+                  color: item.role && item.role.color
+                    ? '#' + item.role.color.toString(16).padStart(6, '0')
+                    : 'var(--color-text-disabled)',
+                  paddingTop: index === 0 ? '16px' : '12px',
+                }}
+              >
+                {item.role?.name ?? 'Online'} — {item.count}
+              </p>
+            );
+          }
+
+          return (
+            <div className="px-2">
+              <MemberItem
+                member={item.member}
+                onContextMenu={handleContextMenu}
+                nameColor={item.nameColor}
+              />
+            </div>
+          );
+        }}
+      />
 
       {contextMenu && (
         <MemberContextMenu

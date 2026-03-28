@@ -19,6 +19,9 @@ import {
   X,
   Copy,
   Link2,
+  MessageSquare,
+  Clock,
+  CheckCheck,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -371,6 +374,7 @@ interface MessageItemProps {
   showUnreadSeparator?: boolean;
   selectionMode?: boolean;
   isSelected?: boolean;
+  isHighlighted?: boolean;
   onToggleSelect?: () => void;
 }
 
@@ -382,6 +386,7 @@ export function MessageItem({
   showUnreadSeparator = false,
   selectionMode = false,
   isSelected = false,
+  isHighlighted = false,
   onToggleSelect,
 }: MessageItemProps) {
   const currentUser = useAuthStore((s) => s.user);
@@ -515,8 +520,8 @@ export function MessageItem({
         className="message-row relative group px-4 py-0.5"
         style={{
           paddingTop: isGrouped ? '1px' : '8px',
-          background: isSelected ? 'rgba(88, 101, 242, 0.1)' : hovered ? 'rgba(255,255,255,0.02)' : 'transparent',
-          transition: 'background 80ms ease',
+          background: isHighlighted ? 'rgba(250, 166, 26, 0.12)' : isSelected ? 'rgba(88, 101, 242, 0.1)' : hovered ? 'rgba(255,255,255,0.02)' : 'transparent',
+          transition: 'background 600ms ease',
         }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
@@ -624,6 +629,18 @@ export function MessageItem({
                     {formatDistanceToNow(timestamp, { addSuffix: true })}
                   </time>
                 </Tooltip>
+                {/* Delivery status for own messages */}
+                {canEdit && (
+                  message.id.startsWith('pending-') ? (
+                    <Tooltip content="Sending..." placement="top">
+                      <Clock size={11} style={{ color: 'var(--color-text-disabled)' }} />
+                    </Tooltip>
+                  ) : (
+                    <Tooltip content="Delivered" placement="top">
+                      <CheckCheck size={11} style={{ color: 'var(--color-success-default)' }} />
+                    </Tooltip>
+                  )
+                )}
               </div>
             )}
 
@@ -696,21 +713,31 @@ export function MessageItem({
                   >
                     {renderContent(message.content)}
                     {editedAt && (
-                      <span
-                        className="text-xs ml-1"
-                        style={{ color: 'var(--color-text-disabled)' }}
+                      <Tooltip
+                        content={`Edited ${new Date(editedAt).toLocaleString()}`}
+                        placement="top"
                       >
-                        (edited)
-                      </span>
+                        <span
+                          className="text-xs ml-1 cursor-default"
+                          style={{ color: 'var(--color-text-disabled)' }}
+                        >
+                          (edited)
+                        </span>
+                      </Tooltip>
                     )}
                   </p>
                 ) : editedAt ? (
-                  <span
-                    className="text-xs"
-                    style={{ color: 'var(--color-text-disabled)' }}
+                  <Tooltip
+                    content={`Edited ${new Date(editedAt).toLocaleString()}`}
+                    placement="top"
                   >
-                    (edited)
-                  </span>
+                    <span
+                      className="text-xs cursor-default"
+                      style={{ color: 'var(--color-text-disabled)' }}
+                    >
+                      (edited)
+                    </span>
+                  </Tooltip>
                 ) : null}
               </>
             )}
@@ -813,6 +840,27 @@ export function MessageItem({
                   />
                 ))}
               </div>
+            )}
+
+            {/* Thread indicator */}
+            {message.thread && (
+              <button
+                onClick={() => openModal('thread', { threadId: message.thread!.id })}
+                className="flex items-center gap-1.5 mt-2 px-2 py-1 rounded-md text-xs font-medium transition-colors"
+                style={{
+                  color: 'var(--color-accent-primary)',
+                  background: 'transparent',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'var(--color-accent-muted)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                }}
+              >
+                <MessageSquare size={12} />
+                <span>View Thread</span>
+              </button>
             )}
           </div>
         </div>

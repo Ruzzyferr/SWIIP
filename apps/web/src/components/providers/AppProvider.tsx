@@ -8,6 +8,7 @@ import { getCurrentUser, refreshTokens } from '@/lib/api/auth.api';
 import { useGatewayBridge } from '@/hooks/useGatewayBridge';
 import { useLiveKitRoom } from '@/hooks/useLiveKitRoom';
 import { useVoiceKeyboardShortcuts } from '@/hooks/useVoiceKeyboardShortcuts';
+import { useDesktopTray } from '@/hooks/useDesktopTray';
 import { LiveKitContext } from '@/contexts/LiveKitContext';
 import { VoiceDebugOverlay } from '@/components/voice/VoiceDebugOverlay';
 import { Spinner } from '@/components/ui/Spinner';
@@ -27,6 +28,9 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
 
   // Voice keyboard shortcuts (M=mute, D=deafen, V=camera)
   useVoiceKeyboardShortcuts();
+
+  // Desktop tray: sync voice state + handle tray actions (no-op on web)
+  useDesktopTray();
 
   const liveKitContextValue = useMemo(() => ({ videoTracks, roomRef: room }), [videoTracks, room]);
 

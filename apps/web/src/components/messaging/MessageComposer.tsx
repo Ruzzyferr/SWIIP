@@ -297,6 +297,34 @@ export function MessageComposer({
     }
 
     setSending(true);
+
+    // Optimistic send: add a pending message immediately (Discord pattern)
+    const user = useAuthStore.getState().user;
+    const pendingId = `pending-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+    const removeMessage = useMessagesStore.getState().removeMessage;
+
+    if (trimmed && files.length === 0 && user) {
+      const optimisticMsg: MessagePayload = {
+        id: pendingId,
+        channelId,
+        author: {
+          id: user.id,
+          username: user.username,
+          discriminator: user.discriminator ?? '0',
+          avatar: user.avatar ?? null,
+          globalName: user.globalName ?? null,
+          createdAt: user.createdAt,
+          flags: 0,
+        },
+        content: trimmed,
+        timestamp: new Date().toISOString(),
+        pinned: false,
+        flags: 0,
+        nonce: pendingId,
+      };
+      addMessage(channelId, optimisticMsg);
+    }
+
     try {
       let attachmentIds: string[] | undefined;
 
@@ -333,12 +361,22 @@ export function MessageComposer({
         replyToId: replyTo?.id,
         attachmentIds,
       });
+
+      // Replace optimistic message with real one
+      if (trimmed && files.length === 0) {
+        removeMessage(channelId, pendingId);
+      }
       addMessage(channelId, msg);
+
       setContent('');
       setFiles([]);
       onClearReply();
       localStorage.removeItem(DRAFT_KEY(channelId));
     } catch (err: unknown) {
+      // Remove failed optimistic message
+      if (trimmed && files.length === 0) {
+        removeMessage(channelId, pendingId);
+      }
       toastError(err instanceof Error ? err.message : 'Failed to send message');
     } finally {
       setSending(false);
@@ -372,6 +410,27 @@ export function MessageComposer({
     }, 0);
   }, [content, mentionStartPos, mentionQuery]);
 
+  // Wrap selected text (or insert at cursor) with markdown formatting
+  const wrapSelection = useCallback((wrapper: string) => {
+    const ta = textareaRef.current;
+    if (!ta) return;
+    const start = ta.selectionStart;
+    const end = ta.selectionEnd;
+    const selected = content.slice(start, end);
+    const newContent = content.slice(0, start) + wrapper + selected + wrapper + content.slice(end);
+    setContent(newContent);
+    // Move cursor inside the wrappers if no selection, or after wrapped text
+    setTimeout(() => {
+      ta.focus();
+      if (selected) {
+        ta.selectionStart = start;
+        ta.selectionEnd = end + wrapper.length * 2;
+      } else {
+        ta.selectionStart = ta.selectionEnd = start + wrapper.length;
+      }
+    }, 0);
+  }, [content]);
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     // If mention autocomplete is open, let it handle keyboard events
     if (mentionQuery !== null) {
@@ -384,6 +443,24 @@ export function MessageComposer({
       if (e.key === 'Escape') {
         e.preventDefault();
         setMentionQuery(null);
+        return;
+      }
+    }
+    // Ctrl+B — Bold, Ctrl+I — Italic, Ctrl+` — Code
+    if (e.ctrlKey || e.metaKey) {
+      if (e.key === 'b') {
+        e.preventDefault();
+        wrapSelection('**');
+        return;
+      }
+      if (e.key === 'i') {
+        e.preventDefault();
+        wrapSelection('*');
+        return;
+      }
+      if (e.key === '`') {
+        e.preventDefault();
+        wrapSelection('`');
         return;
       }
     }
@@ -744,6 +821,7 @@ export function MessageComposer({
           <div className="flex items-center gap-1 ml-auto">
             <Tooltip content="Bold (Ctrl+B)" placement="top">
               <button
+                onClick={() => wrapSelection('**')}
                 className="p-1 rounded transition-colors duration-fast text-xs font-bold"
                 style={{ color: 'var(--color-text-disabled)' }}
                 onMouseEnter={(e) => {
@@ -761,6 +839,7 @@ export function MessageComposer({
             </Tooltip>
             <Tooltip content="Italic (Ctrl+I)" placement="top">
               <button
+                onClick={() => wrapSelection('*')}
                 className="p-1 rounded transition-colors duration-fast"
                 style={{ color: 'var(--color-text-disabled)' }}
                 onMouseEnter={(e) => {
@@ -778,6 +857,7 @@ export function MessageComposer({
             </Tooltip>
             <Tooltip content="Code (Ctrl+`)" placement="top">
               <button
+                onClick={() => wrapSelection('`')}
                 className="p-1 rounded transition-colors duration-fast"
                 style={{ color: 'var(--color-text-disabled)' }}
                 onMouseEnter={(e) => {

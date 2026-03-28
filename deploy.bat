@@ -33,7 +33,17 @@ echo ============================================================
 echo   STEP: Desktop App Build
 echo ============================================================
 echo.
-echo [*] Building desktop installer...
+echo [*] Building desktop installer (with web bundle)...
+
+:: First build Next.js standalone output
+echo [*] Building web app (Next.js standalone)...
+cd /d "%~dp0apps\web"
+call npm run build
+if errorlevel 1 (
+    echo [!] Web build failed.
+    goto desktop_fail
+)
+echo [OK] Web app built
 
 set "BDIR=C:\tmp\swiip-build"
 if exist "%BDIR%" rmdir /s /q "%BDIR%"
@@ -41,6 +51,13 @@ mkdir "%BDIR%"
 xcopy /E /I /Q "%~dp0apps\desktop\src" "%BDIR%\src" >nul
 xcopy /E /I /Q "%~dp0apps\desktop\build" "%BDIR%\build" >nul
 copy /Y "%~dp0apps\desktop\package.json" "%BDIR%\package.json" >nul
+
+:: Copy standalone output as web-bundle (preserves monorepo structure)
+echo [*] Copying web bundle...
+xcopy /E /I /Q "%~dp0apps\web\.next\standalone" "%BDIR%\web-bundle" >nul
+xcopy /E /I /Q "%~dp0apps\web\.next\static" "%BDIR%\web-bundle\apps\web\.next\static" >nul
+xcopy /E /I /Q "%~dp0apps\web\public" "%BDIR%\web-bundle\apps\web\public" >nul
+echo [OK] Web bundle copied
 
 cd /d "%BDIR%"
 

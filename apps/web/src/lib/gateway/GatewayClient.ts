@@ -5,6 +5,7 @@ import {
   type ServerEvent,
   type GatewayEvent,
 } from '@constchat/protocol';
+import { getPlatformProvider } from '@/lib/platform';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -78,7 +79,6 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
   /** Number of consecutive missed heartbeat ACKs. Allows up to 2 before declaring zombie. */
   private missedHeartbeats: number = 0;
   private reconnectAttempts: number = 0;
-  private readonly maxReconnectAttempts = 15;
   private reconnectDelay: number = 1000;
   private token: string | null = null;
   private resumeUrl: string | null = null;
@@ -92,6 +92,8 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
   private lastStableAt: number = 0;
   /** Timestamp of last heartbeat ACK — used to detect zombie with tolerance. */
   private lastAckAt: number = 0;
+  /** Outbound message queue — buffers sends during reconnect, replayed on RESUMED. */
+  private sendQueue: Array<{ op: OpCode; data: unknown }> = [];
   /** Bound visibility change handler for cleanup. */
   private _onVisibilityChange: (() => void) | null = null;
 
@@ -103,6 +105,19 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
       'ws://localhost:4001';
     // Ensure the URL ends with /gateway (the uWS route)
     this.gatewayUrl = base.endsWith('/gateway') ? base : `${base}/gateway`;
+
+    // Desktop: on system resume (wake from sleep), trigger immediate reconnect
+    const platform = getPlatformProvider();
+    if (platform.isDesktop) {
+      platform.onSystemResume(() => {
+        if (this.ws?.readyState !== WebSocket.OPEN && this.token) {
+          console.info('[Gateway] System resumed — triggering immediate reconnect');
+          this._clearReconnect();
+          this.reconnectAttempts = 0;
+          this._openWebSocket(this.gatewayUrl);
+        }
+      });
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -130,6 +145,7 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
     this.destroyed = false;
     this._clearHeartbeat();
     this._clearReconnect();
+    this.sendQueue.length = 0; // Clear buffered messages on intentional disconnect
     if (this.ws) {
       this.ws.onclose = null; // prevent reconnect on intentional close
       this.ws.close(1000, 'Client disconnect');
@@ -140,6 +156,12 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
 
   send(op: OpCode, data: unknown): boolean {
     if (this.ws?.readyState !== WebSocket.OPEN) {
+      // Buffer dispatch events during reconnect — replay on RESUMED (Discord pattern)
+      if (op === OpCode.DISPATCH && !this.destroyed) {
+        this.sendQueue.push({ op, data });
+        console.debug('[Gateway] Buffered outgoing dispatch during reconnect');
+        return true; // Indicate message was accepted (queued)
+      }
       console.warn('[Gateway] Cannot send — socket not open, readyState:', this.ws?.readyState);
       return false;
     }
@@ -157,8 +179,8 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
     return true;
   }
 
-  updatePresence(status: string, activities: unknown[] = []): void {
-    this.send(OpCode.PRESENCE_UPDATE, { status, activities });
+  updatePresence(status: string, activities: unknown[] = [], customStatus?: string): void {
+    this.send(OpCode.PRESENCE_UPDATE, { status, activities, customStatus });
   }
 
   // ---------------------------------------------------------------------------
@@ -263,8 +285,10 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
     // Handle Page Visibility API — browsers throttle timers in background tabs.
     // When user returns, send an immediate heartbeat to keep the connection alive
     // instead of letting the zombie detector kill it.
+    // On desktop (Electron), this is disabled — timers run at full speed.
     this._removeVisibilityListener();
-    if (typeof document !== 'undefined') {
+    const platform = getPlatformProvider();
+    if (platform.heartbeatConfig.useVisibilityAPI && typeof document !== 'undefined') {
       this._onVisibilityChange = () => {
         if (!document.hidden && this.ws?.readyState === WebSocket.OPEN) {
           // Tab is visible again — check how long we were away
@@ -284,27 +308,29 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
   }
 
   private _sendHeartbeat(): void {
-    // If tab is hidden, skip zombie detection — browsers throttle timers
-    const isHidden = typeof document !== 'undefined' && document.hidden;
+    const platform = getPlatformProvider();
+    const tolerance = platform.heartbeatConfig.missedAckTolerance;
+
+    // If tab is hidden and visibility API is active, skip zombie detection — browsers throttle timers
+    const isHidden = platform.heartbeatConfig.useVisibilityAPI &&
+      typeof document !== 'undefined' && document.hidden;
 
     if (this.heartbeatAckPending && !isHidden) {
       this.missedHeartbeats++;
-      // Tolerate up to 2 missed ACKs before declaring zombie.
-      // Discord's client also allows some tolerance for network jitter.
-      if (this.missedHeartbeats >= 2) {
+      if (this.missedHeartbeats >= tolerance) {
         console.warn(`[Gateway] ${this.missedHeartbeats} heartbeat ACKs missed — zombie connection`);
         this._clearHeartbeat();
         this.ws?.close(4000, 'Zombie connection');
         return;
       }
-      console.debug(`[Gateway] Heartbeat ACK pending (miss ${this.missedHeartbeats}/2) — sending another`);
+      console.debug(`[Gateway] Heartbeat ACK pending (miss ${this.missedHeartbeats}/${tolerance}) — sending another`);
     }
     this.heartbeatAckPending = true;
     this.send(OpCode.HEARTBEAT, this.sequence);
   }
 
   private _removeVisibilityListener(): void {
-    if (this._onVisibilityChange) {
+    if (this._onVisibilityChange && typeof document !== 'undefined') {
       document.removeEventListener('visibilitychange', this._onVisibilityChange);
       this._onVisibilityChange = null;
     }
@@ -571,6 +597,9 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
   private _scheduleReconnect(): void {
     if (this.destroyed) return;
 
+    const platform = getPlatformProvider();
+    const { maxAttempts, cap } = platform.reconnectConfig;
+
     // Time-based auto-reset (discord.py pattern): if the connection was stable
     // long enough, reset the backoff so a fresh disconnect reconnects quickly.
     const stableThreshold = this.reconnectDelay * 2 ** 11; // ~34 min at 1s base
@@ -578,8 +607,8 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
       this.reconnectAttempts = 0;
     }
 
-    if (this.reconnectAttempts >= this.maxReconnectAttempts) {
-      console.error('[Gateway] Max reconnect attempts reached');
+    if (this.reconnectAttempts >= maxAttempts) {
+      console.error(`[Gateway] Max reconnect attempts (${maxAttempts}) reached`);
       this.emit('error', 4999, 'Max reconnect attempts reached');
       return;
     }
@@ -596,8 +625,6 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
     }
 
     // Full Jitter (AWS best practice): sleep = random(0, min(cap, base * 2^attempt))
-    // Better thundering-herd prevention than fixed jitter on top of exponential.
-    const cap = 30_000;
     const expDelay = Math.min(this.reconnectDelay * 2 ** (this.reconnectAttempts - 1), cap);
     const delay = Math.random() * expDelay;
 
@@ -627,6 +654,18 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
     this.lastStableAt = Date.now();
     this.lastAckAt = Date.now();
     this._clearHelloTimeout();
+    // Replay buffered outgoing messages (Discord pattern: events sent during
+    // reconnect are replayed once session is re-established)
+    this._flushSendQueue();
+  }
+
+  private _flushSendQueue(): void {
+    if (this.sendQueue.length === 0) return;
+    console.debug(`[Gateway] Replaying ${this.sendQueue.length} buffered message(s)`);
+    const queue = this.sendQueue.splice(0);
+    for (const { op, data } of queue) {
+      this.send(op, data);
+    }
   }
 
   private _clearHelloTimeout(): void {

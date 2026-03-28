@@ -50,6 +50,8 @@ interface VoiceState {
   // Local user controls
   selfMuted: boolean;
   selfDeafened: boolean;
+  /** Was the user manually muted before deafening? Used to restore mute state on un-deafen (Discord behavior). */
+  _mutedBeforeDeafen: boolean;
   cameraEnabled: boolean;
   screenShareEnabled: boolean;
   screenShareQuality: ScreenShareQuality;
@@ -136,6 +138,7 @@ export const useVoiceStore = create<VoiceState>()(
     livekitUrl: null,
     selfMuted: false,
     selfDeafened: false,
+    _mutedBeforeDeafen: false,
     cameraEnabled: false,
     screenShareEnabled: false,
     screenShareQuality: '1080p30' as ScreenShareQuality,
@@ -179,7 +182,14 @@ export const useVoiceStore = create<VoiceState>()(
     setSelfDeafened: (deafened) =>
       set((state) => {
         state.selfDeafened = deafened;
-        if (deafened) state.selfMuted = true;
+        if (deafened) {
+          // Save mute state before deafening — restore on un-deafen (Discord behavior)
+          state._mutedBeforeDeafen = state.selfMuted;
+          state.selfMuted = true;
+        } else {
+          // Restore previous mute state: if user was manually muted before deafening, stay muted
+          state.selfMuted = state._mutedBeforeDeafen;
+        }
       }),
 
     setCameraEnabled: (enabled) =>
@@ -277,25 +287,35 @@ export const useVoiceStore = create<VoiceState>()(
         }
       }),
 
-    getChannelParticipants: (channelId) => {
-      const state = get();
-      return Object.values(state.participants).filter(
-        (p) => p.channelId === channelId
-      );
-    },
+    getChannelParticipants: (() => {
+      let _cachedParticipants: Record<string, VoiceParticipant> | null = null;
+      let _cachedChannelId: string | null = null;
+      let _cachedResult: VoiceParticipant[] = [];
+
+      return (channelId: string) => {
+        const state = get();
+        if (state.participants === _cachedParticipants && channelId === _cachedChannelId) {
+          return _cachedResult;
+        }
+        _cachedParticipants = state.participants;
+        _cachedChannelId = channelId;
+        _cachedResult = Object.values(state.participants).filter(
+          (p) => p.channelId === channelId
+        );
+        return _cachedResult;
+      };
+    })(),
 
     disconnect: () =>
       set((state) => {
-        // Only clear participants from the channel we're leaving.
-        // Other channels' voice states (from gateway events) are preserved.
+        // Only remove SELF from the channel participants.
+        // Other users' voice states must stay — they're still in the channel.
+        // Gateway voice_state_update events manage remote participants.
+        // We need userId from auth store to identify self.
         const leavingChannel = state.currentChannelId;
-        if (leavingChannel) {
-          for (const key of Object.keys(state.participants)) {
-            if (key.startsWith(`${leavingChannel}:`)) {
-              delete state.participants[key];
-            }
-          }
-        }
+        // Note: we can't easily get userId here from another store inside immer,
+        // so we clear only the LiveKit connection state. The gateway will send
+        // a voice_state_update for our departure which removes our participant entry.
         state.connectionState = 'disconnected';
         state.currentChannelId = null;
         state.currentGuildId = null;
@@ -311,6 +331,11 @@ export const useVoiceStore = create<VoiceState>()(
   })),
   {
     name: 'voice-settings',
-    partialize: (state) => ({ settings: state.settings, userVolumes: state.userVolumes }),
+    partialize: (state) => ({
+      settings: state.settings,
+      userVolumes: state.userVolumes,
+      selfMuted: state.selfMuted,
+      selfDeafened: state.selfDeafened,
+    }),
   })
 );

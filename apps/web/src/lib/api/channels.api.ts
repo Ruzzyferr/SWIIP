@@ -95,6 +95,26 @@ export async function unpinMessage(
   await apiClient.delete(`/channels/${channelId}/pins/${messageId}`);
 }
 
+// Permission overrides
+export async function setChannelPermissionOverwrite(
+  channelId: string,
+  overwriteId: string,
+  data: { type: 'role' | 'member'; allow: string; deny: string }
+): Promise<ChannelPayload> {
+  const res = await apiClient.put<ChannelPayload>(
+    `/channels/${channelId}/permissions/${overwriteId}`,
+    data
+  );
+  return res.data;
+}
+
+export async function deleteChannelPermissionOverwrite(
+  channelId: string,
+  overwriteId: string
+): Promise<void> {
+  await apiClient.delete(`/channels/${channelId}/permissions/${overwriteId}`);
+}
+
 export interface ReadStateUpdate {
   lastReadMessageId: string;
 }

@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, Menu, Tray, nativeImage, ipcMain, session, dialog, desktopCapturer } = require('electron');
+const { app, BrowserWindow, shell, Menu, Tray, nativeImage, ipcMain, session, dialog, desktopCapturer, globalShortcut, powerMonitor } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 
@@ -20,7 +20,78 @@ const store = new Store({
 const isDev = process.argv.includes('--dev');
 const DEFAULT_PROD_URL = 'https://swiip.app';
 const PERSIST_PARTITION = 'persist:swiip';
-const WEB_URL = isDev
+
+// --- Local Web Server for Production ---
+// In production, we bundle the Next.js standalone output and run a local HTTP server.
+// This makes the app load instantly, work offline (for UI), and feel native.
+// In dev, we use localhost:3000 for hot reload.
+let localServerPort = null;
+let localServerProcess = null;
+
+async function startLocalWebServer() {
+  if (isDev) return 'http://localhost:3000';
+
+  // Check if bundled web server exists (monorepo standalone preserves directory structure)
+  const serverPath = path.join(__dirname, '..', 'web-bundle', 'apps', 'web', 'server.js');
+  const fs = require('fs');
+  if (!fs.existsSync(serverPath)) {
+    // No local bundle — fall back to remote URL
+    console.info('[Desktop] No local web bundle found, using remote URL');
+    return store.get('serverUrl') || process.env.SWIIP_WEB_URL || DEFAULT_PROD_URL;
+  }
+
+  // Find a free port
+  const net = require('net');
+  localServerPort = await new Promise((resolve) => {
+    const srv = net.createServer();
+    srv.listen(0, () => {
+      const port = srv.address().port;
+      srv.close(() => resolve(port));
+    });
+  });
+
+  // Start the Next.js standalone server
+  const { fork } = require('child_process');
+  localServerProcess = fork(serverPath, [], {
+    env: {
+      ...process.env,
+      PORT: String(localServerPort),
+      HOSTNAME: '127.0.0.1',
+      // Pass the API URL so the web app can reach the backend
+      NEXT_PUBLIC_API_URL: store.get('serverUrl') || process.env.SWIIP_API_URL || 'https://api.swiip.app',
+      NEXT_PUBLIC_GATEWAY_URL: store.get('gatewayUrl') || process.env.SWIIP_GATEWAY_URL || 'wss://api.swiip.app/gateway',
+    },
+    stdio: 'pipe',
+  });
+
+  localServerProcess.stdout?.on('data', (d) => console.log('[WebServer]', d.toString().trim()));
+  localServerProcess.stderr?.on('data', (d) => console.error('[WebServer]', d.toString().trim()));
+
+  // Wait for server to be ready (max 15 seconds to prevent infinite hang)
+  const SERVER_START_TIMEOUT_MS = 15000;
+  await new Promise((resolve, reject) => {
+    const startTime = Date.now();
+    const check = () => {
+      if (Date.now() - startTime > SERVER_START_TIMEOUT_MS) {
+        reject(new Error('Local web server failed to start within 15 seconds'));
+        return;
+      }
+      const http = require('http');
+      http.get(`http://127.0.0.1:${localServerPort}`, (res) => {
+        res.resume();
+        resolve();
+      }).on('error', () => {
+        setTimeout(check, 100);
+      });
+    };
+    setTimeout(check, 300);
+  });
+
+  console.info(`[Desktop] Local web server started on port ${localServerPort}`);
+  return `http://127.0.0.1:${localServerPort}`;
+}
+
+let WEB_URL = isDev
   ? 'http://localhost:3000'
   : (store.get('serverUrl') || process.env.SWIIP_WEB_URL || DEFAULT_PROD_URL);
 
@@ -40,7 +111,8 @@ function createWindow() {
     title: 'Swiip',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     frame: false,
-    backgroundColor: '#1a1a2e',
+    // Use a near-black background to minimize flash on both dark and light themes
+    backgroundColor: '#111119',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -273,7 +345,14 @@ if (!gotLock) {
 }
 
 // App lifecycle
-app.on('ready', () => {
+app.on('ready', async () => {
+  // Start local web server (production) or use localhost:3000 (dev)
+  try {
+    WEB_URL = await startLocalWebServer();
+  } catch (err) {
+    console.error('[Desktop] Failed to start local server, using remote URL:', err);
+  }
+
   // Set custom user agent to identify desktop app
   const appSession = session.fromPartition(PERSIST_PARTITION);
   appSession.webRequest.onBeforeSendHeaders((details, callback) => {
@@ -281,27 +360,56 @@ app.on('ready', () => {
     callback({ requestHeaders: details.requestHeaders });
   });
 
+  // Content Security Policy — defense-in-depth against XSS (Discord pattern)
+  appSession.webRequest.onHeadersReceived((details, callback) => {
+    callback({
+      responseHeaders: {
+        ...details.responseHeaders,
+        'Content-Security-Policy': [
+          [
+            "default-src 'self'",
+            "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+            "style-src 'self' 'unsafe-inline'",
+            "img-src 'self' data: blob: https: http:",
+            "media-src 'self' blob: https: http: mediastream:",
+            "connect-src 'self' ws: wss: https: http:",
+            "font-src 'self' data:",
+            "worker-src 'self' blob:",
+          ].join('; '),
+        ],
+      },
+    });
+  });
+
   setupAppMenu();
   createWindow();
   createTray();
 
   // Set up screen capture handler for LiveKit screen sharing
+  // NOTE: Audio loopback captures ALL system audio including voice chat playback,
+  // which creates feedback. For window captures, audio is not supported via loopback.
+  // For screen captures, audio is disabled by default — the user gets a warning in the UI.
   appSession.setDisplayMediaRequestHandler(async (_request, callback) => {
     try {
       // If a specific source was selected via our custom picker, use it
       if (selectedSourceId) {
         const sources = await desktopCapturer.getSources({ types: ['screen', 'window'] });
         const chosen = sources.find((s) => s.id === selectedSourceId);
+        const sourceId = selectedSourceId;
         selectedSourceId = null; // Reset after use
         if (chosen) {
-          callback({ video: chosen, audio: screenShareAudioEnabled ? 'loopback' : undefined });
+          // Window captures: NEVER include loopback audio — it captures voice chat
+          // Screen captures: only include loopback if explicitly enabled (user warned in UI)
+          const isWindowCapture = sourceId.startsWith('window:');
+          const includeAudio = !isWindowCapture && screenShareAudioEnabled;
+          callback({ video: chosen, audio: includeAudio ? 'loopback' : undefined });
           return;
         }
       }
-      // Fallback: auto-select primary screen
+      // Fallback: auto-select primary screen (no audio — safer default)
       const sources = await desktopCapturer.getSources({ types: ['screen'] });
       if (sources.length > 0) {
-        callback({ video: sources[0], audio: screenShareAudioEnabled ? 'loopback' : undefined });
+        callback({ video: sources[0], audio: undefined });
       } else {
         callback({});
       }
@@ -332,6 +440,11 @@ app.on('activate', () => {
 
 app.on('before-quit', () => {
   isQuitting = true;
+  // Kill local web server if running
+  if (localServerProcess) {
+    localServerProcess.kill();
+    localServerProcess = null;
+  }
 });
 
 // IPC handlers
@@ -383,3 +496,155 @@ ipcMain.handle('restart-for-update', () => {
   isQuitting = true;
   autoUpdater.quitAndInstall(false, true);
 });
+
+// --- Unread Badge ---
+ipcMain.handle('set-badge-count', (_, count) => {
+  // Windows: overlay badge on taskbar icon
+  if (mainWindow) {
+    if (count > 0) {
+      mainWindow.setOverlayIcon(
+        nativeImage.createFromDataURL(createBadgeDataURL(count)),
+        `${count} unread`
+      );
+    } else {
+      mainWindow.setOverlayIcon(null, '');
+    }
+  }
+  // Also update tray tooltip
+  if (tray) {
+    const voicePrefix = voiceConnected
+      ? `Voice ${voiceDeafened ? 'Deafened' : voiceMuted ? 'Muted' : 'Connected'} · `
+      : '';
+    tray.setToolTip(count > 0 ? `Swiip — ${voicePrefix}${count} unread` : `Swiip${voicePrefix ? ` — ${voicePrefix.slice(0, -3)}` : ''}`);
+  }
+});
+
+function createBadgeDataURL(count) {
+  // 16x16 red circle with number — simple badge
+  const text = count > 99 ? '99+' : String(count);
+  // Use a canvas-free data URL approach: simple SVG to data URL
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16">
+    <circle cx="8" cy="8" r="8" fill="#ed4245"/>
+    <text x="8" y="12" text-anchor="middle" fill="white" font-size="${text.length > 2 ? 7 : 9}" font-family="sans-serif" font-weight="bold">${text}</text>
+  </svg>`;
+  return `data:image/svg+xml;base64,${Buffer.from(svg).toString('base64')}`;
+}
+
+// --- Global Keyboard Shortcuts ---
+const registeredShortcuts = new Set();
+
+ipcMain.handle('register-global-shortcut', (_, accelerator) => {
+  if (registeredShortcuts.has(accelerator)) return true;
+  try {
+    const success = globalShortcut.register(accelerator, () => {
+      mainWindow?.webContents.send('global-shortcut', accelerator);
+    });
+    if (success) registeredShortcuts.add(accelerator);
+    return success;
+  } catch (err) {
+    console.warn('[GlobalShortcut] Failed to register:', accelerator, err);
+    return false;
+  }
+});
+
+ipcMain.handle('unregister-global-shortcut', (_, accelerator) => {
+  if (registeredShortcuts.has(accelerator)) {
+    globalShortcut.unregister(accelerator);
+    registeredShortcuts.delete(accelerator);
+  }
+});
+
+// Unregister all global shortcuts when app quits
+app.on('will-quit', () => {
+  globalShortcut.unregisterAll();
+});
+
+// --- Voice Status for Tray ---
+let voiceConnected = false;
+let voiceMuted = false;
+let voiceDeafened = false;
+
+ipcMain.handle('set-voice-status', (_, status) => {
+  voiceConnected = status.connected ?? false;
+  voiceMuted = status.muted ?? false;
+  voiceDeafened = status.deafened ?? false;
+  updateTrayMenu();
+});
+
+function updateTrayMenu() {
+  if (!tray) return;
+
+  const menuItems = [
+    {
+      label: 'Open Swiip',
+      click: () => {
+        if (mainWindow) {
+          mainWindow.show();
+          mainWindow.focus();
+        }
+      },
+    },
+  ];
+
+  if (voiceConnected) {
+    menuItems.push(
+      { type: 'separator' },
+      {
+        label: voiceMuted ? '🔇 Unmute' : '🎤 Mute',
+        click: () => {
+          mainWindow?.webContents.send('tray-voice-action', 'toggle-mute');
+        },
+      },
+      {
+        label: voiceDeafened ? '🔊 Undeafen' : '🔈 Deafen',
+        click: () => {
+          mainWindow?.webContents.send('tray-voice-action', 'toggle-deafen');
+        },
+      },
+      {
+        label: '🔌 Disconnect',
+        click: () => {
+          mainWindow?.webContents.send('tray-voice-action', 'disconnect');
+        },
+      }
+    );
+  }
+
+  menuItems.push(
+    { type: 'separator' },
+    {
+      label: 'Quit',
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      },
+    }
+  );
+
+  tray.setContextMenu(Menu.buildFromTemplate(menuItems));
+
+  // Update tray tooltip
+  if (voiceConnected) {
+    const state = voiceDeafened ? 'Deafened' : voiceMuted ? 'Muted' : 'Connected';
+    tray.setToolTip(`Swiip — Voice ${state}`);
+  } else {
+    tray.setToolTip('Swiip');
+  }
+}
+
+// --- Window Focus Events ---
+// Send focus/blur events to renderer for platform provider
+app.on('browser-window-focus', () => {
+  mainWindow?.webContents.send('window-focus');
+});
+app.on('browser-window-blur', () => {
+  mainWindow?.webContents.send('window-blur');
+});
+
+// --- System Resume Detection ---
+// When system wakes from sleep, notify renderer to reconnect immediately
+powerMonitor.on('resume', () => {
+  console.debug('[PowerMonitor] System resumed — notifying renderer');
+  mainWindow?.webContents.send('system-resume');
+});
+
