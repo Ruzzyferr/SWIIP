@@ -169,12 +169,19 @@ echo [*] Pulling latest code on server...
 ssh %SERVER% "cd %REPO_DIR% && git pull origin master"
 if errorlevel 1 goto deploy_fail
 
+echo.
+echo [*] Logging into GHCR on server...
+ssh %SERVER% "echo $GITHUB_TOKEN | docker login ghcr.io -u Ruzzyferr --password-stdin 2>/dev/null || echo 'GHCR login skipped (no token), will build locally'"
+
+echo [*] Pulling pre-built images from GHCR...
+ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% pull api gateway web workers media-signalling 2>&1 || echo 'Pull failed, will build locally'"
+
 echo [*] Running Prisma migrations...
-ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% exec -T api npx prisma migrate deploy 2>&1 || echo Skipped"
+ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% run --rm api npx prisma migrate deploy --schema ./prisma/schema.prisma 2>&1 || echo Skipped"
 
 echo.
-echo [*] Rebuilding services...
-ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% --profile voice up -d --build api gateway web workers media-signalling 2>&1"
+echo [*] Starting services...
+ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% --profile voice up -d api gateway web workers media-signalling 2>&1"
 if errorlevel 1 goto deploy_fail
 
 echo.
