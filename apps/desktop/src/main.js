@@ -40,12 +40,6 @@ function createWindow() {
     title: 'Swiip',
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     frame: false,
-    titleBarStyle: 'hidden',
-    titleBarOverlay: {
-      color: '#1a1a2e',
-      symbolColor: '#a0a0b0',
-      height: 32,
-    },
     backgroundColor: '#1a1a2e',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
@@ -83,8 +77,14 @@ function createWindow() {
     }
   });
 
-  mainWindow.on('maximize', () => store.set('maximized', true));
-  mainWindow.on('unmaximize', () => store.set('maximized', false));
+  mainWindow.on('maximize', () => {
+    store.set('maximized', true);
+    mainWindow.webContents.send('maximize-change', true);
+  });
+  mainWindow.on('unmaximize', () => {
+    store.set('maximized', false);
+    mainWindow.webContents.send('maximize-change', false);
+  });
 
   // Minimize to tray instead of closing
   mainWindow.on('close', (e) => {
@@ -158,59 +158,49 @@ function createTrayIconDataURL() {
 }
 
 function setupAppMenu() {
-  const template = [
-    {
-      label: 'Swiip',
-      submenu: [
-        { role: 'about' },
-        { type: 'separator' },
-        {
-          label: 'Settings',
-          accelerator: 'CmdOrCtrl+,',
-          click: () => {
-            mainWindow?.webContents.send('navigate', '/settings');
-          },
-        },
-        { type: 'separator' },
-        { role: 'quit' },
-      ],
-    },
-    {
-      label: 'Edit',
-      submenu: [
-        { role: 'undo' },
-        { role: 'redo' },
-        { type: 'separator' },
-        { role: 'cut' },
-        { role: 'copy' },
-        { role: 'paste' },
-        { role: 'selectAll' },
-      ],
-    },
-    {
-      label: 'View',
-      submenu: [
-        { role: 'reload' },
-        { role: 'forceReload' },
-        { role: 'toggleDevTools' },
-        { type: 'separator' },
-        { role: 'resetZoom' },
-        { role: 'zoomIn' },
-        { role: 'zoomOut' },
-        { type: 'separator' },
-        { role: 'togglefullscreen' },
-      ],
-    },
-    {
-      label: 'Window',
-      submenu: [
-        { role: 'minimize' },
-        { role: 'close' },
-      ],
-    },
-  ];
-
-  Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  if (isDev) {
+    // Dev: show menu bar for DevTools access
+    const template = [
+      {
+        label: 'Swiip',
+        submenu: [
+          { role: 'about' },
+          { type: 'separator' },
+          { role: 'quit' },
+        ],
+      },
+      {
+        label: 'Edit',
+        submenu: [
+          { role: 'undo' },
+          { role: 'redo' },
+          { type: 'separator' },
+          { role: 'cut' },
+          { role: 'copy' },
+          { role: 'paste' },
+          { role: 'selectAll' },
+        ],
+      },
+      {
+        label: 'View',
+        submenu: [
+          { role: 'reload' },
+          { role: 'forceReload' },
+          { role: 'toggleDevTools' },
+          { type: 'separator' },
+          { role: 'resetZoom' },
+          { role: 'zoomIn' },
+          { role: 'zoomOut' },
+          { type: 'separator' },
+          { role: 'togglefullscreen' },
+        ],
+      },
+    ];
+    Menu.setApplicationMenu(Menu.buildFromTemplate(template));
+  } else {
+    // Production: no menu bar — Discord-style clean look
+    Menu.setApplicationMenu(null);
+  }
 }
 
 // ── Auto-updater ──────────────────────────────────────────────────────────
@@ -316,3 +306,15 @@ app.on('before-quit', () => {
 ipcMain.handle('get-version', () => app.getVersion());
 ipcMain.handle('get-setting', (_, key) => store.get(key));
 ipcMain.handle('set-setting', (_, key, value) => store.set(key, value));
+
+// Window control handlers
+ipcMain.handle('window-minimize', () => mainWindow?.minimize());
+ipcMain.handle('window-maximize', () => {
+  if (mainWindow?.isMaximized()) {
+    mainWindow.unmaximize();
+  } else {
+    mainWindow?.maximize();
+  }
+});
+ipcMain.handle('window-close', () => mainWindow?.close());
+ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() ?? false);

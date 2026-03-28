@@ -6,12 +6,14 @@ import { ServerRail } from '@/components/layout/ServerRail';
 import { ModalRoot } from '@/components/modals/ModalRoot';
 import { SettingsOverlay } from '@/components/layout/SettingsOverlay';
 import { ServerSettingsWrapper } from '@/components/settings/ServerSettingsWrapper';
+import { DesktopTitleBar } from '@/components/layout/DesktopTitleBar';
 import { useUIStore } from '@/stores/ui.store';
 import { Toaster } from 'sonner';
 
 export default function AppLayout({ children }: { children: ReactNode }) {
   const isMobileNavOpen = useUIStore((s) => s.isMobileNavOpen);
   const [isMobile, setIsMobile] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(false);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -19,12 +21,17 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     const sync = () => setIsMobile(media.matches);
     sync();
     media.addEventListener('change', sync);
+    setIsDesktop((window as any).constchat?.platform === 'desktop');
     return () => media.removeEventListener('change', sync);
   }, []);
 
   return (
     <AppProvider>
-      <div className="flex h-screen w-screen overflow-hidden" style={{ height: '100dvh' }}>
+      <DesktopTitleBar />
+      <div
+        className="flex w-screen overflow-hidden"
+        style={{ height: isDesktop ? 'calc(100dvh - 32px)' : '100dvh', marginTop: isDesktop ? 32 : 0 }}
+      >
         {/* Server rail — fixed left column */}
         {(!isMobile || isMobileNavOpen) && (
           <ServerRail />

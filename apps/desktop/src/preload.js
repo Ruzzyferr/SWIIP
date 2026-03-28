@@ -8,4 +8,12 @@ contextBridge.exposeInMainWorld('constchat', {
   onNavigate: (callback) => {
     ipcRenderer.on('navigate', (_, path) => callback(path));
   },
+  // Window controls
+  minimize: () => ipcRenderer.invoke('window-minimize'),
+  maximize: () => ipcRenderer.invoke('window-maximize'),
+  close: () => ipcRenderer.invoke('window-close'),
+  isMaximized: () => ipcRenderer.invoke('window-is-maximized'),
+  onMaximizeChange: (callback) => {
+    ipcRenderer.on('maximize-change', (_, maximized) => callback(maximized));
+  },
 });
