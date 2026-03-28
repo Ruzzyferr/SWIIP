@@ -37,14 +37,18 @@ RUN pnpm --filter @constchat/api deploy --prod /app/deploy
 # Copy built artifacts and prisma schema into deploy dir
 RUN cp -r /app/services/api/dist /app/deploy/dist
 RUN cp -r /app/services/api/prisma /app/deploy/prisma
-# Copy the already-generated Prisma client into deploy dir
-RUN PRISMA_DOT=$(find /app -path "*/node_modules/.prisma" -not -path "/app/deploy/*" -type d | head -1) && \
-    PRISMA_CLIENT=$(find /app -path "*/node_modules/@prisma/client" -not -path "/app/deploy/*" -type d | head -1) && \
-    echo "Copying .prisma from: $PRISMA_DOT" && \
-    echo "Copying @prisma/client from: $PRISMA_CLIENT" && \
-    test -n "$PRISMA_DOT" && test -n "$PRISMA_CLIENT" && \
-    cp -r "$PRISMA_DOT" /app/deploy/node_modules/.prisma && \
-    cp -r "$PRISMA_CLIENT" /app/deploy/node_modules/@prisma/client
+# Copy generated Prisma client into ALL locations in deploy dir
+RUN PRISMA_SRC=$(find /app -path "*/node_modules/.prisma/client" -not -path "/app/deploy/*" -type d | head -1) && \
+    echo "Generated Prisma at: $PRISMA_SRC" && \
+    test -n "$PRISMA_SRC" && \
+    mkdir -p /app/deploy/node_modules/.prisma && \
+    cp -r "$PRISMA_SRC" /app/deploy/node_modules/.prisma/client && \
+    for target in $(find /app/deploy/node_modules -path "*/.prisma/client" -type d 2>/dev/null); do \
+      echo "Overwriting: $target"; \
+      rm -rf "$target"/*; \
+      cp -r "$PRISMA_SRC"/* "$target"/; \
+    done && \
+    echo "Prisma client copied to all locations"
 # Copy prisma CLI so entrypoint can run migrations without npx downloading latest
 RUN PRISMA_CLI=$(find /app -path "*/node_modules/prisma" -not -path "/app/deploy/*" -type d | head -1) && \
     PRISMA_ENGINES=$(find /app -path "*/node_modules/@prisma/engines" -not -path "/app/deploy/*" -type d | head -1) && \
