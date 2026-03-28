@@ -40,7 +40,8 @@ export const VideoTile = memo(function VideoTile({
     const el = videoRef.current;
     if (!el) return;
 
-    if (!track) {
+    // Guard against stale or ended tracks
+    if (!track || track.readyState === 'ended') {
       el.srcObject = null;
       setIsPlaying(false);
       return;
@@ -52,11 +53,17 @@ export const VideoTile = memo(function VideoTile({
       .then(() => setIsPlaying(true))
       .catch(() => setIsPlaying(false));
 
-    const handleEnded = () => setIsPlaying(false);
-    track.addEventListener('ended', handleEnded);
+    const handleStopped = () => {
+      el.srcObject = null;
+      setIsPlaying(false);
+    };
+    // Listen for both 'ended' and 'mute' — camera disable fires 'mute' on the raw track
+    track.addEventListener('ended', handleStopped);
+    track.addEventListener('mute', handleStopped);
 
     return () => {
-      track.removeEventListener('ended', handleEnded);
+      track.removeEventListener('ended', handleStopped);
+      track.removeEventListener('mute', handleStopped);
       el.srcObject = null;
       setIsPlaying(false);
     };

@@ -106,7 +106,17 @@ export class InternalController {
 
     const dms = dmParticipants.map((p: any) => p.conversation);
 
-    return { user, guilds, dms };
+    // Fetch read states for all channels the user has access to
+    const readStates = await this.prisma.readState.findMany({
+      where: { userId },
+      select: {
+        channelId: true,
+        lastReadMessageId: true,
+        mentionCount: true,
+      },
+    });
+
+    return { user, guilds, dms, readStates };
   }
 
   @Get('guilds/:guildId/member-ids')

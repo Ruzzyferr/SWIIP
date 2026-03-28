@@ -27,11 +27,18 @@ interface VoiceStatePayload {
   speaking: boolean;
 }
 
+interface ReadStatePayload {
+  channelId: string;
+  lastReadMessageId: string | null;
+  mentionCount: number;
+}
+
 interface ReadyPayload {
   user: UserPayload;
   guilds: GuildPayload[];
   dms: DMChannelPayload[];
   voiceStates: VoiceStatePayload[];
+  readStates: ReadStatePayload[];
   sessionId: string;
   resumeUrl: string;
 }
@@ -171,12 +178,12 @@ async function fetchReadyPayload(
   const cacheKey = `swiip:ready_cache:${userId}`;
 
   // Try Redis cache for user/guild/dm data (populated by the API service after login)
-  let body: { user: UserPayload; guilds: GuildPayload[]; dms: DMChannelPayload[] };
+  let body: { user: UserPayload; guilds: GuildPayload[]; dms: DMChannelPayload[]; readStates?: ReadStatePayload[] };
   try {
     const cached = await redis.get(cacheKey);
     if (cached) {
       const parsed = JSON.parse(cached);
-      body = { user: parsed.user, guilds: parsed.guilds, dms: parsed.dms };
+      body = { user: parsed.user, guilds: parsed.guilds, dms: parsed.dms, readStates: parsed.readStates };
     } else {
       throw new Error('cache miss');
     }
@@ -237,6 +244,7 @@ async function fetchReadyPayload(
     guilds: body.guilds,
     dms: body.dms,
     voiceStates,
+    readStates: body.readStates ?? [],
     sessionId,
     resumeUrl: buildResumeUrl(context),
   };

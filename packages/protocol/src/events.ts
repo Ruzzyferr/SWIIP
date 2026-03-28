@@ -456,6 +456,11 @@ export type ServerEvent =
           selfVideo?: boolean;
           screenShare?: boolean;
         }>;
+        readStates?: Array<{
+          channelId: string;
+          lastReadMessageId: string | null;
+          mentionCount: number;
+        }>;
         sessionId: string;
         resumeUrl: string;
       };

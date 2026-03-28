@@ -487,4 +487,22 @@ export class ChannelsService {
 
     return { message: 'Message unpinned' };
   }
+
+  async acknowledgeChannel(channelId: string, userId: string, lastReadMessageId: string) {
+    await this.prisma.readState.upsert({
+      where: {
+        userId_channelId: { userId, channelId },
+      },
+      update: {
+        lastReadMessageId,
+        mentionCount: 0,
+      },
+      create: {
+        userId,
+        channelId,
+        lastReadMessageId,
+        mentionCount: 0,
+      },
+    });
+  }
 }

@@ -14,6 +14,7 @@ import { useGuildsStore } from '@/stores/guilds.store';
 import { useUIStore } from '@/stores/ui.store';
 import { useMessagesStore } from '@/stores/messages.store';
 import { editMessage as editMessageApi } from '@/lib/api/messages.api';
+import { acknowledgeChannel } from '@/lib/api/channels.api';
 import { ChannelType, type MessagePayload } from '@constchat/protocol';
 
 export default function ChannelPage() {
@@ -41,6 +42,33 @@ export default function ChannelPage() {
     setActiveChannel(channelId);
     setMobileNavOpen(false);
   }, [guildId, channelId, setActiveGuild, setActiveChannel, setMobileNavOpen]);
+
+  // Auto-acknowledge channel as read when viewing it
+  useEffect(() => {
+    const ch = useMessagesStore.getState().channels[channelId];
+    const messages = ch?.messages;
+    if (messages && messages.length > 0) {
+      const lastMsg = messages[messages.length - 1];
+      if (lastMsg && lastMsg.id !== ch?.lastReadId) {
+        useMessagesStore.getState().setLastRead(channelId, lastMsg.id);
+        acknowledgeChannel(channelId, { lastReadMessageId: lastMsg.id }).catch(() => {});
+      }
+    }
+    // Also ack when new messages arrive while viewing this channel
+    const unsub = useMessagesStore.subscribe((state) => {
+      const channelData = state.channels[channelId];
+      if (!channelData) return;
+      const msgs = channelData.messages;
+      if (msgs.length > 0) {
+        const last = msgs[msgs.length - 1];
+        if (last && last.id !== channelData.lastReadId) {
+          state.setLastRead(channelId, last.id);
+          acknowledgeChannel(channelId, { lastReadMessageId: last.id }).catch(() => {});
+        }
+      }
+    });
+    return unsub;
+  }, [channelId]);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;

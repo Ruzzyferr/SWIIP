@@ -243,6 +243,12 @@ function ChannelItem({
   const [hovered, setHovered] = useState(false);
   const isVoice = channel.type === ChannelType.VOICE;
 
+  // Unread detection: compare channel's lastMessageId with user's lastReadId
+  const lastReadId = useMessagesStore((s) => s.channels[channel.id]?.lastReadId);
+  const lastMessageId = (channel as any).lastMessageId as string | undefined;
+  const mentionCount = useMessagesStore((s) => s.channels[channel.id]?.mentionCount ?? 0);
+  const hasUnread = !isActive && !isVoice && !!lastMessageId && lastMessageId !== lastReadId;
+
   return (
     <div>
       <button
@@ -256,18 +262,48 @@ function ChannelItem({
             : hovered
             ? 'var(--color-surface-raised)'
             : 'transparent',
-          color: isActive
+          color: isActive || hasUnread
             ? 'var(--color-text-primary)'
             : hovered
             ? 'var(--color-text-primary)'
             : 'var(--color-text-secondary)',
+          fontWeight: hasUnread ? 600 : undefined,
         }}
         aria-current={isActive ? 'page' : undefined}
       >
-        <span style={{ opacity: isActive ? 1 : 0.7, flexShrink: 0 }}>
+        {/* Unread pill indicator — left edge */}
+        {hasUnread && (
+          <div
+            className="absolute left-0 rounded-r-sm"
+            style={{
+              width: 4,
+              height: 8,
+              background: 'var(--color-text-primary)',
+              top: '50%',
+              transform: 'translateY(-50%)',
+            }}
+          />
+        )}
+
+        <span style={{ opacity: isActive || hasUnread ? 1 : 0.7, flexShrink: 0 }}>
           {getChannelIcon(channel.type)}
         </span>
         <span className="truncate">{channel.name}</span>
+
+        {/* Mention badge */}
+        {mentionCount > 0 && !isActive && (
+          <span
+            className="ml-auto flex items-center justify-center rounded-full text-white text-[10px] font-bold shrink-0"
+            style={{
+              background: 'var(--color-danger-default)',
+              minWidth: 18,
+              height: 18,
+              padding: '0 5px',
+            }}
+          >
+            {mentionCount > 99 ? '99+' : mentionCount}
+          </span>
+        )}
 
         {/* Actions visible on hover */}
         {hovered && (

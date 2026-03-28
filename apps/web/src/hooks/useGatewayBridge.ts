@@ -121,6 +121,19 @@ export function useGatewayBridge() {
         }
       }
 
+      // Populate read states from READY
+      if (data.readStates && Array.isArray(data.readStates)) {
+        const messagesStore = useMessagesStore.getState();
+        for (const rs of data.readStates) {
+          if (rs.lastReadMessageId) {
+            messagesStore.setLastRead(rs.channelId, rs.lastReadMessageId);
+          }
+          if (rs.mentionCount > 0) {
+            messagesStore.setMentionCount(rs.channelId, rs.mentionCount);
+          }
+        }
+      }
+
       // Ensure member maps are loaded even if READY payload omits full members.
       for (const guild of data.guilds) {
         getGuildMembers(guild.id)
@@ -144,6 +157,8 @@ export function useGatewayBridge() {
     // --- Messages ---
     gw.on('message_create', (data) => {
       addMessage(data.message.channelId, data.message);
+      // Track lastMessageId on the channel for unread detection
+      updateChannel(data.message.channelId, { lastMessageId: data.message.id } as any);
     });
 
     gw.on('message_update', (data) => {
@@ -261,6 +276,17 @@ export function useGatewayBridge() {
       const voiceStore = useVoiceStore.getState();
       if (data.channelId) {
         voiceStore.setParticipantScreenShare(data.channelId, data.userId, false);
+      }
+    });
+
+    // --- Read State ---
+    gw.on('read_state_update', (data: any) => {
+      const messagesStore = useMessagesStore.getState();
+      if (data.lastReadMessageId) {
+        messagesStore.setLastRead(data.channelId, data.lastReadMessageId);
+      }
+      if (typeof data.mentionCount === 'number') {
+        messagesStore.setMentionCount(data.channelId, data.mentionCount);
       }
     });
 

@@ -124,6 +124,15 @@ export function useLiveKitRoom() {
     const room = new Room({
       adaptiveStream: true,
       dynacast: true,
+      publishDefaults: {
+        // Disable simulcast for screen share — send one high-quality stream
+        // Without this, adaptiveStream may subscribe to a low-res layer, causing cropping
+        screenShareSimulcastLayers: [],
+        screenShareEncoding: {
+          maxBitrate: 5_000_000,
+          maxFramerate: 30,
+        },
+      },
       audioCaptureDefaults: {
         echoCancellation: true,
         noiseSuppression: true,
@@ -280,9 +289,19 @@ export function useLiveKitRoom() {
       }
     });
 
-    // Track mute/unmute for all participants (reliable mic state sync)
+    // Track mute/unmute for all participants (audio + video)
+    // When camera is disabled, LiveKit MUTES the track (doesn't unsubscribe).
+    // We must clear the video track on mute to avoid a frozen black frame.
     room.on(RoomEvent.TrackMuted, (publication: TrackPublication, participant: Participant) => {
-      if (publication.source === Track.Source.Microphone && currentChannelId) {
+      if (!currentChannelId) return;
+
+      if (publication.source === Track.Source.Camera && publication.kind === Track.Kind.Video) {
+        // Camera was disabled — clear the stale track reference to remove black tile
+        updateVideoTrack(participant.identity, 'camera', undefined);
+        setParticipantVideo(currentChannelId, participant.identity, false);
+      }
+
+      if (publication.source === Track.Source.Microphone) {
         const key = `${currentChannelId}:${participant.identity}`;
         const existing = useVoiceStore.getState().participants[key];
         if (existing) {
@@ -292,7 +311,18 @@ export function useLiveKitRoom() {
     });
 
     room.on(RoomEvent.TrackUnmuted, (publication: TrackPublication, participant: Participant) => {
-      if (publication.source === Track.Source.Microphone && currentChannelId) {
+      if (!currentChannelId) return;
+
+      if (publication.source === Track.Source.Camera && publication.kind === Track.Kind.Video) {
+        // Camera was re-enabled — grab the fresh MediaStreamTrack
+        const track = publication.track;
+        if (track) {
+          updateVideoTrack(participant.identity, 'camera', track.mediaStreamTrack);
+          setParticipantVideo(currentChannelId, participant.identity, true);
+        }
+      }
+
+      if (publication.source === Track.Source.Microphone) {
         const key = `${currentChannelId}:${participant.identity}`;
         const existing = useVoiceStore.getState().participants[key];
         if (existing) {
@@ -541,10 +571,17 @@ export function useLiveKitRoom() {
       const preset = presets[quality as keyof typeof presets] ?? presets['1080p30'];
 
       room.localParticipant.setScreenShareEnabled(true, {
-        // Don't constrain resolution — let the browser capture at native resolution.
+        // Capture options — don't constrain resolution, let browser capture at native resolution
         contentHint: preset.fps >= 60 ? 'motion' : 'detail',
         selfBrowserSurface: 'include',
         surfaceSwitching: 'include',
+      }, {
+        // Publish options — disable simulcast so remote gets full resolution
+        simulcast: false,
+        videoEncoding: {
+          maxBitrate: preset.maxBitrate,
+          maxFramerate: preset.fps,
+        },
       }).catch((err) => {
         console.warn('[LiveKit] Screen share failed:', err);
         useVoiceStore.getState().setScreenShareEnabled(false);

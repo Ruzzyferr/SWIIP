@@ -166,4 +166,15 @@ export class ChannelsController {
   ) {
     await this.channelsService.unpinMessage(channelId, messageId, user.userId);
   }
+
+  @Post('channels/:id/ack')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Acknowledge (mark as read) a channel' })
+  async acknowledgeChannel(
+    @Param('id') channelId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: { lastReadMessageId: string },
+  ) {
+    await this.channelsService.acknowledgeChannel(channelId, user.userId, body.lastReadMessageId);
+  }
 }
