@@ -34,6 +34,7 @@ RUN cp -r /app/services/gateway/dist /app/deploy/dist
 FROM node:22-trixie-slim AS runner
 WORKDIR /app
 
+RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates && rm -rf /var/lib/apt/lists/*
 RUN groupadd --system --gid 1001 swiip
 RUN useradd --system --uid 1001 --gid swiip swiip
 

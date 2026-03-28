@@ -32,8 +32,8 @@ services:
       S3_ACCESS_KEY: ${S3_ACCESS_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY}
       MAX_UPLOAD_SIZE_MB: ${MAX_UPLOAD_SIZE_MB:-25}
-      MEILISEARCH_URL: http://meilisearch:7700
-      MEILISEARCH_API_KEY: ${MEILISEARCH_API_KEY:-}
+      MEILISEARCH_HOST: http://meilisearch:7700
+      MEILISEARCH_KEY: ${MEILISEARCH_API_KEY:-}
       SMTP_HOST: ${SMTP_HOST:-smtp.gmail.com}
       SMTP_PORT: ${SMTP_PORT:-587}
       SMTP_USER: ${SMTP_USER:-info@swiip.app}
@@ -118,8 +118,8 @@ services:
       S3_REGION: ${S3_REGION:-us-east-1}
       S3_ACCESS_KEY: ${S3_ACCESS_KEY}
       S3_SECRET_KEY: ${S3_SECRET_KEY}
-      MEILISEARCH_URL: http://meilisearch:7700
-      MEILISEARCH_API_KEY: ${MEILISEARCH_API_KEY:-}
+      MEILISEARCH_HOST: http://meilisearch:7700
+      MEILISEARCH_KEY: ${MEILISEARCH_API_KEY:-}
     depends_on:
       postgres:
         condition: service_healthy
@@ -288,16 +288,25 @@ services:
     entrypoint: /bin/sh
     command: >
       -c 'apk add --no-cache aws-cli &&
-      aws configure set aws_access_key_id "$$S3_ACCESS_KEY" &&
-      aws configure set aws_secret_access_key "$$S3_SECRET_KEY" &&
-      aws configure set default.region "$$S3_REGION" &&
       mkdir -p /backups/daily /backups/wal &&
+      if [ -n "$$S3_ACCESS_KEY" ] && [ -n "$$S3_SECRET_KEY" ] && [ -n "$$S3_ENDPOINT" ]; then
+        aws configure set aws_access_key_id "$$S3_ACCESS_KEY";
+        aws configure set aws_secret_access_key "$$S3_SECRET_KEY";
+        aws configure set default.region "$$S3_REGION";
+        S3_ENABLED=true;
+        echo "[backup] S3 upload enabled";
+      else
+        S3_ENABLED=false;
+        echo "[backup] S3 not configured, local-only backups";
+      fi &&
       while true; do
         FILENAME="swiip_$(date +%Y%m%d_%H%M%S).sql.gz";
         FILEPATH="/backups/daily/$$FILENAME";
         pg_dump | gzip > "$$FILEPATH";
         echo "[backup] Created $$FILEPATH";
-        aws s3 cp "$$FILEPATH" "s3://$$S3_BUCKET/db-backups/daily/$$FILENAME" --endpoint-url "$$S3_ENDPOINT" && echo "[backup] Uploaded to S3" || echo "[backup] S3 upload FAILED";
+        if [ "$$S3_ENABLED" = "true" ]; then
+          aws s3 cp "$$FILEPATH" "s3://$$S3_BUCKET/db-backups/daily/$$FILENAME" --endpoint-url "$$S3_ENDPOINT" && echo "[backup] Uploaded to S3" || echo "[backup] S3 upload FAILED";
+        fi;
         find /backups/daily -name "*.sql.gz" -mtime +7 -delete;
         echo "[backup] Cleaned local backups older than 7 days. Sleeping 24h...";
         sleep 86400;
