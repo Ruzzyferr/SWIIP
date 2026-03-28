@@ -35,17 +35,27 @@ echo ============================================================
 echo.
 
 echo [*] Building desktop installer...
-cd /d "%~dp0apps\desktop"
+echo [*] Using temp directory to avoid Turkish character path issues...
 
-if not exist "node_modules" (
-    echo [*] Installing dependencies...
-    call npm install
-)
+:: Copy to temp dir (NSIS fails with non-ASCII paths like Masaüstü)
+set "BUILD_DIR=C:\tmp\swiip-desktop-build"
+if exist "%BUILD_DIR%" rmdir /s /q "%BUILD_DIR%"
+mkdir "%BUILD_DIR%"
+xcopy /E /I /Q "%~dp0apps\desktop\src" "%BUILD_DIR%\src" >nul
+xcopy /E /I /Q "%~dp0apps\desktop\build" "%BUILD_DIR%\build" >nul
+copy /Y "%~dp0apps\desktop\package.json" "%BUILD_DIR%\package.json" >nul
 
-call npm run build
+cd /d "%BUILD_DIR%"
+
+echo [*] Installing dependencies...
+call npm install >nul 2>&1
+
+echo [*] Running electron-builder...
+call npx electron-builder --win nsis --publish never
 if errorlevel 1 (
     echo [!] Desktop build failed. Continuing without installer update...
     cd /d "%~dp0"
+    rmdir /s /q "%BUILD_DIR%" 2>nul
     goto :git_step
 )
 
@@ -56,18 +66,19 @@ for %%f in (dist\Swiip-Setup-*.exe) do set "INSTALLER=%%f"
 if not defined INSTALLER (
     echo [!] No installer found. Continuing...
     cd /d "%~dp0"
+    rmdir /s /q "%BUILD_DIR%" 2>nul
     goto :git_step
 )
 
 for %%f in (!INSTALLER!) do set "INSTALLER_NAME=%%~nxf"
 echo [OK] Built: !INSTALLER_NAME!
 
-cd /d "%~dp0"
-
 echo [*] Uploading !INSTALLER_NAME! to server...
-scp "apps\desktop\!INSTALLER!" %SERVER%:%REPO_DIR%/infra/docker/downloads/!INSTALLER_NAME!
+scp "dist\!INSTALLER_NAME!" %SERVER%:%REPO_DIR%/infra/docker/downloads/!INSTALLER_NAME!
 if errorlevel 1 (
     echo [!] Upload failed. Continuing...
+    cd /d "%~dp0"
+    rmdir /s /q "%BUILD_DIR%" 2>nul
     goto :git_step
 )
 
@@ -75,9 +86,12 @@ echo [*] Updating latest alias...
 ssh %SERVER% "cd %REPO_DIR%/infra/docker/downloads && cp -f '!INSTALLER_NAME!' Swiip-Setup-latest.exe && sha256sum Swiip-Setup-latest.exe | awk '{print $1}' > Swiip-Setup-latest.exe.sha256"
 
 :: Upload latest.yml for electron-updater
-for %%f in (apps\desktop\dist\*.yml) do (
+for %%f in (dist\*.yml) do (
     scp "%%f" %SERVER%:%REPO_DIR%/infra/docker/downloads/ >nul 2>&1
 )
+
+cd /d "%~dp0"
+rmdir /s /q "%BUILD_DIR%" 2>nul
 echo [OK] Installer published
 echo.
 
