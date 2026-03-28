@@ -6,8 +6,6 @@ import {
   MicOff,
   Headphones,
   EarOff,
-  Signal,
-  SignalLow,
   Loader2,
   AlertTriangle,
   Video,
@@ -19,6 +17,44 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { useVoiceStore } from '@/stores/voice.store';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { useVoiceActions } from '@/hooks/useVoiceActions';
+
+/** Discord-style signal bars (4 bars, colored by quality level) */
+function ConnectionQualityBars({ quality }: { quality: number }) {
+  // quality: 0=LOST, 1=POOR, 2=GOOD, 3=EXCELLENT
+  const color =
+    quality >= 3
+      ? 'var(--color-status-online)'   // green
+      : quality === 2
+      ? 'var(--color-status-online)'   // green
+      : quality === 1
+      ? 'var(--color-status-idle)'     // yellow
+      : 'var(--color-danger-default)'; // red
+
+  const label =
+    quality >= 3 ? 'Excellent' : quality === 2 ? 'Good' : quality === 1 ? 'Poor' : 'Lost';
+
+  const barHeights = [4, 7, 10, 13];
+
+  return (
+    <Tooltip content={`Connection: ${label}`} placement="top">
+      <div className="flex items-end gap-[2px] cursor-default" style={{ height: 14 }}>
+        {barHeights.map((h, i) => (
+          <div
+            key={i}
+            style={{
+              width: 3,
+              height: h,
+              borderRadius: 1,
+              background: i < quality ? color : 'var(--color-text-tertiary)',
+              opacity: i < quality ? 1 : 0.3,
+              transition: 'background 0.3s, opacity 0.3s',
+            }}
+          />
+        ))}
+      </div>
+    </Tooltip>
+  );
+}
 
 /**
  * Compact voice connection status panel shown above the UserPanel
@@ -32,6 +68,8 @@ export function VoiceConnectionPanel() {
   const cameraEnabled = useVoiceStore((s) => s.cameraEnabled);
   const screenShareEnabled = useVoiceStore((s) => s.screenShareEnabled);
   const error = useVoiceStore((s) => s.error);
+  const connectionQuality = useVoiceStore((s) => s.connectionQuality);
+  const aloneTimeout = useVoiceStore((s) => s.aloneTimeout);
   const channel = useGuildsStore((s) =>
     currentChannelId ? s.channels[currentChannelId] : null
   );
@@ -55,17 +93,14 @@ export function VoiceConnectionPanel() {
       ? 'var(--color-danger-default)'
       : 'var(--color-status-idle)';
 
-  const StatusIcon =
-    connectionState === 'connecting' || connectionState === 'reconnecting'
-      ? Loader2
-      : connectionState === 'error'
-      ? AlertTriangle
-      : connectionState === 'connected'
-      ? Signal
-      : SignalLow;
+  const isTransitioning =
+    connectionState === 'connecting' || connectionState === 'reconnecting';
 
   const btnClass =
     'w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150';
+
+  const aloneMinutes = aloneTimeout != null ? Math.ceil(aloneTimeout / 60) : null;
+  const aloneSeconds = aloneTimeout != null ? aloneTimeout % 60 : null;
 
   return (
     <div
@@ -75,17 +110,33 @@ export function VoiceConnectionPanel() {
         background: 'var(--color-surface-raised)',
       }}
     >
+      {/* Alone timeout warning */}
+      {aloneTimeout != null && aloneTimeout <= 60 && (
+        <div
+          className="flex items-center gap-1.5 px-2 py-1 rounded text-xs"
+          style={{
+            background: 'var(--color-danger-muted)',
+            color: 'var(--color-danger-default)',
+          }}
+        >
+          <AlertTriangle size={12} />
+          <span>Disconnecting in {aloneTimeout}s (alone in channel)</span>
+        </div>
+      )}
+
       {/* Status line */}
       <div className="flex items-center gap-2 px-1">
-        <StatusIcon
-          size={14}
-          style={{ color: statusColor, flexShrink: 0 }}
-          className={
-            connectionState === 'connecting' || connectionState === 'reconnecting'
-              ? 'animate-spin'
-              : ''
-          }
-        />
+        {isTransitioning ? (
+          <Loader2
+            size={14}
+            style={{ color: statusColor, flexShrink: 0 }}
+            className="animate-spin"
+          />
+        ) : connectionState === 'error' ? (
+          <AlertTriangle size={14} style={{ color: statusColor, flexShrink: 0 }} />
+        ) : (
+          <ConnectionQualityBars quality={connectionQuality} />
+        )}
         <div className="flex-1 min-w-0">
           <p className="text-xs font-semibold truncate" style={{ color: statusColor }}>
             {statusText}
@@ -96,6 +147,11 @@ export function VoiceConnectionPanel() {
               style={{ color: 'var(--color-text-tertiary)' }}
             >
               {channel.name}
+              {aloneTimeout != null && aloneTimeout > 60 && (
+                <span style={{ color: 'var(--color-text-tertiary)', marginLeft: 4 }}>
+                  · alone ({aloneMinutes}m)
+                </span>
+              )}
             </p>
           )}
           {error && (

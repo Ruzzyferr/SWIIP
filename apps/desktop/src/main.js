@@ -1,4 +1,4 @@
-const { app, BrowserWindow, shell, Menu, Tray, nativeImage, ipcMain, session, dialog } = require('electron');
+const { app, BrowserWindow, shell, Menu, Tray, nativeImage, ipcMain, session, dialog, desktopCapturer } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
 
@@ -279,6 +279,33 @@ app.on('ready', () => {
   createWindow();
   createTray();
 
+  // Set up screen capture handler for LiveKit screen sharing
+  const appSession = session.fromPartition(PERSIST_PARTITION);
+  appSession.setDisplayMediaRequestHandler(async (_request, callback) => {
+    try {
+      // If a specific source was selected via our custom picker, use it
+      if (selectedSourceId) {
+        const sources = await desktopCapturer.getSources({ types: ['screen', 'window'] });
+        const chosen = sources.find((s) => s.id === selectedSourceId);
+        selectedSourceId = null; // Reset after use
+        if (chosen) {
+          callback({ video: chosen, audio: screenShareAudioEnabled ? 'loopback' : undefined });
+          return;
+        }
+      }
+      // Fallback: auto-select primary screen
+      const sources = await desktopCapturer.getSources({ types: ['screen'] });
+      if (sources.length > 0) {
+        callback({ video: sources[0], audio: screenShareAudioEnabled ? 'loopback' : undefined });
+      } else {
+        callback({});
+      }
+    } catch (err) {
+      console.error('[ScreenCapture] Error:', err);
+      callback({});
+    }
+  });
+
   if (!isDev) {
     setupAutoUpdater();
   }
@@ -306,6 +333,35 @@ app.on('before-quit', () => {
 ipcMain.handle('get-version', () => app.getVersion());
 ipcMain.handle('get-setting', (_, key) => store.get(key));
 ipcMain.handle('set-setting', (_, key, value) => store.set(key, value));
+
+// ── Screen capture ──────────────────────────────────────────────────────
+// Track whether user wants screen share audio (set from renderer via IPC)
+let screenShareAudioEnabled = false;
+// Track the selected source ID (set from renderer via custom picker)
+let selectedSourceId = null;
+
+ipcMain.handle('set-screen-share-audio', (_, enabled) => {
+  screenShareAudioEnabled = !!enabled;
+});
+
+ipcMain.handle('set-selected-source', (_, sourceId) => {
+  selectedSourceId = sourceId;
+});
+
+ipcMain.handle('get-desktop-sources', async () => {
+  const sources = await desktopCapturer.getSources({
+    types: ['screen', 'window'],
+    thumbnailSize: { width: 300, height: 200 },
+    fetchWindowIcons: true,
+  });
+  return sources.map((s) => ({
+    id: s.id,
+    name: s.name,
+    thumbnail: s.thumbnail.toDataURL(),
+    appIcon: s.appIcon ? s.appIcon.toDataURL() : null,
+    display_id: s.display_id,
+  }));
+});
 
 // Window control handlers
 ipcMain.handle('window-minimize', () => mainWindow?.minimize());

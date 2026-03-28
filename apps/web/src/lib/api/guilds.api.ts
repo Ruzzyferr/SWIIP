@@ -118,7 +118,7 @@ export async function unbanMember(
 export async function updateMember(
   guildId: string,
   userId: string,
-  data: { nick?: string; roles?: string[] }
+  data: { nick?: string; roles?: string[]; mute?: boolean; deaf?: boolean }
 ): Promise<MemberPayload> {
   const res = await apiClient.patch<MemberPayload>(
     `/guilds/${guildId}/members/${userId}`,

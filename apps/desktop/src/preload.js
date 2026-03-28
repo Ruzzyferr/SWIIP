@@ -16,4 +16,8 @@ contextBridge.exposeInMainWorld('constchat', {
   onMaximizeChange: (callback) => {
     ipcRenderer.on('maximize-change', (_, maximized) => callback(maximized));
   },
+  // Screen capture
+  getDesktopSources: () => ipcRenderer.invoke('get-desktop-sources'),
+  setScreenShareAudio: (enabled) => ipcRenderer.invoke('set-screen-share-audio', enabled),
+  setSelectedSource: (sourceId) => ipcRenderer.invoke('set-selected-source', sourceId),
 });

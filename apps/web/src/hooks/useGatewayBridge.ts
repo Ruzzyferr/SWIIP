@@ -10,7 +10,7 @@ import { useMessagesStore } from '@/stores/messages.store';
 import { usePresenceStore } from '@/stores/presence.store';
 import { useVoiceStore } from '@/stores/voice.store';
 import { useDMsStore } from '@/stores/dms.store';
-import { getGuildMembers, getGuildMember } from '@/lib/api/guilds.api';
+import { getGuildMembers, getGuildMember, getGuild } from '@/lib/api/guilds.api';
 import { toastError, toastInfo } from '@/lib/toast';
 
 /**
@@ -184,8 +184,18 @@ export function useGatewayBridge() {
     });
 
     // --- Guilds ---
-    gw.on('guild_create', (data) => {
-      setGuild(data.guild);
+    gw.on('guild_create', async (data) => {
+      try {
+        if (data.guild) {
+          setGuild(data.guild);
+        } else if ((data as any).guildId) {
+          // Fallback: backend sent only guildId — fetch full guild via REST
+          const guild = await getGuild((data as any).guildId);
+          setGuild(guild);
+        }
+      } catch (err) {
+        console.error('[Gateway] guild_create handler failed:', err);
+      }
     });
 
     gw.on('guild_update', (data) => {

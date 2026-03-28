@@ -256,6 +256,51 @@ export function VoiceSettingsPage() {
 
       <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />
 
+      {/* Input sensitivity / voice activity threshold */}
+      <section className="space-y-4">
+        <div>
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-disabled)' }}>
+              Input Sensitivity
+            </p>
+            <button
+              onClick={() =>
+                updateSettings({
+                  voiceActivityThreshold: settings.voiceActivityThreshold === -1 ? 50 : -1,
+                })
+              }
+              className="text-xs font-medium px-2 py-0.5 rounded"
+              style={{
+                background: settings.voiceActivityThreshold === -1
+                  ? 'var(--color-success-muted, rgba(87, 242, 135, 0.15))'
+                  : 'var(--color-surface-base)',
+                color: settings.voiceActivityThreshold === -1
+                  ? 'var(--color-success-default)'
+                  : 'var(--color-text-secondary)',
+              }}
+            >
+              {settings.voiceActivityThreshold === -1 ? 'Automatic' : 'Manual'}
+            </button>
+          </div>
+          <p className="text-xs mb-3" style={{ color: 'var(--color-text-disabled)' }}>
+            {settings.voiceActivityThreshold === -1
+              ? 'Automatically determines when you are speaking'
+              : 'Adjust the sensitivity — sounds below the threshold will not be transmitted'}
+          </p>
+          {settings.voiceActivityThreshold !== -1 && (
+            <Slider
+              label="Threshold"
+              value={settings.voiceActivityThreshold}
+              min={0}
+              max={100}
+              onChange={(v) => updateSettings({ voiceActivityThreshold: v })}
+            />
+          )}
+        </div>
+      </section>
+
+      <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />
+
       {/* Noise suppression */}
       <section className="flex items-center justify-between">
         <div>

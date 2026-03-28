@@ -7,7 +7,9 @@ import { setAccessToken } from '@/lib/api/client';
 import { getCurrentUser, refreshTokens } from '@/lib/api/auth.api';
 import { useGatewayBridge } from '@/hooks/useGatewayBridge';
 import { useLiveKitRoom } from '@/hooks/useLiveKitRoom';
+import { useVoiceKeyboardShortcuts } from '@/hooks/useVoiceKeyboardShortcuts';
 import { LiveKitContext } from '@/contexts/LiveKitContext';
+import { VoiceDebugOverlay } from '@/components/voice/VoiceDebugOverlay';
 import { Spinner } from '@/components/ui/Spinner';
 
 // ---------------------------------------------------------------------------
@@ -21,13 +23,17 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
   useGatewayBridge();
 
   // Manage LiveKit room lifecycle (connects when voice credentials arrive)
-  const { videoTracks } = useLiveKitRoom();
+  const { videoTracks, room } = useLiveKitRoom();
 
-  const liveKitContextValue = useMemo(() => ({ videoTracks }), [videoTracks]);
+  // Voice keyboard shortcuts (M=mute, D=deafen, V=camera)
+  useVoiceKeyboardShortcuts();
+
+  const liveKitContextValue = useMemo(() => ({ videoTracks, roomRef: room }), [videoTracks, room]);
 
   return (
     <LiveKitContext.Provider value={liveKitContextValue}>
       {children}
+      <VoiceDebugOverlay room={room} />
     </LiveKitContext.Provider>
   );
 }

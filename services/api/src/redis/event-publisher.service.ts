@@ -275,9 +275,21 @@ export class EventPublisherService implements OnModuleInit {
       guildId: payload.guildId,
       member: this.toMemberPayload(member as any),
     });
-    // Notify the user personally so they get the guild in their list
+    // Notify the user personally so they get the guild in their list.
+    // Fetch the full guild object (with channels, roles, categories) so the client
+    // can render it immediately without an extra REST call.
+    const guild = await this.prisma.guild.findUnique({
+      where: { id: payload.guildId },
+      include: {
+        channels: { orderBy: [{ position: 'asc' }, { name: 'asc' }] },
+        roles: { orderBy: { position: 'asc' } },
+        categories: { orderBy: { position: 'asc' } },
+      },
+    });
+
     await this.publishUserEvent(payload.userId, 'GUILD_CREATE', {
       guildId: payload.guildId,
+      guild: guild ?? undefined,
     });
   }
 

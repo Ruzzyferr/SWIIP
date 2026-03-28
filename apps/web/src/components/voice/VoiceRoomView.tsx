@@ -27,6 +27,7 @@ import { useGuildsStore } from '@/stores/guilds.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { useVoiceActions } from '@/hooks/useVoiceActions';
 import { useLiveKitContext } from '@/contexts/LiveKitContext';
+import { updateMember } from '@/lib/api/guilds.api';
 
 // ---------------------------------------------------------------------------
 // Animation variants
@@ -129,6 +130,22 @@ function ParticipantTile({
 
   const isCompact = size === 'compact';
 
+  const handleServerMute = useCallback(async () => {
+    try {
+      await updateMember(guildId, participant.userId, { mute: !participant.serverMute });
+    } catch (err) {
+      console.error('Server mute failed:', err);
+    }
+  }, [guildId, participant.userId, participant.serverMute]);
+
+  const handleServerDeafen = useCallback(async () => {
+    try {
+      await updateMember(guildId, participant.userId, { deaf: !participant.serverDeaf });
+    } catch (err) {
+      console.error('Server deafen failed:', err);
+    }
+  }, [guildId, participant.userId, participant.serverDeaf]);
+
   const contextItems: ContextMenuItem[] = isCurrentUser
     ? []
     : [
@@ -137,6 +154,21 @@ function ParticipantTile({
         {
           type: 'custom',
           customContent: <UserVolumeSlider userId={participant.userId} />,
+        },
+        { type: 'separator' },
+        {
+          type: 'item',
+          label: participant.serverMute ? 'Unmute Member' : 'Server Mute',
+          icon: participant.serverMute ? <Mic size={14} /> : <MicOff size={14} />,
+          danger: !participant.serverMute,
+          onClick: handleServerMute,
+        },
+        {
+          type: 'item',
+          label: participant.serverDeaf ? 'Undeafen Member' : 'Server Deafen',
+          icon: participant.serverDeaf ? <Headphones size={14} /> : <EarOff size={14} />,
+          danger: !participant.serverDeaf,
+          onClick: handleServerDeafen,
         },
       ];
 
@@ -277,8 +309,8 @@ function VoiceRoomContent({
   const members = useGuildsStore((s) => s.members[guildId]);
 
   // Classify what's happening
-  const screenSharer = useMemo(() => {
-    return participants.find(
+  const screenSharers = useMemo(() => {
+    return participants.filter(
       (p) => p.screenSharing || videoTracks[p.userId]?.screen,
     );
   }, [participants, videoTracks]);
@@ -293,56 +325,78 @@ function VoiceRoomContent({
     );
   }, [participants, videoTracks]);
 
+  // Determine if we have a pinned screen share for spotlight
+  const pinnedScreenSharer = useMemo(() => {
+    if (!pinnedId) return screenSharers[0] ?? null;
+    return screenSharers.find((s) => s.userId === pinnedId) ?? screenSharers[0] ?? null;
+  }, [screenSharers, pinnedId]);
+
   if (participants.length === 0) return null;
 
   // ── SPOTLIGHT MODE: Someone is screen sharing ──
-  if (screenSharer) {
-    const screenTrack = videoTracks[screenSharer.userId]?.screen;
-    const sharerMember = members?.[screenSharer.userId];
-    const sharerName =
-      sharerMember?.nick ??
-      sharerMember?.user?.globalName ??
-      sharerMember?.user?.username ??
-      screenSharer.userId;
+  if (screenSharers.length > 0) {
+    // Calculate screen share grid layout
+    const screenGridCols = screenSharers.length === 1 ? 1 : 2;
 
     return (
       <LayoutGroup>
         <div className="flex-1 flex flex-col gap-3 w-full max-w-6xl min-h-0">
-          {/* Spotlight: Screen share */}
-          <AnimatePresence mode="popLayout">
-            <motion.div
-              key="spotlight"
-              variants={spotlightVariants}
-              initial="hidden"
-              animate="visible"
-              exit="exit"
-              className="flex-1 min-h-0"
-            >
-              <VideoTile
-                participantId={screenSharer.userId}
-                displayName={sharerName}
-                avatarUrl={
-                  sharerMember?.user?.avatar ??
-                  (sharerMember?.user as { avatarId?: string } | undefined)?.avatarId
-                }
-                track={screenTrack}
-                isScreen
-                isMuted={screenSharer.selfMute}
-                isSpeaking={screenSharer.speaking && !screenSharer.selfMute}
-                isPinned
-                onPin={() => setPinnedParticipant(screenSharer.userId)}
-              />
-            </motion.div>
-          </AnimatePresence>
+          {/* Screen share area — single spotlight or grid */}
+          <div
+            className="flex-1 min-h-0 grid gap-2"
+            style={{
+              gridTemplateColumns: `repeat(${screenGridCols}, 1fr)`,
+              alignContent: 'center',
+            }}
+          >
+            <AnimatePresence mode="popLayout">
+              {screenSharers.map((sharer) => {
+                const screenTrack = videoTracks[sharer.userId]?.screen;
+                const sharerMember = members?.[sharer.userId];
+                const sharerName =
+                  sharerMember?.nick ??
+                  sharerMember?.user?.globalName ??
+                  sharerMember?.user?.username ??
+                  sharer.userId;
+                const isThisPinned = pinnedScreenSharer?.userId === sharer.userId;
 
-          {/* Bottom strip: All participants (including sharer's camera) */}
+                return (
+                  <motion.div
+                    key={`screen-${sharer.userId}`}
+                    variants={spotlightVariants}
+                    initial="hidden"
+                    animate="visible"
+                    exit="exit"
+                    className="min-h-0"
+                  >
+                    <VideoTile
+                      participantId={sharer.userId}
+                      displayName={sharerName}
+                      avatarUrl={
+                        sharerMember?.user?.avatar ??
+                        (sharerMember?.user as { avatarId?: string } | undefined)?.avatarId
+                      }
+                      track={screenTrack}
+                      isScreen
+                      isMuted={sharer.selfMute}
+                      isSpeaking={sharer.speaking && !sharer.selfMute}
+                      isPinned={isThisPinned}
+                      onPin={() => setPinnedParticipant(sharer.userId)}
+                      viewerCount={participants.length - 1}
+                    />
+                  </motion.div>
+                );
+              })}
+            </AnimatePresence>
+          </div>
+
+          {/* Bottom strip: All participants (including sharers' cameras) */}
           <div className="flex gap-2 overflow-x-auto pb-1 justify-center shrink-0">
             <AnimatePresence mode="popLayout">
               {participants.map((p) => {
                 const tracks = videoTracks[p.userId];
                 const hasCameraTrack = !!tracks?.camera;
 
-                // If this participant has a camera, show video tile
                 if (hasCameraTrack) {
                   const member = members?.[p.userId];
                   const name =
@@ -377,7 +431,6 @@ function VoiceRoomContent({
                   );
                 }
 
-                // Audio-only participant tile (compact)
                 return (
                   <ParticipantTile
                     key={p.userId}
@@ -522,8 +575,8 @@ function ScreenShareButton() {
     }
   };
 
-  const handleStart = (quality: ScreenShareQuality) => {
-    toggleScreenShare(quality);
+  const handleStart = (quality: ScreenShareQuality, audio: boolean) => {
+    toggleScreenShare(quality, audio);
   };
 
   return (

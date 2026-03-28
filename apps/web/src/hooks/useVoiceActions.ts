@@ -106,16 +106,19 @@ export function useVoiceActions() {
     });
   }, [currentChannelId, cameraEnabled, selfMuted, selfDeafened, setCameraEnabled]);
 
-  const toggleScreenShare = useCallback((quality?: ScreenShareQuality) => {
+  const toggleScreenShare = useCallback((quality?: ScreenShareQuality, audio?: boolean) => {
     if (!currentChannelId) return;
+
+    // Store audio preference
+    if (audio !== undefined) {
+      useVoiceStore.getState().setScreenShareAudio(audio);
+    }
 
     // If a quality is explicitly passed while already sharing, stop then restart
     // with the new quality (screen share requires re-prompting the picker).
     if (quality && screenShareEnabled) {
-      // Stop current share first
       setScreenShareEnabled(false);
       setScreenShareQuality(quality);
-      // Re-enable in next tick so the effect fires with new quality
       setTimeout(() => {
         useVoiceStore.getState().setScreenShareEnabled(true);
         const gw = getGatewayClient();

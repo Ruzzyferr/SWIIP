@@ -31,6 +31,8 @@ interface VoiceSettings {
   outputVolume: number;  // 0–100
   notificationSounds: boolean;
   noiseSuppression: boolean;
+  /** Voice activity detection threshold (0=most sensitive, 100=least sensitive). -1 = automatic. */
+  voiceActivityThreshold: number;
 }
 
 interface VoiceState {
@@ -47,12 +49,19 @@ interface VoiceState {
   cameraEnabled: boolean;
   screenShareEnabled: boolean;
   screenShareQuality: ScreenShareQuality;
+  screenShareAudio: boolean;
 
   // Pinned participant (spotlight view)
   pinnedParticipantId: string | null;
 
   // All participants in voice channels (keyed by `channelId:userId`)
   participants: Record<string, VoiceParticipant>;
+
+  // Connection quality (0=LOST, 1=POOR, 2=GOOD, 3=EXCELLENT)
+  connectionQuality: number;
+
+  // Auto-disconnect timer (seconds remaining, null = not counting)
+  aloneTimeout: number | null;
 
   // Error
   error: string | null;
@@ -73,7 +82,10 @@ interface VoiceState {
   setCameraEnabled: (enabled: boolean) => void;
   setScreenShareEnabled: (enabled: boolean) => void;
   setScreenShareQuality: (quality: ScreenShareQuality) => void;
+  setScreenShareAudio: (enabled: boolean) => void;
   setPinnedParticipant: (userId: string | null) => void;
+  setConnectionQuality: (quality: number) => void;
+  setAloneTimeout: (seconds: number | null) => void;
   setError: (error: string | null) => void;
   updateSettings: (patch: Partial<VoiceSettings>) => void;
   setUserVolume: (userId: string, volume: number) => void;
@@ -101,6 +113,7 @@ const DEFAULT_SETTINGS: VoiceSettings = {
   outputVolume: 100,
   notificationSounds: true,
   noiseSuppression: true,
+  voiceActivityThreshold: -1, // -1 = automatic
 };
 
 function participantKey(channelId: string, userId: string) {
@@ -120,8 +133,11 @@ export const useVoiceStore = create<VoiceState>()(
     cameraEnabled: false,
     screenShareEnabled: false,
     screenShareQuality: '1080p30' as ScreenShareQuality,
+    screenShareAudio: false,
     pinnedParticipantId: null,
     participants: {},
+    connectionQuality: 3,
+    aloneTimeout: null,
     error: null,
     settings: { ...DEFAULT_SETTINGS },
     userVolumes: {},
@@ -175,6 +191,11 @@ export const useVoiceStore = create<VoiceState>()(
         state.screenShareQuality = quality;
       }),
 
+    setScreenShareAudio: (enabled) =>
+      set((state) => {
+        state.screenShareAudio = enabled;
+      }),
+
     setPinnedParticipant: (userId) =>
       set((state) => {
         state.pinnedParticipantId = state.pinnedParticipantId === userId ? null : userId;
@@ -188,6 +209,16 @@ export const useVoiceStore = create<VoiceState>()(
     setUserVolume: (userId, volume) =>
       set((state) => {
         state.userVolumes[userId] = Math.max(0, Math.min(200, volume));
+      }),
+
+    setConnectionQuality: (quality) =>
+      set((state) => {
+        state.connectionQuality = quality;
+      }),
+
+    setAloneTimeout: (seconds) =>
+      set((state) => {
+        state.aloneTimeout = seconds;
       }),
 
     setError: (error) =>
@@ -249,6 +280,16 @@ export const useVoiceStore = create<VoiceState>()(
 
     disconnect: () =>
       set((state) => {
+        // Only clear participants from the channel we're leaving.
+        // Other channels' voice states (from gateway events) are preserved.
+        const leavingChannel = state.currentChannelId;
+        if (leavingChannel) {
+          for (const key of Object.keys(state.participants)) {
+            if (key.startsWith(`${leavingChannel}:`)) {
+              delete state.participants[key];
+            }
+          }
+        }
         state.connectionState = 'disconnected';
         state.currentChannelId = null;
         state.currentGuildId = null;
@@ -259,7 +300,6 @@ export const useVoiceStore = create<VoiceState>()(
         state.cameraEnabled = false;
         state.screenShareEnabled = false;
         state.pinnedParticipantId = null;
-        state.participants = {};
         state.error = null;
       }),
   })),

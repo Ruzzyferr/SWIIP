@@ -3,18 +3,6 @@
 import { useEffect, useState } from 'react';
 import { Minus, Square, X, Copy } from 'lucide-react';
 
-declare global {
-  interface Window {
-    constchat?: {
-      platform: string;
-      minimize: () => void;
-      maximize: () => void;
-      close: () => void;
-      isMaximized: () => Promise<boolean>;
-      onMaximizeChange: (cb: (maximized: boolean) => void) => void;
-    };
-  }
-}
 
 export function DesktopTitleBar() {
   const [isDesktop, setIsDesktop] = useState(false);

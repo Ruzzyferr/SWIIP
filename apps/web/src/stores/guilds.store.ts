@@ -87,6 +87,7 @@ export const useGuildsStore = create<GuildsState>()(
 
     setGuild: (guild) =>
       set((state) => {
+        if (!guild?.id) return;
         state.guilds[guild.id] = guild;
         if (!state.guildOrder.includes(guild.id)) {
           state.guildOrder.push(guild.id);

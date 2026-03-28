@@ -14,6 +14,11 @@ export default function LandingPage() {
     setMounted(true);
     if (token) {
       router.replace('/channels/@me');
+      return;
+    }
+    // On desktop app, skip the landing page and go directly to login
+    if (typeof window !== 'undefined' && window.constchat?.platform === 'desktop') {
+      router.replace('/login');
     }
   }, [token, router]);
 

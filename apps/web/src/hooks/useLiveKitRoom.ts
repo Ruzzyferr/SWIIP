@@ -8,6 +8,7 @@ import {
   ConnectionState,
   Track,
   VideoPresets,
+  RemoteAudioTrack,
   type RemoteParticipant,
   type RemoteTrack,
   type RemoteTrackPublication,
@@ -64,9 +65,12 @@ export function useLiveKitRoom() {
   const setParticipantVideo = useVoiceStore((s) => s.setParticipantVideo);
   const setParticipantScreenShare = useVoiceStore((s) => s.setParticipantScreenShare);
   const removeParticipant = useVoiceStore((s) => s.removeParticipant);
+  const setConnectionQuality = useVoiceStore((s) => s.setConnectionQuality);
+  const setAloneTimeout = useVoiceStore((s) => s.setAloneTimeout);
   const setError = useVoiceStore((s) => s.setError);
   const disconnect = useVoiceStore((s) => s.disconnect);
   const userId = useAuthStore((s) => s.user?.id);
+  const aloneTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   // Helper to update video track map
   const updateVideoTrack = useCallback((
@@ -194,6 +198,28 @@ export function useLiveKitRoom() {
           break;
         case ConnectionState.Connected:
           setConnectionState('connected');
+          // After reconnect, re-sync all remote video tracks.
+          // During reconnection, TrackUnsubscribed may have fired and cleared
+          // our video state, but tracks are back now.
+          for (const [, participant] of room.remoteParticipants) {
+            for (const pub of participant.videoTrackPublications.values()) {
+              if (pub.track && pub.isSubscribed) {
+                const isScreen = pub.source === Track.Source.ScreenShare;
+                updateVideoTrack(
+                  participant.identity,
+                  isScreen ? 'screen' : 'camera',
+                  pub.track.mediaStreamTrack,
+                );
+                if (currentChannelId) {
+                  if (isScreen) {
+                    setParticipantScreenShare(currentChannelId, participant.identity, true);
+                  } else {
+                    setParticipantVideo(currentChannelId, participant.identity, true);
+                  }
+                }
+              }
+            }
+          }
           break;
         case ConnectionState.Reconnecting:
           setConnectionState('reconnecting');
@@ -208,6 +234,15 @@ export function useLiveKitRoom() {
       console.debug('[LiveKit] Disconnected from room');
       for (const sid of audioElementsRef.current.keys()) {
         detachAudio(sid);
+      }
+    });
+
+    // Connection quality monitoring
+    room.on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
+      // Only track local participant's quality for the UI indicator
+      if (participant.isLocal) {
+        // ConnectionQuality enum: 0=LOST, 1=POOR, 2=GOOD, 3=EXCELLENT
+        setConnectionQuality(quality as unknown as number);
       }
     });
 
@@ -467,14 +502,28 @@ export function useLiveKitRoom() {
     room.localParticipant.setMicrophoneEnabled(!selfMuted).catch(console.error);
   }, [selfMuted]);
 
-  // Sync deafen state + output volume + per-user volume — adjust all remote audio elements
+  // Sync deafen state + output volume + per-user volume — adjust all remote audio
+  // Uses LiveKit's RemoteAudioTrack.setVolume() which properly controls the Web Audio
+  // API gain node, unlike raw HTMLAudioElement.volume which is bypassed by LiveKit's pipeline.
   const applyVolumes = useCallback(() => {
     const room = roomRef.current;
     if (!room || room.state !== ConnectionState.Connected) return;
 
     const state = useVoiceStore.getState();
-    const globalVol = state.selfDeafened ? 0 : Math.min(state.settings.outputVolume / 100, 1);
+    const globalVol = state.selfDeafened ? 0 : state.settings.outputVolume / 100;
 
+    // Apply via LiveKit's RemoteAudioTrack.setVolume (Web Audio API GainNode)
+    for (const [, participant] of room.remoteParticipants) {
+      const userVol = (state.userVolumes[participant.identity] ?? 100) / 100;
+      const finalVol = globalVol * userVol;
+      for (const pub of participant.audioTrackPublications.values()) {
+        if (pub.track && pub.track instanceof RemoteAudioTrack) {
+          pub.track.setVolume(finalVol);
+        }
+      }
+    }
+
+    // Also update raw HTMLAudioElement volumes as fallback
     for (const [trackSid, audioElement] of audioElementsRef.current.entries()) {
       const ownerId = trackOwnerRef.current.get(trackSid);
       const userVol = ownerId ? (state.userVolumes[ownerId] ?? 100) / 100 : 1;
@@ -570,9 +619,11 @@ export function useLiveKitRoom() {
       } as const;
       const preset = presets[quality as keyof typeof presets] ?? presets['1080p30'];
 
+      const wantAudio = useVoiceStore.getState().screenShareAudio;
       room.localParticipant.setScreenShareEnabled(true, {
         // Capture options — don't constrain resolution, let browser capture at native resolution
         contentHint: preset.fps >= 60 ? 'motion' : 'detail',
+        audio: wantAudio,
         selfBrowserSurface: 'include',
         surfaceSwitching: 'include',
       }, {
@@ -600,6 +651,73 @@ export function useLiveKitRoom() {
       room.switchActiveDevice('videoinput', videoDeviceId).catch(console.error);
     }
   }, [videoDeviceId, cameraEnabled]);
+
+  // Auto-disconnect when alone in channel for 5 minutes
+  useEffect(() => {
+    const room = roomRef.current;
+    if (!room || room.state !== ConnectionState.Connected) return;
+
+    const ALONE_TIMEOUT_SEC = 300; // 5 minutes
+
+    const checkAlone = () => {
+      const remoteCount = room.remoteParticipants.size;
+      if (remoteCount === 0) {
+        // Already counting down — don't restart
+        if (aloneTimerRef.current) return;
+        // Start countdown
+        let remaining = ALONE_TIMEOUT_SEC;
+        setAloneTimeout(remaining);
+        aloneTimerRef.current = setInterval(() => {
+          remaining -= 1;
+          setAloneTimeout(remaining);
+          if (remaining <= 0) {
+            // Auto-disconnect
+            if (aloneTimerRef.current) clearInterval(aloneTimerRef.current);
+            aloneTimerRef.current = null;
+            setAloneTimeout(null);
+            // Trigger leave via store disconnect + room cleanup
+            const room = roomRef.current;
+            if (room) {
+              room.disconnect();
+              room.removeAllListeners();
+            }
+            for (const el of audioElementsRef.current.values()) {
+              try { el.pause(); el.remove(); } catch {}
+            }
+            audioElementsRef.current.clear();
+            trackOwnerRef.current.clear();
+            roomRef.current = null;
+            setVideoTracks({});
+            disconnect();
+          }
+        }, 1000);
+      } else {
+        // Cancel countdown
+        if (aloneTimerRef.current) {
+          clearInterval(aloneTimerRef.current);
+          aloneTimerRef.current = null;
+        }
+        setAloneTimeout(null);
+      }
+    };
+
+    // Check on participant changes
+    room.on(RoomEvent.ParticipantConnected, checkAlone);
+    room.on(RoomEvent.ParticipantDisconnected, checkAlone);
+
+    // Initial check
+    checkAlone();
+
+    return () => {
+      room.off(RoomEvent.ParticipantConnected, checkAlone);
+      room.off(RoomEvent.ParticipantDisconnected, checkAlone);
+      if (aloneTimerRef.current) {
+        clearInterval(aloneTimerRef.current);
+        aloneTimerRef.current = null;
+      }
+      setAloneTimeout(null);
+    };
+  }, [livekitToken, livekitUrl, currentChannelId]);
 
   const disconnectRoom = useCallback(() => {
     if (credentialTimeoutRef.current) {

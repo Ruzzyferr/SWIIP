@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useRef } from 'react';
-import { MicOff, EarOff } from 'lucide-react';
+import { MicOff, EarOff, Video, Monitor } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { useVoiceStore, type VoiceParticipant } from '@/stores/voice.store';
 import { useGuildsStore } from '@/stores/guilds.store';
@@ -57,6 +57,15 @@ function ParticipantRow({ participant, guildId }: { participant: VoiceParticipan
 
       {/* State icons */}
       <div className="flex items-center gap-0.5 flex-shrink-0">
+        {participant.screenSharing && (
+          <span className="flex items-center gap-0.5">
+            <Monitor size={10} style={{ color: '#ef4444' }} />
+            <span className="text-[8px] font-bold text-red-400 uppercase">LIVE</span>
+          </span>
+        )}
+        {participant.selfVideo && !participant.screenSharing && (
+          <Video size={11} style={{ color: 'var(--color-success-default)' }} />
+        )}
         {participant.selfMute && (
           <MicOff
             size={11}
