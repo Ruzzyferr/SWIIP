@@ -1,5 +1,5 @@
 # ── Stage 1: deps ────────────────────────────────────────────────────────────
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
 RUN npm install -g pnpm
 
@@ -11,7 +11,7 @@ COPY services/media-signalling/package.json ./services/media-signalling/
 RUN pnpm install --frozen-lockfile --filter @constchat/media-signalling...
 
 # ── Stage 2: builder ─────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 RUN npm install -g pnpm
 
@@ -31,7 +31,7 @@ RUN pnpm --filter @constchat/media-signalling deploy --prod /app/deploy
 RUN cp -r /app/services/media-signalling/dist /app/deploy/dist
 
 # ── Stage 3: runner ──────────────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 
 RUN addgroup --system --gid 1001 constchat

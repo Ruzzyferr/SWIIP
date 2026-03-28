@@ -2,7 +2,7 @@
 
 import { useRef, useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Home, Plus, Compass, Link2, Download } from 'lucide-react';
+import { Plus, Compass, Link2, Download } from 'lucide-react';
 import Image from 'next/image';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useGuildsStore } from '@/stores/guilds.store';
@@ -261,9 +261,12 @@ export function ServerRail() {
           aria-label={t('directMessages')}
           aria-current={!activeGuildId ? 'page' : undefined}
         >
-          <Home
-            size={20}
-            style={{ color: !activeGuildId || dmHovered ? '#ffffff' : 'var(--color-text-secondary)' }}
+          <Image
+            src="/logo.png"
+            alt="Swiip"
+            width={28}
+            height={28}
+            className="rounded-sm"
           />
         </button>
       </Tooltip>

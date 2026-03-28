@@ -1,46 +1,87 @@
-# ConstChat
+<p align="center">
+  <img src=".github/logo.png" alt="Swiip" width="120" />
+</p>
 
-**Next-generation real-time communication platform.** Discord-level scope, original visual identity, production-grade architecture.
+<h1 align="center">Swiip</h1>
+
+<p align="center">
+  <b>Open-source real-time communication platform</b><br/>
+  Text, voice, video, screen share — all in one place.
+</p>
+
+<p align="center">
+  <a href="https://swiip.app">Website</a> ·
+  <a href="https://swiip.app/downloads/Swiip-Setup-latest.exe">Download Desktop</a> ·
+  <a href="#quick-start">Quick Start</a>
+</p>
 
 ---
 
-## What is ConstChat?
+## Overview
 
-ConstChat is a full-featured communication platform providing:
+Swiip is a feature-rich communication platform with Discord-level functionality, built from scratch with a modern stack. It supports servers, channels, DMs, voice/video calls, screen sharing, roles & permissions, and more.
 
-- **Text messaging** — servers, channels, DMs, group DMs, threads, forums
-- **Voice & video** — WebRTC-based rooms, screen sharing (target: 1080p60)
-- **Rich moderation** — roles, permissions, audit logs, automod, reports
-- **Developer platform** — webhooks, bot framework foundation
-- **Original design** — premium dark interface, not a Discord skin
+### Key Features
+
+- **Servers & Channels** — Create communities with text, voice, announcement, and forum channels
+- **Voice & Video** — Low-latency WebRTC calls via LiveKit SFU with noise suppression (Krisp)
+- **Screen Sharing** — Up to 1080p60, window or screen capture
+- **Rich Messaging** — Markdown, code blocks, file uploads, reactions, threads, pins
+- **Moderation** — Roles, permissions, audit logs, bans, timeouts
+- **Desktop App** — Electron-based native app with custom title bar and system tray
+- **i18n** — Turkish and English language support
+- **KVKK Compliant** — Turkish data protection law compliance built-in
+
+---
+
+## Architecture
+
+```
+Client (Web / Desktop / Mobile)
+    │
+    ├── HTTPS ──→  API Service        (NestJS + Fastify + Prisma)
+    │                                   Auth, CRUD, uploads, search
+    │
+    ├── WSS ───→  Gateway Service     (Node.js + uWebSockets.js)
+    │                                   Real-time events, presence, typing
+    │
+    └── WebRTC → Media Signalling     (Node.js + LiveKit SDK)
+                                        Voice, video, screen share
+```
+
+### Infrastructure
+
+| Component | Technology |
+|-----------|-----------|
+| Database | PostgreSQL 16 |
+| Cache & Pub/Sub | Redis 7 |
+| Message Queue | NATS JetStream |
+| Search Engine | Meilisearch |
+| Object Storage | S3-compatible (DigitalOcean Spaces / MinIO) |
+| SFU | LiveKit |
+| Reverse Proxy | Caddy (auto TLS) |
+| Monitoring | Prometheus + Grafana + Loki |
 
 ---
 
 ## Repository Structure
 
 ```
-constchat/
+swiip/
 ├── apps/
-│   ├── web/                  # Next.js 14 web application
-│   ├── desktop/              # Tauri desktop application
-│   └── mobile/               # React Native mobile app
+│   ├── web/                  # Next.js 15 web client
+│   └── desktop/              # Electron desktop app
 ├── services/
-│   ├── api/                  # NestJS REST API (Fastify)
-│   ├── gateway/              # WebSocket real-time gateway
-│   ├── media-signalling/     # LiveKit / WebRTC signalling
+│   ├── api/                  # REST API (NestJS + Fastify)
+│   ├── gateway/              # WebSocket gateway
+│   ├── media-signalling/     # LiveKit signalling server
 │   └── workers/              # Background job processors
 ├── packages/
-│   ├── design-tokens/        # Brand color/spacing/motion tokens
-│   ├── ui-primitives/        # Shared React primitives
+│   ├── design-tokens/        # Theme tokens (colors, spacing, motion)
 │   ├── protocol/             # Typed WebSocket event contracts
-│   └── config/               # Zod-validated service configs
-├── infra/
-│   ├── docker/               # Docker Compose (dev + prod)
-│   └── k8s/                  # Kubernetes manifests
-└── docs/
-    ├── product/              # Product specs per screen
-    ├── architecture/         # Architecture decision records
-    └── runbooks/             # Operational runbooks
+│   └── config/               # Zod-validated service configuration
+└── infra/
+    └── docker/               # Docker Compose (dev + production)
 ```
 
 ---
@@ -48,57 +89,57 @@ constchat/
 ## Tech Stack
 
 | Layer | Technology |
-|---|---|
-| Web Frontend | Next.js 14 (App Router), React 18, Zustand, Framer Motion |
-| Desktop | Tauri 2 (Rust + WebView) |
-| Mobile | React Native / Expo |
-| API | NestJS + Fastify, Prisma ORM |
-| Real-time Gateway | Node.js + uWebSockets.js |
+|-------|-----------|
+| Frontend | Next.js 15, React 19, Zustand, Tailwind CSS, Framer Motion |
+| Desktop | Electron 33 |
+| API | NestJS 10 + Fastify, Prisma ORM |
+| Gateway | Node.js + uWebSockets.js |
 | Database | PostgreSQL 16 |
-| Cache / Presence | Redis 7 |
+| Cache | Redis 7 |
 | Event Bus | NATS JetStream |
 | Search | Meilisearch |
-| Object Storage | S3-compatible (MinIO in dev) |
-| Media / SFU | LiveKit (WebRTC) |
-| Observability | OpenTelemetry, Prometheus, Grafana, Loki, Sentry |
+| Media | LiveKit (WebRTC SFU) |
+| Storage | S3-compatible |
+| CI/CD | Docker + Docker Compose |
 
 ---
 
-## Quick Start (Local Development)
+## Quick Start
 
 ### Prerequisites
 
-- Node.js >= 20
-- pnpm >= 10
-- Docker + Docker Compose
+- **Node.js** >= 22
+- **pnpm** >= 10
+- **Docker** + Docker Compose
 
-### 1. Clone and install
+### 1. Clone & Install
 
 ```bash
-git clone https://github.com/yourorg/constchat
-cd constchat
+git clone https://github.com/Ruzzyferr/ConstChat.git
+cd ConstChat
 pnpm install
 ```
 
-### 2. Start infrastructure
+### 2. Start Infrastructure
 
 ```bash
 docker compose -f infra/docker/docker-compose.yml up -d
 ```
 
-This starts: PostgreSQL, Redis, NATS, MinIO (S3), Meilisearch.
+Starts PostgreSQL, Redis, NATS, MinIO (S3), and Meilisearch.
 
-### 3. Set up environment files
+### 3. Configure Environment
 
 ```bash
 cp services/api/.env.example services/api/.env
 cp services/gateway/.env.example services/gateway/.env
+cp services/media-signalling/.env.example services/media-signalling/.env
 cp apps/web/.env.local.example apps/web/.env.local
 ```
 
-Edit each `.env` file with your local values (defaults work with Docker Compose).
+Default values work with the local Docker Compose setup.
 
-### 4. Run database migrations and seed
+### 4. Database Setup
 
 ```bash
 cd services/api
@@ -107,93 +148,75 @@ pnpm db:migrate
 pnpm db:seed
 ```
 
-### 5. Start development servers
+### 5. Start Development
 
 ```bash
-# From repo root — starts all services in parallel
+# From repo root — all services in parallel
 pnpm dev
 ```
 
-Individual services:
+Or individually:
 
 ```bash
-pnpm --filter @constchat/api dev        # API at :4000
-pnpm --filter @constchat/gateway dev    # Gateway at :4001
-pnpm --filter @constchat/web dev        # Web at :3000
+pnpm --filter @constchat/api dev          # API       → :4000
+pnpm --filter @constchat/gateway dev      # Gateway   → :4001
+pnpm --filter @constchat/web dev          # Web       → :3000
 ```
 
-### 6. Open the app
+### 6. Open
 
-Visit [http://localhost:3000](http://localhost:3000)
+Visit **http://localhost:3000**
 
-Seed credentials:
-- `alice@constchat.dev` / `password123` (Admin)
-- `bob@constchat.dev` / `password123` (Member)
+Seed accounts:
+| Email | Password | Role |
+|-------|----------|------|
+| `alice@constchat.dev` | `password123` | Admin |
+| `bob@constchat.dev` | `password123` | Member |
 
 ---
 
 ## Development URLs
 
 | Service | URL |
-|---|---|
+|---------|-----|
 | Web App | http://localhost:3000 |
 | API | http://localhost:4000 |
 | API Docs (Swagger) | http://localhost:4000/api/docs |
 | WebSocket Gateway | ws://localhost:4001 |
-| MinIO Console | http://localhost:9001 (minioadmin/minioadmin) |
+| MinIO Console | http://localhost:9001 |
 | Meilisearch | http://localhost:7700 |
 | NATS Monitor | http://localhost:8222 |
-
-Observability (run with `--profile observability`):
-| Service | URL |
-|---|---|
-| Grafana | http://localhost:3001 (admin/admin) |
-| Prometheus | http://localhost:9090 |
-
----
-
-## Architecture Overview
-
-See [ARCHITECTURE.md](./ARCHITECTURE.md) for the full system design.
-
-### Service Boundaries
-
-```
-Browser/Desktop/Mobile
-        │
-        ├── HTTPS ──→ [API Service :4000]
-        │               ├── Auth, Profiles, Guilds, Channels, Messages
-        │               ├── Invites, Roles, Uploads, Moderation, Search
-        │               └── Prisma → PostgreSQL
-        │
-        ├── WSS ───→ [Gateway Service :4001]
-        │               ├── Realtime events (message, presence, typing)
-        │               ├── Heartbeat / session lifecycle
-        │               └── Redis Pub/Sub fan-out
-        │
-        └── WebRTC → [Media Signalling :4002]
-                        ├── LiveKit room management
-                        ├── Voice/video/screen-share
-                        └── SFU routing
-```
-
----
-
-## Implementation Status
-
-See [IMPLEMENTATION_STATUS.md](./IMPLEMENTATION_STATUS.md) for current progress.
 
 ---
 
 ## Production Deployment
 
-See [DEPLOYMENT.md](./DEPLOYMENT.md) for deployment instructions.
+```bash
+# Create .env.production with your credentials, then:
+docker compose -f infra/docker/docker-compose.deploy.yml \
+  --env-file .env.production up -d --build
+
+# With voice support:
+docker compose -f infra/docker/docker-compose.deploy.yml \
+  --env-file .env.production --profile voice up -d --build
+
+# With monitoring:
+docker compose -f infra/docker/docker-compose.deploy.yml \
+  --env-file .env.production --profile observability up -d
+```
+
+Production includes: automated daily database backups with S3 offsite storage, Caddy reverse proxy with auto-TLS, health checks on all services.
 
 ---
 
-## Contributing
+## Desktop App
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md).
+```bash
+cd apps/desktop
+npm run build          # Builds web bundle + Electron installer
+```
+
+Produces `Swiip-Setup-{version}.exe` (NSIS installer) and `Swiip-Portable-{version}.exe`.
 
 ---
 

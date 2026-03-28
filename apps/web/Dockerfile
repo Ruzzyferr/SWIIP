@@ -1,5 +1,5 @@
 # ── Stage 1: deps ────────────────────────────────────────────────────────────
-FROM node:20-alpine AS deps
+FROM node:22-alpine AS deps
 WORKDIR /app
 RUN npm install -g pnpm
 
@@ -11,7 +11,7 @@ COPY apps/web/package.json ./apps/web/
 RUN pnpm install --frozen-lockfile --filter @constchat/web...
 
 # ── Stage 2: builder ─────────────────────────────────────────────────────────
-FROM node:20-alpine AS builder
+FROM node:22-alpine AS builder
 WORKDIR /app
 RUN npm install -g pnpm
 
@@ -37,7 +37,7 @@ RUN pnpm --filter @constchat/web build
 RUN mkdir -p /app/apps/web/public
 
 # ── Stage 3: runner ──────────────────────────────────────────────────────────
-FROM node:20-alpine AS runner
+FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
 ENV NEXT_TELEMETRY_DISABLED=1

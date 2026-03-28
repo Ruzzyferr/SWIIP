@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useAuthStore } from '@/stores/auth.store';
 import { ArrowRight, Download, Globe, MessageCircle, Shield, Users, Mic, Zap } from 'lucide-react';
 import { useTranslations } from 'next-intl';
+import Image from 'next/image';
 
 export default function LandingPage() {
   const t = useTranslations('landing');
@@ -43,10 +44,7 @@ export default function LandingPage() {
       <nav className="fixed top-0 left-0 right-0 z-50 glass-panel" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-xl flex items-center justify-center font-extrabold text-white text-lg"
-              style={{ background: 'var(--color-accent-gradient)' }}>
-              S
-            </div>
+            <Image src="/logo.png" alt="Swiip" width={36} height={36} className="rounded-xl" />
             <span className="text-lg font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
               Swiip
             </span>
@@ -218,12 +216,7 @@ export default function LandingPage() {
       <footer className="py-8 px-6" style={{ borderTop: '1px solid var(--color-border-subtle)', zIndex: 1, position: 'relative' }}>
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div
-              className="w-6 h-6 rounded-md flex items-center justify-center font-bold text-white text-xs"
-              style={{ background: 'var(--color-accent-gradient)' }}
-            >
-              S
-            </div>
+            <Image src="/logo.png" alt="Swiip" width={24} height={24} className="rounded-md" />
             <span className="text-sm font-medium" style={{ color: 'var(--color-text-tertiary)' }}>
               Swiip
             </span>
