@@ -621,43 +621,73 @@ export function MessageItem({
             {/* Attachments */}
             {message.attachments && message.attachments.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
-                {message.attachments.map((att, i) => (
-                  <div
-                    key={i}
-                    className="rounded-lg overflow-hidden"
-                    style={{
-                      maxWidth: '400px',
-                      border: '1px solid var(--color-border-subtle)',
-                    }}
-                  >
-                    {att.contentType?.startsWith('image/') ? (
-                      // eslint-disable-next-line @next/next/no-img-element
-                      <img
-                        src={(att as any).cdnUrl ?? att.url ?? att.filename}
-                        alt={att.filename}
-                        className="max-w-full rounded-lg"
-                        style={{ maxHeight: '300px', objectFit: 'contain' }}
-                      />
-                    ) : (
-                      <div
-                        className="flex items-center gap-3 p-3 rounded-lg"
-                        style={{ background: 'var(--color-surface-raised)' }}
-                      >
-                        <div className="w-8 h-8 rounded flex items-center justify-center" style={{ background: 'var(--color-accent-muted)' }}>
-                          <span style={{ fontSize: 16 }}>📎</span>
-                        </div>
-                        <div>
-                          <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                            {(att as any).originalFilename ?? att.filename}
+                {message.attachments.map((att, i) => {
+                  const attUrl = (att as any).cdnUrl ?? att.url ?? att.proxyUrl ?? '';
+                  const displayName = (att as any).originalFilename ?? att.filename;
+                  const sizeKB = Number(att.size) / 1024;
+                  const sizeStr = sizeKB >= 1024
+                    ? `${(sizeKB / 1024).toFixed(1)} MB`
+                    : `${sizeKB.toFixed(1)} KB`;
+
+                  return (
+                    <div
+                      key={att.id ?? i}
+                      className="rounded-lg overflow-hidden"
+                      style={{
+                        maxWidth: '400px',
+                        border: '1px solid var(--color-border-subtle)',
+                      }}
+                    >
+                      {att.contentType?.startsWith('image/') ? (
+                        <a href={attUrl} target="_blank" rel="noopener noreferrer" className="block cursor-pointer">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={attUrl}
+                            alt={displayName}
+                            className="max-w-full rounded-lg hover:opacity-90 transition-opacity"
+                            style={{ maxHeight: '300px', objectFit: 'contain' }}
+                            loading="lazy"
+                          />
+                        </a>
+                      ) : att.contentType?.startsWith('video/') ? (
+                        <video
+                          src={attUrl}
+                          controls
+                          preload="metadata"
+                          className="max-w-full rounded-lg"
+                          style={{ maxHeight: '300px' }}
+                        />
+                      ) : att.contentType?.startsWith('audio/') ? (
+                        <div className="p-3" style={{ background: 'var(--color-surface-raised)' }}>
+                          <p className="text-xs font-medium mb-2" style={{ color: 'var(--color-text-primary)' }}>
+                            {displayName}
                           </p>
-                          <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-                            {(Number(att.size) / 1024).toFixed(1)} KB
-                          </p>
+                          <audio src={attUrl} controls preload="metadata" className="w-full" style={{ height: 32 }} />
                         </div>
-                      </div>
-                    )}
-                  </div>
-                ))}
+                      ) : (
+                        <a
+                          href={attUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-3 p-3 rounded-lg hover:brightness-110 transition-all"
+                          style={{ background: 'var(--color-surface-raised)' }}
+                        >
+                          <div className="w-8 h-8 rounded flex items-center justify-center flex-shrink-0" style={{ background: 'var(--color-accent-muted)' }}>
+                            <span style={{ fontSize: 16 }}>📎</span>
+                          </div>
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate" style={{ color: 'var(--color-accent-primary)' }}>
+                              {displayName}
+                            </p>
+                            <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+                              {sizeStr}
+                            </p>
+                          </div>
+                        </a>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             )}
 

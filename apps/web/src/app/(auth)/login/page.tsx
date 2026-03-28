@@ -140,7 +140,10 @@ function LoginContent() {
       >
         {/* Logo */}
         <motion.div variants={itemVariants} className="text-center mb-8">
-          <div className="inline-flex items-center gap-2.5 mb-6">
+          <Link
+            href="/"
+            className="inline-flex items-center gap-2.5 mb-6 transition-opacity hover:opacity-80"
+          >
             <div
               className="w-9 h-9 rounded-xl flex items-center justify-center"
               style={{ background: 'var(--color-accent-primary)' }}
@@ -158,7 +161,7 @@ function LoginContent() {
             >
               Swiip
             </span>
-          </div>
+          </Link>
           <h1
             className="text-3xl font-bold tracking-tight"
             style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.03em' }}

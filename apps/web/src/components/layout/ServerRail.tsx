@@ -1,8 +1,8 @@
 'use client';
 
-import { useRef, useState } from 'react';
+import { useRef, useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
-import { Home, Plus, Compass, Link2 } from 'lucide-react';
+import { Home, Plus, Compass, Link2, Download } from 'lucide-react';
 import Image from 'next/image';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useGuildsStore } from '@/stores/guilds.store';
@@ -153,6 +153,11 @@ export function ServerRail() {
   const activeGuildId = useUIStore((s) => s.activeGuildId);
   const setActiveGuild = useUIStore((s) => s.setActiveGuild);
   const openModal = useUIStore((s) => s.openModal);
+
+  const [isDesktop, setIsDesktop] = useState(true); // default true to hide on SSR
+  useEffect(() => {
+    setIsDesktop(!!window.constchat?.platform);
+  }, []);
 
   const handleDMClick = () => {
     setActiveGuild(null);
@@ -320,6 +325,42 @@ export function ServerRail() {
           <Compass size={20} />
         </button>
       </Tooltip>
+
+      {/* Spacer to push download to bottom */}
+      <div className="flex-1" />
+
+      {/* Download App — only show on web (not desktop) */}
+      {!isDesktop && (
+        <>
+          <Divider />
+          <Tooltip content="Download App" placement="right">
+            <a
+              href="/downloads/Swiip-Setup-latest.exe"
+              className="flex items-center justify-center transition-all duration-normal flex-shrink-0"
+              style={{
+                width: 48,
+                height: 48,
+                borderRadius: 'var(--radius-full)',
+                background: 'var(--color-surface-elevated)',
+                color: 'var(--color-success-default)',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderRadius = 'var(--radius-xl)';
+                e.currentTarget.style.background = 'var(--color-success-default)';
+                e.currentTarget.style.color = '#ffffff';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderRadius = 'var(--radius-full)';
+                e.currentTarget.style.background = 'var(--color-surface-elevated)';
+                e.currentTarget.style.color = 'var(--color-success-default)';
+              }}
+              aria-label="Download App"
+            >
+              <Download size={20} />
+            </a>
+          </Tooltip>
+        </>
+      )}
     </nav>
   );
 }

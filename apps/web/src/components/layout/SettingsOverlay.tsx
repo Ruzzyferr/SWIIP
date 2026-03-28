@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -13,15 +13,16 @@ import {
   KeyRound,
   LogOut,
 } from 'lucide-react';
-import { Avatar } from '@/components/ui/Avatar';
-import { Button } from '@/components/ui/Button';
-import { Input } from '@/components/ui/Input';
 import { useUIStore } from '@/stores/ui.store';
 import { useAuthStore } from '@/stores/auth.store';
-import { usePresenceStore } from '@/stores/presence.store';
 import { logout as logoutApi } from '@/lib/api/auth.api';
 import { setAccessToken } from '@/lib/api/client';
 import { VoiceSettingsPage } from '@/components/settings/VoiceSettingsPage';
+import { AccountPage } from '@/components/settings/AccountPage';
+import { AppearancePage } from '@/components/settings/AppearancePage';
+import { PrivacyPage } from '@/components/settings/PrivacyPage';
+import { NotificationsPage } from '@/components/settings/NotificationsPage';
+import { KeybindsPage } from '@/components/settings/KeybindsPage';
 
 const NAV_ITEMS = [
   { id: 'account', label: 'My Account', icon: User, section: 'User Settings' },
@@ -31,172 +32,6 @@ const NAV_ITEMS = [
   { id: 'voice', label: 'Voice & Video', icon: Volume2, section: 'App Settings' },
   { id: 'keybinds', label: 'Keybinds', icon: KeyRound, section: 'App Settings' },
 ];
-
-function AccountPage() {
-  const user = useAuthStore((s) => s.user);
-  const getPresence = usePresenceStore((s) => s.getPresence);
-
-  if (!user) return null;
-
-  const displayName = (user as typeof user & { displayName?: string }).displayName ?? user.globalName ?? user.username;
-  const status = getPresence(user.id);
-
-  return (
-    <div className="max-w-2xl">
-      {/* Profile card */}
-      <div
-        className="rounded-xl overflow-hidden"
-        style={{ border: '1px solid var(--color-border-subtle)' }}
-      >
-        {/* Banner */}
-        <div
-          className="h-24"
-          style={{ background: 'linear-gradient(135deg, var(--color-accent-primary), var(--color-accent-strong))' }}
-        />
-
-        {/* Profile info */}
-        <div
-          className="px-5 pb-5 relative"
-          style={{ background: 'var(--color-surface-raised)' }}
-        >
-          <div className="flex items-end gap-4 -mt-10 mb-4">
-            <div
-              className="rounded-full p-1"
-              style={{ background: 'var(--color-surface-raised)' }}
-            >
-              <Avatar
-                userId={user.id}
-                src={(user as typeof user & { avatarUrl?: string }).avatarUrl ?? user.avatar}
-                displayName={displayName}
-                size="2xl"
-                status={status}
-              />
-            </div>
-            <div className="pb-1">
-              <h3
-                className="text-lg font-bold"
-                style={{ color: 'var(--color-text-primary)' }}
-              >
-                {displayName}
-              </h3>
-              <p
-                className="text-sm"
-                style={{ color: 'var(--color-text-secondary)' }}
-              >
-                @{user.username}#{user.discriminator}
-              </p>
-            </div>
-          </div>
-
-          {/* Fields */}
-          <div className="space-y-4">
-            <div
-              className="p-4 rounded-lg space-y-3"
-              style={{ background: 'var(--color-surface-overlay)' }}
-            >
-              <div className="flex justify-between items-center">
-                <div>
-                  <p
-                    className="text-xs font-bold uppercase tracking-wide"
-                    style={{ color: 'var(--color-text-disabled)' }}
-                  >
-                    Username
-                  </p>
-                  <p
-                    className="text-sm mt-0.5"
-                    style={{ color: 'var(--color-text-primary)' }}
-                  >
-                    {user.username}
-                  </p>
-                </div>
-                <Button variant="secondary" size="sm">
-                  Edit
-                </Button>
-              </div>
-              <div
-                className="h-px"
-                style={{ background: 'var(--color-border-subtle)' }}
-              />
-              <div className="flex justify-between items-center">
-                <div>
-                  <p
-                    className="text-xs font-bold uppercase tracking-wide"
-                    style={{ color: 'var(--color-text-disabled)' }}
-                  >
-                    Email
-                  </p>
-                  <p
-                    className="text-sm mt-0.5"
-                    style={{ color: 'var(--color-text-primary)' }}
-                  >
-                    {user.email ?? '••••••@••••.com'}
-                  </p>
-                </div>
-                <Button variant="secondary" size="sm">
-                  Edit
-                </Button>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function AppearancePage() {
-  return (
-    <div className="max-w-2xl space-y-6">
-      <div>
-        <h3
-          className="text-lg font-semibold mb-2"
-          style={{ color: 'var(--color-text-primary)' }}
-        >
-          Appearance
-        </h3>
-        <p
-          className="text-sm"
-          style={{ color: 'var(--color-text-secondary)' }}
-        >
-          Customize how Swiip looks on your device.
-        </p>
-      </div>
-
-      <div
-        className="p-4 rounded-lg"
-        style={{ background: 'var(--color-surface-raised)' }}
-      >
-        <p
-          className="text-xs font-bold uppercase tracking-wide mb-3"
-          style={{ color: 'var(--color-text-disabled)' }}
-        >
-          Theme
-        </p>
-        <div className="flex gap-3">
-          {['Dark', 'Light'].map((theme) => (
-            <button
-              key={theme}
-              className="px-4 py-2 rounded-lg text-sm font-medium transition-all duration-fast"
-              style={{
-                background:
-                  theme === 'Dark'
-                    ? 'var(--color-accent-primary)'
-                    : 'var(--color-surface-overlay)',
-                color:
-                  theme === 'Dark'
-                    ? '#ffffff'
-                    : 'var(--color-text-secondary)',
-                border: '1px solid var(--color-border-subtle)',
-              }}
-            >
-              {theme}
-            </button>
-          ))}
-        </div>
-      </div>
-    </div>
-  );
-}
 
 function PlaceholderPage({ title }: { title: string }) {
   return (
@@ -247,10 +82,16 @@ export function SettingsOverlay() {
     switch (page) {
       case 'account':
         return <AccountPage />;
+      case 'privacy':
+        return <PrivacyPage />;
+      case 'notifications':
+        return <NotificationsPage />;
       case 'appearance':
         return <AppearancePage />;
       case 'voice':
         return <VoiceSettingsPage />;
+      case 'keybinds':
+        return <KeybindsPage />;
       default: {
         const item = NAV_ITEMS.find((i) => i.id === page);
         return <PlaceholderPage title={item?.label ?? 'Settings'} />;

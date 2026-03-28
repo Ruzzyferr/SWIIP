@@ -182,6 +182,7 @@ export function MessageComposer({
   const [content, setContent] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0); // 0-100
   const [isDragOver, setIsDragOver] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -278,6 +279,7 @@ export function MessageComposer({
 
       // Upload files via presigned URLs
       if (files.length > 0) {
+        setUploadProgress(0);
         const presignResponse = await requestAttachmentUpload(
           channelId,
           files.map((f) => ({
@@ -287,14 +289,20 @@ export function MessageComposer({
           })),
         );
 
-        // Upload each file directly to S3
+        // Upload each file directly to S3 with progress tracking
+        const perFileProgress = new Array(files.length).fill(0);
         await Promise.all(
           presignResponse.map((presigned, i) =>
-            uploadFileToPresignedUrl(presigned.uploadUrl, files[i]!),
+            uploadFileToPresignedUrl(presigned.uploadUrl, files[i]!, (pct) => {
+              perFileProgress[i] = pct;
+              const avg = perFileProgress.reduce((a, b) => a + b, 0) / files.length;
+              setUploadProgress(Math.round(avg));
+            }),
           ),
         );
 
         attachmentIds = presignResponse.map((p) => p.uploadId);
+        setUploadProgress(100);
       }
 
       const msg = await sendMessage(channelId, {
@@ -335,6 +343,35 @@ export function MessageComposer({
       if (replyTo) onClearReply();
     }
   };
+
+  // Paste images from clipboard (Ctrl+V with image data)
+  const handlePaste = useCallback((e: React.ClipboardEvent) => {
+    const items = e.clipboardData?.items;
+    if (!items) return;
+
+    const pastedFiles: File[] = [];
+    for (let i = 0; i < items.length; i++) {
+      const item = items[i];
+      if (item && item.kind === 'file') {
+        const file = item.getAsFile();
+        if (file) {
+          // Give pasted images a readable name
+          const ext = file.type.split('/')[1] ?? 'png';
+          const named = new File(
+            [file],
+            `pasted-image-${Date.now()}.${ext}`,
+            { type: file.type },
+          );
+          pastedFiles.push(named);
+        }
+      }
+    }
+
+    if (pastedFiles.length > 0) {
+      e.preventDefault();
+      setFiles((prev) => [...prev, ...pastedFiles].slice(0, 10));
+    }
+  }, []);
 
   // Dropzone
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -503,6 +540,7 @@ export function MessageComposer({
               value={content}
               onChange={handleContentChange}
               onKeyDown={handleKeyDown}
+              onPaste={handlePaste}
               placeholder={`Message #${channelName}`}
               rows={1}
               className="w-full bg-transparent resize-none outline-none text-sm py-2 px-1"
@@ -599,6 +637,27 @@ export function MessageComposer({
             </Tooltip>
           </div>
         </div>
+
+        {/* Upload progress bar */}
+        {sending && uploadProgress > 0 && uploadProgress < 100 && (
+          <div className="px-3 pb-1">
+            <div
+              className="h-1 rounded-full overflow-hidden"
+              style={{ background: 'var(--color-surface-overlay)' }}
+            >
+              <div
+                className="h-full rounded-full transition-all duration-200"
+                style={{
+                  width: `${uploadProgress}%`,
+                  background: 'var(--color-accent-primary)',
+                }}
+              />
+            </div>
+            <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
+              Uploading... {uploadProgress}%
+            </p>
+          </div>
+        )}
 
         {/* Formatting hints */}
         <div
