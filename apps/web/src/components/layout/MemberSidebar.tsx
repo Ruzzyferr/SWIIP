@@ -20,9 +20,11 @@ interface ContextMenuState {
 function MemberItem({
   member,
   onContextMenu,
+  nameColor,
 }: {
   member: MemberPayload;
   onContextMenu: (e: React.MouseEvent, member: MemberPayload) => void;
+  nameColor?: string;
 }) {
   const getPresence = usePresenceStore((s) => s.getPresence);
   const status = getPresence(member.userId);
@@ -52,7 +54,7 @@ function MemberItem({
       />
       <span
         className="text-sm truncate"
-        style={{ color: 'var(--color-text-secondary)' }}
+        style={{ color: nameColor ?? 'var(--color-text-secondary)' }}
       >
         {displayName}
       </span>
@@ -135,18 +137,29 @@ export function MemberSidebar({ guildId }: MemberSidebarProps) {
         <div key={role?.id ?? 'online'} className="mb-3">
           <p
             className="px-4 py-1 text-xs font-semibold uppercase tracking-wider"
-            style={{ color: 'var(--color-text-disabled)' }}
+            style={{ color: role && role.color ? '#' + role.color.toString(16).padStart(6, '0') : 'var(--color-text-disabled)' }}
           >
             {role?.name ?? 'Online'} — {groupMembers.length}
           </p>
           <div className="px-2 space-y-0.5">
-            {groupMembers.map((member) => (
-              <MemberItem
-                key={member.userId}
-                member={member}
-                onContextMenu={handleContextMenu}
-              />
-            ))}
+            {groupMembers.map((member) => {
+              // Find highest-positioned role with color for name display (Discord-style)
+              const topColorRole = member.roles
+                .map((rid) => roles[rid])
+                .filter((r): r is RolePayload => r != null && r.color > 0)
+                .sort((a, b) => b.position - a.position)[0];
+              const nameColor = topColorRole
+                ? '#' + topColorRole.color.toString(16).padStart(6, '0')
+                : undefined;
+              return (
+                <MemberItem
+                  key={member.userId}
+                  member={member}
+                  onContextMenu={handleContextMenu}
+                  nameColor={nameColor}
+                />
+              );
+            })}
           </div>
         </div>
       ))}

@@ -16,6 +16,7 @@ interface UIState {
   activeModal: ActiveModal | null;
   isMobileNavOpen: boolean;
   serverSettingsGuildId: string | null;
+  activeThreadId: string | null;
 
   // Actions
   setActiveGuild: (guildId: string | null) => void;
@@ -32,6 +33,8 @@ interface UIState {
   setMobileNavOpen: (open: boolean) => void;
   openServerSettings: (guildId: string) => void;
   closeServerSettings: () => void;
+  openThread: (threadId: string) => void;
+  closeThread: () => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -45,6 +48,7 @@ export const useUIStore = create<UIState>()(
     activeModal: null,
     isMobileNavOpen: false,
     serverSettingsGuildId: null,
+    activeThreadId: null,
 
     setActiveGuild: (guildId) =>
       set((state) => {
@@ -119,6 +123,16 @@ export const useUIStore = create<UIState>()(
     closeServerSettings: () =>
       set((state) => {
         state.serverSettingsGuildId = null;
+      }),
+
+    openThread: (threadId) =>
+      set((state) => {
+        state.activeThreadId = threadId;
+      }),
+
+    closeThread: () =>
+      set((state) => {
+        state.activeThreadId = null;
       }),
   }))
 );

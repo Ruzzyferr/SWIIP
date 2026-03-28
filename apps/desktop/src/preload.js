@@ -20,4 +20,15 @@ contextBridge.exposeInMainWorld('constchat', {
   getDesktopSources: () => ipcRenderer.invoke('get-desktop-sources'),
   setScreenShareAudio: (enabled) => ipcRenderer.invoke('set-screen-share-audio', enabled),
   setSelectedSource: (sourceId) => ipcRenderer.invoke('set-selected-source', sourceId),
+  // Auto-update
+  onUpdateAvailable: (callback) => {
+    ipcRenderer.on('update-available', (_, data) => callback(data));
+  },
+  onUpdateDownloadProgress: (callback) => {
+    ipcRenderer.on('update-download-progress', (_, data) => callback(data));
+  },
+  onUpdateDownloaded: (callback) => {
+    ipcRenderer.on('update-downloaded', (_, data) => callback(data));
+  },
+  restartForUpdate: () => ipcRenderer.invoke('restart-for-update'),
 });

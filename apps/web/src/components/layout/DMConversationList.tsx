@@ -8,6 +8,8 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { useDMsStore } from '@/stores/dms.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePresenceStore } from '@/stores/presence.store';
+import { useFriendsStore } from '@/stores/friends.store';
+import { useUIStore } from '@/stores/ui.store';
 import { getDMConversations } from '@/lib/api/dms.api';
 import { ChannelType, type DMChannelPayload } from '@constchat/protocol';
 
@@ -94,6 +96,30 @@ function DMItem({
 }
 
 // ---------------------------------------------------------------------------
+// Pending friend request badge
+// ---------------------------------------------------------------------------
+
+function PendingFriendBadge() {
+  const count = useFriendsStore((s) =>
+    s.relationships.filter((r) => r.type === 'PENDING_INCOMING').length
+  );
+  if (count === 0) return null;
+  return (
+    <span
+      className="ml-auto flex items-center justify-center rounded-full text-white text-[10px] font-bold shrink-0"
+      style={{
+        background: 'var(--color-danger-default)',
+        minWidth: 18,
+        height: 18,
+        padding: '0 5px',
+      }}
+    >
+      {count > 99 ? '99+' : count}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main list
 // ---------------------------------------------------------------------------
 
@@ -149,6 +175,7 @@ export function DMConversationList() {
       >
         <Users size={20} style={{ opacity: 0.8 }} />
         <span className="text-sm font-medium">Friends</span>
+        <PendingFriendBadge />
       </button>
 
       {/* DM header */}
@@ -164,7 +191,7 @@ export function DMConversationList() {
             className="opacity-60 hover:opacity-100 transition-opacity"
             style={{ color: 'var(--color-text-secondary)' }}
             onClick={() => {
-              // TODO: open create DM modal
+              useUIStore.getState().openModal('create-dm', {});
             }}
           >
             <Plus size={14} />

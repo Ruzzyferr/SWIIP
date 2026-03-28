@@ -6,6 +6,8 @@ import { CreateGuildModal } from './CreateGuildModal';
 import { CreateChannelModal } from './CreateChannelModal';
 import { InviteModal } from './InviteModal';
 import { JoinGuildModal } from './JoinGuildModal';
+import { UserProfilePopup } from '@/components/ui/UserProfilePopup';
+import { CreateDMModal } from './CreateDMModal';
 
 /**
  * Global modal mount point. Renders the correct modal based on ui.store.activeModal.
@@ -26,6 +28,10 @@ export function ModalRoot() {
         return <InviteModal />;
       case 'join-guild':
         return <JoinGuildModal />;
+      case 'user-profile':
+        return <UserProfilePopup />;
+      case 'create-dm':
+        return <CreateDMModal />;
       default:
         return null;
     }
@@ -44,8 +50,8 @@ export function ModalRoot() {
       open={isOpen}
       onClose={closeModal}
       title={getTitle()}
-      showClose={activeModal?.type !== 'create-guild' && activeModal?.type !== 'join-guild' && activeModal?.type !== 'create-channel'}
-      size={activeModal?.type === 'invite' ? 'md' : 'sm'}
+      showClose={activeModal?.type !== 'create-guild' && activeModal?.type !== 'join-guild' && activeModal?.type !== 'create-channel' && activeModal?.type !== 'user-profile' && activeModal?.type !== 'create-dm'}
+      size={activeModal?.type === 'invite' || activeModal?.type === 'user-profile' || activeModal?.type === 'create-dm' ? 'md' : 'sm'}
     >
       {renderContent()}
     </Modal>

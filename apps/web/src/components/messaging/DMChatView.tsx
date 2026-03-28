@@ -156,6 +156,7 @@ export function DMChatView({ conversationId }: DMChatViewProps) {
           onClearReply={() => setReplyTo(null)}
           onClearEdit={() => setEditingMessage(null)}
           onEditSubmit={handleEditSubmit}
+          onStartEdit={setEditingMessage}
         />
       </div>
     </div>

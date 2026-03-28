@@ -207,6 +207,49 @@ function DeviceSelect({
   );
 }
 
+function PushToTalkKeybind({ currentKey, onChange }: { currentKey: string; onChange: (key: string) => void }) {
+  const [recording, setRecording] = useState(false);
+
+  useEffect(() => {
+    if (!recording) return;
+    const handler = (e: KeyboardEvent) => {
+      e.preventDefault();
+      e.stopPropagation();
+      const key = e.code === 'Space' ? 'Space' : e.key.length === 1 ? e.key.toUpperCase() : e.code;
+      onChange(key);
+      setRecording(false);
+    };
+    window.addEventListener('keydown', handler, true);
+    return () => window.removeEventListener('keydown', handler, true);
+  }, [recording, onChange]);
+
+  return (
+    <div className="flex items-center justify-between p-3 rounded-lg"
+      style={{ background: 'var(--color-surface-raised)' }}>
+      <div>
+        <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+          Push to Talk Key
+        </p>
+        <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+          Hold this key to transmit your voice
+        </p>
+      </div>
+      <button
+        onClick={() => setRecording(!recording)}
+        className="px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+        style={{
+          background: recording ? 'var(--color-danger-default)' : 'var(--color-surface-overlay)',
+          color: recording ? '#fff' : 'var(--color-text-primary)',
+          border: recording ? 'none' : '1px solid var(--color-border-default)',
+          minWidth: 120,
+        }}
+      >
+        {recording ? 'Press a key...' : currentKey}
+      </button>
+    </div>
+  );
+}
+
 export function VoiceSettingsPage() {
   const settings = useVoiceStore((s) => s.settings);
   const updateSettings = useVoiceStore((s) => s.updateSettings);
@@ -252,6 +295,45 @@ export function VoiceSettingsPage() {
           max={100}
           onChange={(v) => updateSettings({ outputVolume: v })}
         />
+      </section>
+
+      <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />
+
+      {/* Input Mode — Voice Activity vs Push to Talk */}
+      <section className="space-y-4">
+        <p className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-disabled)' }}>
+          Input Mode
+        </p>
+        <div className="flex gap-2">
+          <button
+            onClick={() => updateSettings({ pushToTalk: false })}
+            className="flex-1 px-4 py-3 rounded-lg text-sm font-medium transition-all text-center"
+            style={{
+              background: !settings.pushToTalk ? 'var(--color-accent-primary)' : 'var(--color-surface-raised)',
+              color: !settings.pushToTalk ? '#fff' : 'var(--color-text-secondary)',
+              border: !settings.pushToTalk ? 'none' : '1px solid var(--color-border-default)',
+            }}
+          >
+            Voice Activity
+          </button>
+          <button
+            onClick={() => updateSettings({ pushToTalk: true })}
+            className="flex-1 px-4 py-3 rounded-lg text-sm font-medium transition-all text-center"
+            style={{
+              background: settings.pushToTalk ? 'var(--color-accent-primary)' : 'var(--color-surface-raised)',
+              color: settings.pushToTalk ? '#fff' : 'var(--color-text-secondary)',
+              border: settings.pushToTalk ? 'none' : '1px solid var(--color-border-default)',
+            }}
+          >
+            Push to Talk
+          </button>
+        </div>
+        {settings.pushToTalk && (
+          <PushToTalkKeybind
+            currentKey={settings.pttKey}
+            onChange={(key) => updateSettings({ pttKey: key })}
+          />
+        )}
       </section>
 
       <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />

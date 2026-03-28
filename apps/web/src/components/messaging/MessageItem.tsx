@@ -12,16 +12,25 @@ import {
   Reply,
   Pencil,
   Pin,
+  PinOff,
   Trash2,
   MoreHorizontal,
   Check,
   X,
+  Copy,
+  Link2,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { EmojiPicker } from '@/components/ui/EmojiPicker';
+import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
+import { ImageLightbox } from '@/components/ui/ImageLightbox';
+import { LinkPreview } from '@/components/messaging/LinkPreview';
 import { useAuthStore } from '@/stores/auth.store';
+import { useUIStore } from '@/stores/ui.store';
+import { useGuildsStore } from '@/stores/guilds.store';
 import { editMessage, deleteMessage, addReaction } from '@/lib/api/messages.api';
+import { pinMessage, unpinMessage } from '@/lib/api/channels.api';
 import { useMessagesStore } from '@/stores/messages.store';
 import { toastError } from '@/lib/toast';
 import type { MessagePayload, ReactionPayload, EmojiRef } from '@constchat/protocol';
@@ -231,6 +240,7 @@ function MessageActions({
   onPin,
   onDelete,
   canEdit,
+  isPinned,
   showReactionPicker,
   onToggleReactionPicker,
   channelId,
@@ -242,6 +252,7 @@ function MessageActions({
   onPin: () => void;
   onDelete?: () => void;
   canEdit: boolean;
+  isPinned?: boolean;
   showReactionPicker: boolean;
   onToggleReactionPicker: () => void;
   channelId: string;
@@ -312,7 +323,7 @@ function MessageActions({
       {[
         { label: 'Reply', icon: <Reply size={15} />, onClick: onReply },
         ...(canEdit ? [{ label: 'Edit', icon: <Pencil size={15} />, onClick: onEdit! }] : []),
-        { label: 'Pin', icon: <Pin size={15} />, onClick: onPin },
+        { label: isPinned ? 'Unpin' : 'Pin', icon: isPinned ? <PinOff size={15} /> : <Pin size={15} />, onClick: onPin },
         ...(canEdit ? [{ label: 'Delete', icon: <Trash2 size={15} />, onClick: onDelete!, danger: true }] : []),
       ].map(({ label, icon, onClick, danger }) => (
         <Tooltip key={label} content={label} placement="top">
@@ -358,6 +369,9 @@ interface MessageItemProps {
   isGrouped: boolean;
   onReply: (message: MessagePayload) => void;
   showUnreadSeparator?: boolean;
+  selectionMode?: boolean;
+  isSelected?: boolean;
+  onToggleSelect?: () => void;
 }
 
 export function MessageItem({
@@ -366,19 +380,38 @@ export function MessageItem({
   isGrouped,
   onReply,
   showUnreadSeparator = false,
+  selectionMode = false,
+  isSelected = false,
+  onToggleSelect,
 }: MessageItemProps) {
   const currentUser = useAuthStore((s) => s.user);
   const updateMsg = useMessagesStore((s) => s.updateMessage);
   const removeMsg = useMessagesStore((s) => s.removeMessage);
+  const openModal = useUIStore((s) => s.openModal);
 
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content ?? '');
   const [hovered, setHovered] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
+  const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const editRef = useRef<HTMLTextAreaElement>(null);
 
   const authorId = message.author?.id ?? (message as unknown as { authorId?: string }).authorId ?? '';
   const authorName = message.author?.globalName ?? message.author?.username ?? authorId;
+  // Discord-style: show author name in their highest role color
+  const activeGuildId = useUIStore((s) => s.activeGuildId);
+  const memberRoles = useGuildsStore(
+    (s) => activeGuildId ? s.members[activeGuildId]?.[authorId]?.roles : undefined
+  );
+  const allRoles = useGuildsStore((s) => s.roles);
+  const authorNameColor = (() => {
+    if (!memberRoles) return undefined;
+    const topColorRole = memberRoles
+      .map((rid) => allRoles[rid])
+      .filter((r) => r != null && r.color > 0)
+      .sort((a, b) => b!.position - a!.position)[0];
+    return topColorRole ? '#' + topColorRole.color.toString(16).padStart(6, '0') : undefined;
+  })();
   const canEdit = currentUser?.id === authorId;
   const timestamp = new Date(message.timestamp ?? (message as unknown as { createdAt?: string }).createdAt ?? Date.now());
   const editedAt = message.editedTimestamp ?? (message as unknown as { editedAt?: string }).editedAt;
@@ -421,9 +454,44 @@ export function MessageItem({
     }
   };
 
+  const isPinned = !!(message as any).pinned;
+
   const handlePin = async () => {
-    // TODO: pin via API
+    try {
+      if (isPinned) {
+        await unpinMessage(channelId, message.id);
+        updateMsg(channelId, message.id, { ...message, pinned: false } as any);
+      } else {
+        await pinMessage(channelId, message.id);
+        updateMsg(channelId, message.id, { ...message, pinned: true } as any);
+      }
+    } catch (err: unknown) {
+      toastError(err instanceof Error ? err.message : 'Failed to pin/unpin message');
+    }
   };
+
+  const handleCopyText = () => {
+    navigator.clipboard.writeText(message.content ?? '').catch(() => {});
+  };
+
+  const handleCopyLink = () => {
+    const url = `${window.location.origin}${window.location.pathname}/${message.id}`;
+    navigator.clipboard.writeText(url).catch(() => {});
+  };
+
+  const contextMenuItems: ContextMenuItem[] = [
+    { type: 'item', label: 'Copy Text', icon: <Copy size={14} />, onClick: handleCopyText },
+    { type: 'item', label: 'Reply', icon: <Reply size={14} />, onClick: () => onReply(message) },
+    ...(canEdit ? [{ type: 'item' as const, label: 'Edit Message', icon: <Pencil size={14} />, onClick: () => {
+      setEditing(true);
+      setEditContent(message.content ?? '');
+      setTimeout(() => { editRef.current?.focus(); editRef.current?.select(); }, 10);
+    }}] : []),
+    { type: 'separator' as const },
+    { type: 'item', label: isPinned ? 'Unpin Message' : 'Pin Message', icon: isPinned ? <PinOff size={14} /> : <Pin size={14} />, onClick: handlePin },
+    { type: 'item', label: 'Copy Message Link', icon: <Link2 size={14} />, onClick: handleCopyLink },
+    ...(canEdit ? [{ type: 'separator' as const }, { type: 'item' as const, label: 'Delete Message', icon: <Trash2 size={14} />, danger: true, onClick: handleDelete }] : []),
+  ];
 
   return (
     <>
@@ -442,18 +510,43 @@ export function MessageItem({
       )}
 
       {/* Message row */}
+      <ContextMenu items={contextMenuItems}>
       <div
         className="message-row relative group px-4 py-0.5"
         style={{
           paddingTop: isGrouped ? '1px' : '8px',
-          background: hovered ? 'rgba(255,255,255,0.02)' : 'transparent',
+          background: isSelected ? 'rgba(88, 101, 242, 0.1)' : hovered ? 'rgba(255,255,255,0.02)' : 'transparent',
           transition: 'background 80ms ease',
         }}
         onMouseEnter={() => setHovered(true)}
         onMouseLeave={() => setHovered(false)}
+        onClick={(e) => {
+          if (e.shiftKey && onToggleSelect) {
+            e.preventDefault();
+            onToggleSelect();
+          } else if (selectionMode && onToggleSelect) {
+            e.preventDefault();
+            onToggleSelect();
+          }
+        }}
         role="article"
         aria-label={`Message from ${authorId}`}
       >
+        {/* Selection checkbox */}
+        {selectionMode && (
+          <div className="absolute left-1 top-1/2 -translate-y-1/2 z-10">
+            <button
+              onClick={(e) => { e.stopPropagation(); onToggleSelect?.(); }}
+              className="w-5 h-5 rounded border-2 flex items-center justify-center transition-colors"
+              style={{
+                borderColor: isSelected ? 'var(--color-accent-primary)' : 'var(--color-border-default)',
+                background: isSelected ? 'var(--color-accent-primary)' : 'transparent',
+              }}
+            >
+              {isSelected && <Check size={12} className="text-white" />}
+            </button>
+          </div>
+        )}
         {/* Actions toolbar */}
         {(hovered || showReactionPicker) && !editing && (
           <MessageActions
@@ -470,6 +563,7 @@ export function MessageItem({
             onPin={handlePin}
             onDelete={canEdit ? handleDelete : undefined}
             canEdit={canEdit}
+            isPinned={isPinned}
             showReactionPicker={showReactionPicker}
             onToggleReactionPicker={() => setShowReactionPicker((v) => !v)}
             channelId={channelId}
@@ -494,6 +588,7 @@ export function MessageItem({
                 <div className="w-10" />
               )
             ) : (
+              <button onClick={() => openModal('user-profile', { userId: authorId })} className="cursor-pointer">
               <Avatar
                 userId={authorId}
                 src={message.author?.avatar}
@@ -501,6 +596,7 @@ export function MessageItem({
                 size="md"
                 className="mt-0.5"
               />
+              </button>
             )}
           </div>
 
@@ -509,12 +605,13 @@ export function MessageItem({
             {/* Header row (non-grouped) */}
             {!isGrouped && (
               <div className="flex items-baseline gap-2 mb-0.5">
-                <span
-                  className="text-sm font-semibold"
-                  style={{ color: 'var(--color-text-primary)' }}
+                <button
+                  onClick={() => openModal('user-profile', { userId: authorId })}
+                  className="text-sm font-semibold cursor-pointer hover:underline"
+                  style={{ color: authorNameColor ?? 'var(--color-text-primary)' }}
                 >
                   {authorName}
-                </span>
+                </button>
                 <Tooltip
                   content={timestamp.toLocaleString()}
                   placement="top"
@@ -618,6 +715,9 @@ export function MessageItem({
               </>
             )}
 
+            {/* Link preview */}
+            {!editing && message.content && <LinkPreview content={message.content} />}
+
             {/* Attachments */}
             {message.attachments && message.attachments.length > 0 && (
               <div className="flex flex-wrap gap-2 mt-2">
@@ -639,7 +739,16 @@ export function MessageItem({
                       }}
                     >
                       {att.contentType?.startsWith('image/') ? (
-                        <a href={attUrl} target="_blank" rel="noopener noreferrer" className="block cursor-pointer">
+                        <button
+                          onClick={() => {
+                            const imageAtts = (message.attachments ?? [])
+                              .map((a, idx) => ({ a, idx }))
+                              .filter(({ a }) => a.contentType?.startsWith('image/'));
+                            const lightboxIdx = imageAtts.findIndex(({ idx: aIdx }) => aIdx === i);
+                            setLightboxIndex(lightboxIdx >= 0 ? lightboxIdx : 0);
+                          }}
+                          className="block cursor-pointer"
+                        >
                           {/* eslint-disable-next-line @next/next/no-img-element */}
                           <img
                             src={attUrl}
@@ -648,7 +757,7 @@ export function MessageItem({
                             style={{ maxHeight: '300px', objectFit: 'contain' }}
                             loading="lazy"
                           />
-                        </a>
+                        </button>
                       ) : att.contentType?.startsWith('video/') ? (
                         <video
                           src={attUrl}
@@ -708,6 +817,24 @@ export function MessageItem({
           </div>
         </div>
       </div>
+      </ContextMenu>
+
+      {/* Image lightbox */}
+      {lightboxIndex !== null && (() => {
+        const imageAtts = (message.attachments ?? [])
+          .filter((a) => a.contentType?.startsWith('image/'))
+          .map((a) => ({
+            url: (a as any).cdnUrl ?? a.url ?? a.proxyUrl ?? '',
+            name: (a as any).originalFilename ?? a.filename,
+          }));
+        return imageAtts.length > 0 ? (
+          <ImageLightbox
+            images={imageAtts}
+            initialIndex={lightboxIndex}
+            onClose={() => setLightboxIndex(null)}
+          />
+        ) : null;
+      })()}
     </>
   );
 }

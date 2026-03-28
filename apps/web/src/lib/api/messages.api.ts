@@ -78,6 +78,15 @@ export async function deleteMessage(
   await apiClient.delete(`/channels/${channelId}/messages/${messageId}`);
 }
 
+export async function bulkDeleteMessages(
+  channelId: string,
+  messageIds: string[]
+): Promise<void> {
+  await apiClient.post(`/channels/${channelId}/messages/bulk-delete`, {
+    messages: messageIds,
+  });
+}
+
 export async function addReaction(
   channelId: string,
   messageId: string,

@@ -26,9 +26,11 @@ import {
 import { Tooltip } from '@/components/ui/Tooltip';
 import { Spinner } from '@/components/ui/Spinner';
 import { EmojiPicker } from '@/components/ui/EmojiPicker';
+import { MentionAutocomplete } from './MentionAutocomplete';
 import { sendMessage, requestAttachmentUpload, uploadFileToPresignedUrl } from '@/lib/api/messages.api';
 import { triggerTyping } from '@/lib/api/channels.api';
 import { useMessagesStore } from '@/stores/messages.store';
+import { useAuthStore } from '@/stores/auth.store';
 import { formatFileSize } from '@/lib/utils';
 import { toastError } from '@/lib/toast';
 import type { MessagePayload, AttachmentRef } from '@constchat/protocol';
@@ -168,6 +170,7 @@ interface MessageComposerProps {
   onClearReply: () => void;
   onClearEdit: () => void;
   onEditSubmit: (messageId: string, content: string) => Promise<void>;
+  onStartEdit?: (message: MessagePayload) => void;
 }
 
 export function MessageComposer({
@@ -178,6 +181,7 @@ export function MessageComposer({
   onClearReply,
   onClearEdit,
   onEditSubmit,
+  onStartEdit,
 }: MessageComposerProps) {
   const [content, setContent] = useState('');
   const [files, setFiles] = useState<File[]>([]);
@@ -185,9 +189,13 @@ export function MessageComposer({
   const [uploadProgress, setUploadProgress] = useState(0); // 0-100
   const [isDragOver, setIsDragOver] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [mentionQuery, setMentionQuery] = useState<string | null>(null);
+  const [mentionStartPos, setMentionStartPos] = useState<number>(0);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const addMessage = useMessagesStore((s) => s.addMessage);
+  const currentUserId = useAuthStore((s) => s.user?.id);
+  const getChannelMessages = useMessagesStore((s) => s.getChannelMessages);
 
   // Restore draft
   useEffect(() => {
@@ -259,6 +267,21 @@ export function MessageComposer({
     if (val.length <= MAX_CHARS) {
       setContent(val);
       if (val) emitTyping();
+
+      // Detect @mention
+      const cursorPos = e.target.selectionStart;
+      const textBeforeCursor = val.slice(0, cursorPos);
+      const atIndex = textBeforeCursor.lastIndexOf('@');
+      if (atIndex >= 0) {
+        const charBefore = atIndex > 0 ? textBeforeCursor[atIndex - 1] : ' ';
+        const queryText = textBeforeCursor.slice(atIndex + 1);
+        if ((charBefore === ' ' || charBefore === '\n' || atIndex === 0) && !queryText.includes(' ')) {
+          setMentionQuery(queryText);
+          setMentionStartPos(atIndex);
+          return;
+        }
+      }
+      setMentionQuery(null);
     }
   };
 
@@ -333,7 +356,37 @@ export function MessageComposer({
     addMessage,
   ]);
 
+  const handleMentionSelect = useCallback((userId: string, displayName: string) => {
+    const before = content.slice(0, mentionStartPos);
+    const after = content.slice(textareaRef.current?.selectionStart ?? mentionStartPos + (mentionQuery?.length ?? 0) + 1);
+    const newContent = `${before}<@${userId}> ${after}`;
+    setContent(newContent);
+    setMentionQuery(null);
+    setTimeout(() => {
+      const newPos = before.length + `<@${userId}> `.length;
+      if (textareaRef.current) {
+        textareaRef.current.selectionStart = newPos;
+        textareaRef.current.selectionEnd = newPos;
+        textareaRef.current.focus();
+      }
+    }, 0);
+  }, [content, mentionStartPos, mentionQuery]);
+
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
+    // If mention autocomplete is open, let it handle keyboard events
+    if (mentionQuery !== null) {
+      if (e.key === 'ArrowDown' || e.key === 'ArrowUp' || e.key === 'Tab') {
+        return; // handled by MentionAutocomplete's global listener
+      }
+      if (e.key === 'Enter') {
+        return; // handled by MentionAutocomplete
+      }
+      if (e.key === 'Escape') {
+        e.preventDefault();
+        setMentionQuery(null);
+        return;
+      }
+    }
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSend();
@@ -341,6 +394,17 @@ export function MessageComposer({
     if (e.key === 'Escape') {
       if (editingMessage) onClearEdit();
       if (replyTo) onClearReply();
+    }
+    // Up Arrow with empty input → edit last own message
+    if (e.key === 'ArrowUp' && content.trim() === '' && !editingMessage && onStartEdit && currentUserId) {
+      const messages = getChannelMessages(channelId);
+      for (let i = messages.length - 1; i >= 0; i--) {
+        if (messages[i]!.author.id === currentUserId) {
+          e.preventDefault();
+          onStartEdit(messages[i]!);
+          break;
+        }
+      }
     }
   };
 
@@ -533,8 +597,17 @@ export function MessageComposer({
             </button>
           </Tooltip>
 
-          {/* Textarea */}
-          <div className="flex-1 min-w-0">
+          {/* Textarea + mention autocomplete */}
+          <div className="flex-1 min-w-0 relative">
+            <AnimatePresence>
+              {mentionQuery !== null && (
+                <MentionAutocomplete
+                  query={mentionQuery}
+                  onSelect={handleMentionSelect}
+                  onClose={() => setMentionQuery(null)}
+                />
+              )}
+            </AnimatePresence>
             <textarea
               ref={textareaRef}
               value={content}

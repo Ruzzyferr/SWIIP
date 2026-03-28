@@ -146,6 +146,7 @@ export default function ChannelPage() {
                   onClearReply={() => setReplyTo(null)}
                   onClearEdit={() => setEditingMessage(null)}
                   onEditSubmit={handleEditSubmit}
+                  onStartEdit={setEditingMessage}
                 />
               </div>
               {!isMobile && isMemberSidebarOpen && <MemberSidebar guildId={guildId} />}

@@ -62,6 +62,16 @@ export async function triggerTyping(channelId: string): Promise<void> {
 export interface PinnedMessage {
   id: string;
   channelId: string;
+  content?: string;
+  author?: {
+    id: string;
+    username: string;
+    globalName?: string;
+    avatar?: string;
+  };
+  timestamp?: string;
+  createdAt?: string;
+  [key: string]: unknown;
 }
 
 export async function getPinnedMessages(channelId: string): Promise<PinnedMessage[]> {

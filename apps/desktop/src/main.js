@@ -203,53 +203,59 @@ function setupAppMenu() {
   }
 }
 
-// ── Auto-updater ──────────────────────────────────────────────────────────
+// ── Auto-updater (Discord-style: silent download + in-app notification) ───
 function setupAutoUpdater() {
-  autoUpdater.autoDownload = false;
+  autoUpdater.autoDownload = true;
   autoUpdater.autoInstallOnAppQuit = true;
 
-  autoUpdater.on('update-available', (info) => {
-    dialog
-      .showMessageBox(mainWindow, {
-        type: 'info',
-        title: 'Update Available',
-        message: `Swiip v${info.version} is available. Download now?`,
-        buttons: ['Download', 'Later'],
-        defaultId: 0,
-      })
-      .then(({ response }) => {
-        if (response === 0) {
-          autoUpdater.downloadUpdate();
-        }
-      });
+  autoUpdater.on('checking-for-update', () => {
+    console.log('[AutoUpdater] Checking for updates...');
   });
 
-  autoUpdater.on('update-downloaded', () => {
-    dialog
-      .showMessageBox(mainWindow, {
-        type: 'info',
-        title: 'Update Ready',
-        message: 'Update downloaded. Swiip will restart to apply the update.',
-        buttons: ['Restart Now', 'Later'],
-        defaultId: 0,
-      })
-      .then(({ response }) => {
-        if (response === 0) {
-          isQuitting = true;
-          autoUpdater.quitAndInstall();
-        }
+  autoUpdater.on('update-available', (info) => {
+    console.log('[AutoUpdater] Update available:', info.version);
+    // Notify renderer — it will show a small banner
+    if (mainWindow) {
+      mainWindow.webContents.send('update-available', {
+        version: info.version,
+        releaseNotes: info.releaseNotes ?? '',
       });
+    }
+  });
+
+  autoUpdater.on('download-progress', (progress) => {
+    if (mainWindow) {
+      mainWindow.webContents.send('update-download-progress', {
+        percent: Math.round(progress.percent),
+        bytesPerSecond: progress.bytesPerSecond,
+        transferred: progress.transferred,
+        total: progress.total,
+      });
+    }
+  });
+
+  autoUpdater.on('update-downloaded', (info) => {
+    console.log('[AutoUpdater] Update downloaded:', info.version);
+    if (mainWindow) {
+      mainWindow.webContents.send('update-downloaded', {
+        version: info.version,
+      });
+    }
+  });
+
+  autoUpdater.on('update-not-available', () => {
+    console.log('[AutoUpdater] No update available');
   });
 
   autoUpdater.on('error', (err) => {
     console.error('[AutoUpdater] Error:', err.message);
   });
 
-  // Check for updates every 4 hours
+  // Check for updates on launch and every 30 minutes
   autoUpdater.checkForUpdates().catch(() => {});
   setInterval(() => {
     autoUpdater.checkForUpdates().catch(() => {});
-  }, 4 * 60 * 60 * 1000);
+  }, 30 * 60 * 1000);
 }
 
 // Prevent multiple instances
@@ -373,3 +379,7 @@ ipcMain.handle('window-maximize', () => {
 });
 ipcMain.handle('window-close', () => mainWindow?.close());
 ipcMain.handle('window-is-maximized', () => mainWindow?.isMaximized() ?? false);
+ipcMain.handle('restart-for-update', () => {
+  isQuitting = true;
+  autoUpdater.quitAndInstall(false, true);
+});

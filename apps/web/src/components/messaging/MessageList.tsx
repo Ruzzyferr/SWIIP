@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { Virtuoso, type VirtuosoHandle } from 'react-virtuoso';
-import { ArrowDown } from 'lucide-react';
+import { ArrowDown, Trash2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageItem } from './MessageItem';
 import { useMessagesStore } from '@/stores/messages.store';
-import { getMessages } from '@/lib/api/messages.api';
+import { getMessages, bulkDeleteMessages, deleteMessage } from '@/lib/api/messages.api';
 import { formatDateSeparator } from '@/lib/utils';
+import { toastSuccess, toastError } from '@/lib/toast';
 import type { MessagePayload } from '@constchat/protocol';
 
 // ---------------------------------------------------------------------------
@@ -155,6 +156,39 @@ export function MessageList({ channelId, lastReadMessageId, onReply }: MessageLi
   const virtuosoRef = useRef<VirtuosoHandle>(null);
   const [atBottom, setAtBottom] = useState(true);
   const [unreadCount, setUnreadCount] = useState(0);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleting, setBulkDeleting] = useState(false);
+  const selectionMode = selectedIds.size > 0;
+
+  const toggleSelect = useCallback((messageId: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(messageId)) next.delete(messageId);
+      else next.add(messageId);
+      return next;
+    });
+  }, []);
+
+  const handleBulkDelete = useCallback(async () => {
+    if (selectedIds.size === 0) return;
+    setBulkDeleting(true);
+    try {
+      const ids = Array.from(selectedIds);
+      if (ids.length > 1) {
+        await bulkDeleteMessages(channelId, ids);
+      } else if (ids.length === 1) {
+        await deleteMessage(channelId, ids[0]!);
+      }
+      const removeMessage = useMessagesStore.getState().removeMessage;
+      ids.forEach((id) => removeMessage(channelId, id));
+      setSelectedIds(new Set());
+      toastSuccess(`Deleted ${ids.length} message${ids.length !== 1 ? 's' : ''}`);
+    } catch {
+      toastError('Failed to delete messages');
+    } finally {
+      setBulkDeleting(false);
+    }
+  }, [channelId, selectedIds]);
 
   const channelData = useMessagesStore((s) => s.channels[channelId]);
   const setMessages = useMessagesStore((s) => s.setMessages);
@@ -264,6 +298,9 @@ export function MessageList({ channelId, lastReadMessageId, onReply }: MessageLi
                 isGrouped={item.grouped}
                 onReply={onReply}
                 showUnreadSeparator={isUnreadSeparator}
+                selectionMode={selectionMode}
+                isSelected={selectedIds.has(item.message.id)}
+                onToggleSelect={() => toggleSelect(item.message.id)}
               />
             );
           }}
@@ -335,6 +372,45 @@ export function MessageList({ channelId, lastReadMessageId, onReply }: MessageLi
             )}
             <ArrowDown size={14} />
           </motion.button>
+        )}
+      </AnimatePresence>
+
+      {/* Bulk delete floating bar */}
+      <AnimatePresence>
+        {selectionMode && (
+          <motion.div
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 20 }}
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-3 px-4 py-2.5 rounded-xl shadow-lg"
+            style={{
+              background: 'var(--color-surface-floating)',
+              border: '1px solid var(--color-border-default)',
+              boxShadow: 'var(--shadow-lg)',
+            }}
+          >
+            <span className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+              {selectedIds.size} selected
+            </span>
+            <button
+              onClick={handleBulkDelete}
+              disabled={bulkDeleting}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-sm font-medium text-white transition-colors"
+              style={{ background: 'var(--color-danger-default)' }}
+            >
+              <Trash2 size={14} />
+              {bulkDeleting ? 'Deleting...' : 'Delete'}
+            </button>
+            <button
+              onClick={() => setSelectedIds(new Set())}
+              className="p-1.5 rounded-lg transition-colors"
+              style={{ color: 'var(--color-text-tertiary)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-primary)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-tertiary)'; }}
+            >
+              <X size={16} />
+            </button>
+          </motion.div>
         )}
       </AnimatePresence>
     </div>

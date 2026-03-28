@@ -13,6 +13,7 @@ const KEYBINDS: Keybind[] = [
   { action: 'Toggle Mute (global)', keys: ['Ctrl', 'Shift', 'M'] },
   { action: 'Toggle Deafen', keys: ['D'], context: 'Voice connected, not typing' },
   { action: 'Toggle Camera', keys: ['V'], context: 'Voice connected, not typing' },
+  { action: 'Push to Talk', keys: ['Configurable'], context: 'Voice connected, PTT mode enabled' },
   { action: 'Voice Debug Overlay', keys: ['Ctrl', 'Shift', 'D'], context: 'Voice connected' },
   { action: 'Close Settings / Modal', keys: ['Escape'] },
   { action: 'Search', keys: ['Ctrl', 'K'] },
@@ -101,10 +102,10 @@ export function KeybindsPage() {
         <KeyRound size={18} className="mt-0.5 flex-shrink-0" style={{ color: 'var(--color-text-accent)' }} />
         <div>
           <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-            Custom keybinds coming soon
+            Push-to-Talk keybind
           </p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
-            You will be able to customize all keyboard shortcuts and add push-to-talk bindings in a future update.
+            Configure Push-to-Talk key in Voice & Video settings. Other custom keybinds coming soon.
           </p>
         </div>
       </div>

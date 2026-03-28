@@ -1,7 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Shield, Eye, UserX, MessageSquareOff } from 'lucide-react';
+import { Avatar } from '@/components/ui/Avatar';
+import { getRelationships, unblockUser, type RelationshipPayload } from '@/lib/api/friends.api';
+import { toastSuccess, toastError } from '@/lib/toast';
 
 function ToggleRow({
   icon: Icon,
@@ -220,6 +223,91 @@ export function PrivacyPage() {
           />
         </div>
       </section>
+
+      <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />
+
+      {/* Blocked Users */}
+      <BlockedUsersSection />
     </div>
+  );
+}
+
+function BlockedUsersSection() {
+  const [blocked, setBlocked] = useState<RelationshipPayload[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [unblocking, setUnblocking] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    getRelationships()
+      .then((rels) => {
+        if (!cancelled) setBlocked(rels.filter((r) => r.type === 'BLOCKED'));
+      })
+      .catch(() => {})
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, []);
+
+  const handleUnblock = async (userId: string) => {
+    setUnblocking(userId);
+    try {
+      await unblockUser(userId);
+      setBlocked((prev) => prev.filter((b) => b.user.id !== userId));
+      toastSuccess('User unblocked');
+    } catch {
+      toastError('Failed to unblock user');
+    } finally {
+      setUnblocking(null);
+    }
+  };
+
+  return (
+    <section className="space-y-1">
+      <p className="text-xs font-bold uppercase tracking-wider mb-3"
+        style={{ color: 'var(--color-text-disabled)' }}>
+        Blocked Users
+      </p>
+      <div className="p-4 rounded-xl" style={{ background: 'var(--color-surface-raised)' }}>
+        {loading ? (
+          <div className="flex justify-center py-4">
+            <div className="w-5 h-5 border-2 rounded-full animate-spin"
+              style={{ borderColor: 'var(--color-text-disabled)', borderTopColor: 'var(--color-accent-primary)' }} />
+          </div>
+        ) : blocked.length === 0 ? (
+          <p className="text-sm text-center py-4" style={{ color: 'var(--color-text-tertiary)' }}>
+            No blocked users
+          </p>
+        ) : (
+          <div className="space-y-1">
+            {blocked.map((rel) => (
+              <div key={rel.user.id} className="flex items-center gap-3 py-2 group">
+                <Avatar
+                  displayName={rel.user.globalName ?? rel.user.username}
+                  userId={rel.user.id}
+                  src={rel.user.avatar}
+                  size="sm"
+                />
+                <span className="text-sm flex-1" style={{ color: 'var(--color-text-primary)' }}>
+                  {rel.user.globalName ?? rel.user.username}
+                </span>
+                <button
+                  onClick={() => handleUnblock(rel.user.id)}
+                  disabled={unblocking === rel.user.id}
+                  className="px-3 py-1 rounded-md text-xs font-medium transition-colors opacity-0 group-hover:opacity-100"
+                  style={{
+                    background: 'var(--color-danger-muted)',
+                    color: 'var(--color-danger-default)',
+                  }}
+                >
+                  {unblocking === rel.user.id ? 'Unblocking...' : 'Unblock'}
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

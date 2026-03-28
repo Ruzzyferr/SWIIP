@@ -7,6 +7,7 @@ import { ModalRoot } from '@/components/modals/ModalRoot';
 import { SettingsOverlay } from '@/components/layout/SettingsOverlay';
 import { ServerSettingsWrapper } from '@/components/settings/ServerSettingsWrapper';
 import { DesktopTitleBar } from '@/components/layout/DesktopTitleBar';
+import { UpdateBanner } from '@/components/layout/UpdateBanner';
 import { useUIStore } from '@/stores/ui.store';
 import { Toaster } from 'sonner';
 
@@ -27,19 +28,22 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   return (
     <AppProvider>
-      <DesktopTitleBar />
-      <div
-        className="flex w-screen overflow-hidden"
-        style={{ height: isDesktop ? 'calc(100dvh - 32px)' : '100dvh', marginTop: isDesktop ? 32 : 0 }}
-      >
-        {/* Server rail — fixed left column */}
-        {(!isMobile || isMobileNavOpen) && (
-          <ServerRail />
-        )}
+      <div className="flex flex-col h-screen w-screen overflow-hidden">
+        <DesktopTitleBar />
+        {isDesktop && <UpdateBanner />}
+        <div
+          className="flex flex-1 overflow-hidden"
+          style={{ minHeight: 0 }}
+        >
+          {/* Server rail — fixed left column */}
+          {(!isMobile || isMobileNavOpen) && (
+            <ServerRail />
+          )}
 
-        {/* Main content area */}
-        <div className="flex-1 flex min-w-0 overflow-hidden">
-          {children}
+          {/* Main content area */}
+          <div className="flex-1 flex min-w-0 overflow-hidden">
+            {children}
+          </div>
         </div>
       </div>
 

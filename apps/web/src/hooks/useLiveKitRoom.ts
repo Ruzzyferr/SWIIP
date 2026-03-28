@@ -133,7 +133,7 @@ export function useLiveKitRoom() {
         // Without this, adaptiveStream may subscribe to a low-res layer, causing cropping
         screenShareSimulcastLayers: [],
         screenShareEncoding: {
-          maxBitrate: 5_000_000,
+          maxBitrate: 8_000_000,
           maxFramerate: 30,
         },
       },
@@ -198,10 +198,24 @@ export function useLiveKitRoom() {
           break;
         case ConnectionState.Connected:
           setConnectionState('connected');
-          // After reconnect, re-sync all remote video tracks.
-          // During reconnection, TrackUnsubscribed may have fired and cleared
-          // our video state, but tracks are back now.
+          // After reconnect, re-sync all remote participants AND video tracks.
+          // During reconnection, ParticipantDisconnected / TrackUnsubscribed may
+          // have fired and cleared our state, but participants are back now.
           for (const [, participant] of room.remoteParticipants) {
+            // Re-add participant to store
+            if (currentChannelId) {
+              setParticipant({
+                userId: participant.identity,
+                channelId: currentChannelId,
+                selfMute: !participant.isMicrophoneEnabled,
+                selfDeaf: false,
+                serverMute: false,
+                serverDeaf: false,
+                speaking: participant.isSpeaking,
+                selfVideo: participant.isCameraEnabled,
+                screenSharing: participant.isScreenShareEnabled,
+              });
+            }
             for (const pub of participant.videoTrackPublications.values()) {
               if (pub.track && pub.isSubscribed) {
                 const isScreen = pub.source === Track.Source.ScreenShare;
@@ -588,7 +602,7 @@ export function useLiveKitRoom() {
     const room = roomRef.current;
     if (!room || room.state !== ConnectionState.Connected) return;
     room.localParticipant.setCameraEnabled(cameraEnabled, {
-      resolution: VideoPresets.h720.resolution,
+      resolution: VideoPresets.h1080.resolution,
       deviceId: videoDeviceId !== 'default' ? videoDeviceId : undefined,
     }).catch((err) => {
       console.warn('[LiveKit] Camera toggle failed:', err);
@@ -613,9 +627,9 @@ export function useLiveKitRoom() {
       // Read quality from store at start time (not reactive — avoids re-prompting)
       const quality = useVoiceStore.getState().screenShareQuality;
       const presets = {
-        '720p30': { width: 1280, height: 720, fps: 30, maxBitrate: 3_000_000 },
-        '1080p30': { width: 1920, height: 1080, fps: 30, maxBitrate: 5_000_000 },
-        '1080p60': { width: 1920, height: 1080, fps: 60, maxBitrate: 8_000_000 },
+        '720p30': { width: 1280, height: 720, fps: 30, maxBitrate: 5_000_000 },
+        '1080p30': { width: 1920, height: 1080, fps: 30, maxBitrate: 8_000_000 },
+        '1080p60': { width: 1920, height: 1080, fps: 60, maxBitrate: 12_000_000 },
       } as const;
       const preset = presets[quality as keyof typeof presets] ?? presets['1080p30'];
 
@@ -624,8 +638,10 @@ export function useLiveKitRoom() {
         // Capture options — don't constrain resolution, let browser capture at native resolution
         contentHint: preset.fps >= 60 ? 'motion' : 'detail',
         audio: wantAudio,
-        selfBrowserSurface: 'include',
+        selfBrowserSurface: 'exclude',
         surfaceSwitching: 'include',
+        systemAudio: 'include',
+        preferCurrentTab: false,
       }, {
         // Publish options — disable simulcast so remote gets full resolution
         simulcast: false,
@@ -633,6 +649,7 @@ export function useLiveKitRoom() {
           maxBitrate: preset.maxBitrate,
           maxFramerate: preset.fps,
         },
+        // Screen share audio enabled when requested
       }).catch((err) => {
         console.warn('[LiveKit] Screen share failed:', err);
         useVoiceStore.getState().setScreenShareEnabled(false);

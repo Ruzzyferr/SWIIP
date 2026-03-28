@@ -249,6 +249,13 @@ function ChannelItem({
   const mentionCount = useMessagesStore((s) => s.channels[channel.id]?.mentionCount ?? 0);
   const hasUnread = !isActive && !isVoice && !!lastMessageId && lastMessageId !== lastReadId;
 
+  // Voice channel user count for limit indicator
+  const voiceUserCount = useVoiceStore((s) => {
+    if (!isVoice) return 0;
+    return Object.keys(s.participants).filter((k) => k.startsWith(`${channel.id}:`)).length;
+  });
+  const userLimit = (channel as any).userLimit as number | undefined;
+
   return (
     <div>
       <button
@@ -289,6 +296,16 @@ function ChannelItem({
           {getChannelIcon(channel.type)}
         </span>
         <span className="truncate">{channel.name}</span>
+
+        {/* Voice channel user limit */}
+        {isVoice && userLimit != null && userLimit > 0 && (
+          <span
+            className="ml-auto text-xs shrink-0"
+            style={{ color: voiceUserCount >= userLimit ? 'var(--color-danger-default)' : 'var(--color-text-tertiary)' }}
+          >
+            {voiceUserCount}/{userLimit}
+          </span>
+        )}
 
         {/* Mention badge */}
         {mentionCount > 0 && !isActive && (

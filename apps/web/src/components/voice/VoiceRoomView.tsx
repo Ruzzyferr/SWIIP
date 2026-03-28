@@ -90,7 +90,7 @@ function UserVolumeSlider({ userId }: { userId: string }) {
       <input
         type="range"
         min={0}
-        max={200}
+        max={100}
         step={1}
         value={volume}
         onChange={handleChange}
@@ -464,11 +464,7 @@ function VoiceRoomContent({
         <div className="flex-1 flex flex-col gap-3 w-full max-w-5xl min-h-0">
           {/* Video grid */}
           <div
-            className="flex-1 grid gap-3 min-h-0"
-            style={{
-              gridTemplateColumns: `repeat(${cols}, 1fr)`,
-              alignContent: 'center',
-            }}
+            className="flex-1 flex flex-wrap gap-3 min-h-0 justify-center items-center content-center"
           >
             <AnimatePresence mode="popLayout">
               {videoParticipants.map((p) => {
@@ -488,6 +484,10 @@ function VoiceRoomContent({
                     initial="hidden"
                     animate="visible"
                     exit="exit"
+                    style={{
+                      width: `calc(${100 / cols}% - ${((cols - 1) * 12) / cols}px)`,
+                      aspectRatio: '16 / 9',
+                    }}
                   >
                     <VideoTile
                       participantId={p.userId}
@@ -528,26 +528,28 @@ function VoiceRoomContent({
     );
   }
 
-  // ── AUDIO-ONLY MODE: No video, just avatars in a grid ──
+  // ── AUDIO-ONLY MODE: No video, just avatars in a flex grid ──
   const { cols } = getGridLayout(participants.length);
+  const tileWidth = 180;
 
   return (
     <LayoutGroup>
       <div
-        className="grid gap-4 w-full justify-center"
+        className="flex flex-wrap gap-4 justify-center"
         style={{
-          gridTemplateColumns: `repeat(${cols}, minmax(100px, 180px))`,
-          maxWidth: cols * 200,
+          maxWidth: cols * (tileWidth + 16),
+          width: '100%',
         }}
       >
         <AnimatePresence mode="popLayout">
           {participants.map((p) => (
-            <ParticipantTile
-              key={p.userId}
-              participant={p}
-              guildId={guildId}
-              isCurrentUser={p.userId === userId}
-            />
+            <div key={p.userId} style={{ width: tileWidth, flexShrink: 0 }}>
+              <ParticipantTile
+                participant={p}
+                guildId={guildId}
+                isCurrentUser={p.userId === userId}
+              />
+            </div>
           ))}
         </AnimatePresence>
       </div>

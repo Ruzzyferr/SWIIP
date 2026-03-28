@@ -130,9 +130,9 @@ export const VideoTile = memo(function VideoTile({
       className="relative rounded-xl overflow-hidden group"
       style={{
         background: isFullscreen ? '#000' : 'var(--color-surface-raised)',
-        aspectRatio: isFullscreen ? undefined : '16/9',
-        width: isFullscreen ? '100%' : undefined,
-        height: isFullscreen ? '100%' : undefined,
+        aspectRatio: isFullscreen ? undefined : isScreen ? undefined : '16/9',
+        width: isFullscreen ? '100%' : isScreen ? '100%' : undefined,
+        height: isFullscreen ? '100%' : isScreen ? '100%' : undefined,
         border: isSpeaking
           ? '2px solid var(--color-success-default)'
           : '2px solid transparent',

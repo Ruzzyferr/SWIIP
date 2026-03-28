@@ -33,6 +33,10 @@ interface VoiceSettings {
   noiseSuppression: boolean;
   /** Voice activity detection threshold (0=most sensitive, 100=least sensitive). -1 = automatic. */
   voiceActivityThreshold: number;
+  /** Push-to-talk mode enabled */
+  pushToTalk: boolean;
+  /** Key to hold for push-to-talk (default: Space) */
+  pttKey: string;
 }
 
 interface VoiceState {
@@ -69,7 +73,7 @@ interface VoiceState {
   // Device settings (persisted)
   settings: VoiceSettings;
 
-  // Per-user volume overrides (persisted, 0-200, default 100)
+  // Per-user volume overrides (persisted, 0-100, default 100)
   userVolumes: Record<string, number>;
 
   // Actions
@@ -114,6 +118,8 @@ const DEFAULT_SETTINGS: VoiceSettings = {
   notificationSounds: true,
   noiseSuppression: true,
   voiceActivityThreshold: -1, // -1 = automatic
+  pushToTalk: false,
+  pttKey: 'Space',
 };
 
 function participantKey(channelId: string, userId: string) {
@@ -208,7 +214,7 @@ export const useVoiceStore = create<VoiceState>()(
 
     setUserVolume: (userId, volume) =>
       set((state) => {
-        state.userVolumes[userId] = Math.max(0, Math.min(200, volume));
+        state.userVolumes[userId] = Math.max(0, Math.min(100, volume));
       }),
 
     setConnectionQuality: (quality) =>
