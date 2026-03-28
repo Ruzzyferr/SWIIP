@@ -1,6 +1,6 @@
 'use client';
 
-import { type ReactNode, useEffect, useState } from 'react';
+import { type ReactNode, useEffect, useState, useCallback } from 'react';
 import { AppProvider } from '@/components/providers/AppProvider';
 import { ServerRail } from '@/components/layout/ServerRail';
 import { ModalRoot } from '@/components/modals/ModalRoot';
@@ -8,6 +8,9 @@ import { SettingsOverlay } from '@/components/layout/SettingsOverlay';
 import { ServerSettingsWrapper } from '@/components/settings/ServerSettingsWrapper';
 import { DesktopTitleBar } from '@/components/layout/DesktopTitleBar';
 import { UpdateBanner } from '@/components/layout/UpdateBanner';
+import { ConnectionBanner } from '@/components/layout/ConnectionBanner';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
+import { KeyboardShortcutsModal } from '@/components/modals/KeyboardShortcutsModal';
 import { useUIStore } from '@/stores/ui.store';
 import { Toaster } from 'sonner';
 
@@ -15,6 +18,19 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const isMobileNavOpen = useUIStore((s) => s.isMobileNavOpen);
   const [isMobile, setIsMobile] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+
+  // Ctrl+/ to open keyboard shortcuts modal
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key === '/') {
+        e.preventDefault();
+        setShowShortcuts((v) => !v);
+      }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, []);
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
@@ -33,19 +49,24 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         {/* Spacer for fixed-positioned title bar (32px) */}
         {isDesktop && <div className="shrink-0" style={{ height: 32 }} />}
         {isDesktop && <UpdateBanner />}
+        <ConnectionBanner />
         <div
           className="flex flex-1 overflow-hidden"
           style={{ minHeight: 0 }}
         >
           {/* Server rail — fixed left column */}
           {(!isMobile || isMobileNavOpen) && (
-            <ServerRail />
+            <ErrorBoundary fallbackTitle="Server list failed to load">
+              <ServerRail />
+            </ErrorBoundary>
           )}
 
           {/* Main content area */}
-          <div className="flex-1 flex min-w-0 overflow-hidden">
-            {children}
-          </div>
+          <ErrorBoundary fallbackTitle="Something went wrong">
+            <div className="flex-1 flex min-w-0 overflow-hidden">
+              {children}
+            </div>
+          </ErrorBoundary>
         </div>
       </div>
 
@@ -57,6 +78,9 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
       {/* Server settings overlay */}
       <ServerSettingsWrapper />
+
+      {/* Keyboard shortcuts modal */}
+      <KeyboardShortcutsModal open={showShortcuts} onClose={() => setShowShortcuts(false)} />
 
       {/* Toast notifications */}
       <Toaster

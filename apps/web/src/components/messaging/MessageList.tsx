@@ -7,6 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { MessageItem } from './MessageItem';
 import { useMessagesStore } from '@/stores/messages.store';
 import { getMessages, bulkDeleteMessages, deleteMessage } from '@/lib/api/messages.api';
+import { getCachedMessages, cacheMessages } from '@/lib/messageCache';
 import { formatDateSeparator } from '@/lib/utils';
 import { toastSuccess, toastError } from '@/lib/toast';
 import type { MessagePayload } from '@constchat/protocol';
@@ -196,12 +197,26 @@ export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessa
   const channelData = useMessagesStore((s) => s.channels[channelId]);
   const setMessages = useMessagesStore((s) => s.setMessages);
   const prependMessages = useMessagesStore((s) => s.prependMessages);
+  const appendMessages = useMessagesStore((s) => s.appendMessages);
   const setLoading = useMessagesStore((s) => s.setLoading);
   const setHasMore = useMessagesStore((s) => s.setHasMore);
+  const setHasNewer = useMessagesStore((s) => s.setHasNewer);
 
   const messages = channelData?.messages ?? [];
   const loading = channelData?.loading ?? false;
   const hasMore = channelData?.hasMore ?? true;
+  const hasNewer = channelData?.hasNewer ?? false;
+
+  // Cache messages periodically when they change
+  const cacheTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    if (messages.length === 0) return;
+    if (cacheTimerRef.current) clearTimeout(cacheTimerRef.current);
+    cacheTimerRef.current = setTimeout(() => {
+      cacheMessages(channelId, messages).catch(() => {});
+    }, 2000); // debounce: cache 2s after last change
+    return () => { if (cacheTimerRef.current) clearTimeout(cacheTimerRef.current); };
+  }, [messages, channelId]);
 
   // Track new messages arriving while scrolled up for unread badge
   const prevMessageCountRef = useRef(messages.length);
@@ -214,17 +229,26 @@ export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessa
     prevMessageCountRef.current = newCount;
   }, [messages.length, atBottom]);
 
-  // Initial load
+  // Initial load — show cached messages first, then fetch fresh from API
   useEffect(() => {
     if (messages.length > 0) return;
     let cancelled = false;
 
     const load = async () => {
+      // 1. Show cached messages immediately (if any)
+      const cached = await getCachedMessages(channelId);
+      if (!cancelled && cached.length > 0 && messages.length === 0) {
+        setMessages(channelId, cached, true);
+      }
+
+      // 2. Fetch fresh from API
       setLoading(channelId, true);
       try {
         const fetched = await getMessages(channelId, { limit: 50 });
         if (!cancelled) {
           setMessages(channelId, fetched, fetched.length === 50);
+          // Cache the fresh messages for next time
+          cacheMessages(channelId, fetched).catch(() => {});
         }
       } catch {
         if (!cancelled) setLoading(channelId, false);
@@ -258,6 +282,25 @@ export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessa
     }
   }, [channelId, hasMore, loading, setLoading, prependMessages, setHasMore]);
 
+  // Load newer messages (after jumping to older messages)
+  const loadNewer = useCallback(async () => {
+    if (!hasNewer || loading || messagesRef.current.length === 0) return;
+    const newest = messagesRef.current[messagesRef.current.length - 1];
+    if (!newest) return;
+
+    setLoading(channelId, true);
+    try {
+      const newer = await getMessages(channelId, {
+        after: newest.id,
+        limit: 50,
+      });
+      appendMessages(channelId, newer);
+      setHasNewer(channelId, newer.length === 50);
+    } catch {
+      setLoading(channelId, false);
+    }
+  }, [channelId, hasNewer, loading, setLoading, appendMessages, setHasNewer]);
+
   // Memoize list items — only recompute when messages change (O(n) computation)
   const listItems = useMemo(() => buildListItems(messages), [messages]);
 
@@ -270,11 +313,35 @@ export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessa
     if (index >= 0) {
       virtuosoRef.current?.scrollToIndex({ index, align: 'center', behavior: 'smooth' });
       setHighlightedMessageId(jumpToMessageId);
-      // Clear highlight after animation
+      // If we jumped to an old message, there may be newer messages to load
+      if (index < listItems.length - 5) {
+        setHasNewer(channelId, true);
+      }
       const timer = setTimeout(() => setHighlightedMessageId(null), 2000);
       return () => clearTimeout(timer);
+    } else {
+      // Message not in cache — load around this message
+      (async () => {
+        setLoading(channelId, true);
+        try {
+          const fetched = await getMessages(channelId, { around: jumpToMessageId, limit: 50 });
+          setMessages(channelId, fetched, fetched.length === 50, true);
+          // After state update, try scrolling again
+          requestAnimationFrame(() => {
+            const newIndex = fetched.findIndex((m) => m.id === jumpToMessageId);
+            if (newIndex >= 0) {
+              virtuosoRef.current?.scrollToIndex({ index: newIndex, align: 'center', behavior: 'smooth' });
+            }
+          });
+          setHighlightedMessageId(jumpToMessageId);
+          const timer = setTimeout(() => setHighlightedMessageId(null), 2000);
+          return () => clearTimeout(timer);
+        } catch {
+          setLoading(channelId, false);
+        }
+      })();
     }
-  }, [jumpToMessageId, listItems]);
+  }, [jumpToMessageId]);
 
   const scrollToBottom = useCallback(() => {
     virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' });
@@ -295,12 +362,13 @@ export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessa
           style={{ height: '100%' }}
           totalCount={listItems.length}
           initialTopMostItemIndex={listItems.length - 1}
-          followOutput="auto"
+          followOutput={hasNewer ? false : 'auto'}
           atBottomStateChange={(bottom) => {
             setAtBottom(bottom);
             if (bottom) setUnreadCount(0);
           }}
           startReached={loadMore}
+          endReached={hasNewer ? loadNewer : undefined}
           itemContent={(index) => {
             const item = listItems[index];
             if (!item) return null;

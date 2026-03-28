@@ -171,6 +171,7 @@ interface MessageComposerProps {
   onClearEdit: () => void;
   onEditSubmit: (messageId: string, content: string) => Promise<void>;
   onStartEdit?: (message: MessagePayload) => void;
+  slowmodeSeconds?: number;
 }
 
 export function MessageComposer({
@@ -182,10 +183,21 @@ export function MessageComposer({
   onClearEdit,
   onEditSubmit,
   onStartEdit,
+  slowmodeSeconds = 0,
 }: MessageComposerProps) {
   const [content, setContent] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
+  const [slowmodeCooldown, setSlowmodeCooldown] = useState(0);
+
+  // Slowmode countdown timer
+  useEffect(() => {
+    if (slowmodeCooldown <= 0) return;
+    const timer = setInterval(() => {
+      setSlowmodeCooldown((prev) => Math.max(0, prev - 1));
+    }, 1000);
+    return () => clearInterval(timer);
+  }, [slowmodeCooldown]);
   const [uploadProgress, setUploadProgress] = useState(0); // 0-100
   const [isDragOver, setIsDragOver] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
@@ -372,6 +384,7 @@ export function MessageComposer({
       setFiles([]);
       onClearReply();
       localStorage.removeItem(DRAFT_KEY(channelId));
+      if (slowmodeSeconds > 0) setSlowmodeCooldown(slowmodeSeconds);
     } catch (err: unknown) {
       // Remove failed optimistic message
       if (trimmed && files.length === 0) {
@@ -554,7 +567,7 @@ export function MessageComposer({
 
   const remaining = MAX_CHARS - content.length;
   const isNearLimit = remaining <= 200;
-  const canSend = (content.trim().length > 0 || files.length > 0) && !sending;
+  const canSend = (content.trim().length > 0 || files.length > 0) && !sending && slowmodeCooldown === 0;
 
   return (
     <div
@@ -806,6 +819,27 @@ export function MessageComposer({
             <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
               Uploading... {uploadProgress}%
             </p>
+          </div>
+        )}
+
+        {/* Slowmode indicator */}
+        {slowmodeCooldown > 0 && (
+          <div className="flex items-center gap-2 px-3 py-1">
+            <div
+              className="h-1 flex-1 rounded-full overflow-hidden"
+              style={{ background: 'var(--color-surface-overlay)' }}
+            >
+              <div
+                className="h-full rounded-full transition-all duration-1000 linear"
+                style={{
+                  width: `${(slowmodeCooldown / slowmodeSeconds) * 100}%`,
+                  background: 'var(--color-warning-default, #f0a020)',
+                }}
+              />
+            </div>
+            <span className="text-xs font-medium" style={{ color: 'var(--color-warning-default, #f0a020)' }}>
+              {slowmodeCooldown}s
+            </span>
           </div>
         )}
 

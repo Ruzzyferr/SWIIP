@@ -5,6 +5,7 @@ import type { MessagePayload } from '@constchat/protocol';
 interface ChannelMessages {
   messages: MessagePayload[];
   hasMore: boolean;
+  hasNewer: boolean;
   loading: boolean;
   lastReadId: string | null;
   mentionCount: number;
@@ -14,8 +15,10 @@ interface MessagesState {
   channels: Record<string, ChannelMessages>;
 
   // Actions
-  setMessages: (channelId: string, messages: MessagePayload[], hasMore: boolean) => void;
+  setMessages: (channelId: string, messages: MessagePayload[], hasMore: boolean, hasNewer?: boolean) => void;
   prependMessages: (channelId: string, messages: MessagePayload[]) => void;
+  appendMessages: (channelId: string, messages: MessagePayload[]) => void;
+  setHasNewer: (channelId: string, hasNewer: boolean) => void;
   addMessage: (channelId: string, message: MessagePayload) => void;
   updateMessage: (
     channelId: string,
@@ -37,6 +40,7 @@ interface MessagesState {
 const defaultChannelState = (): ChannelMessages => ({
   messages: [],
   hasMore: true,
+  hasNewer: false,
   loading: false,
   lastReadId: null,
   mentionCount: 0,
@@ -46,13 +50,14 @@ export const useMessagesStore = create<MessagesState>()(
   immer((set, get) => ({
     channels: {},
 
-    setMessages: (channelId, messages, hasMore) =>
+    setMessages: (channelId, messages, hasMore, hasNewer) =>
       set((state) => {
         if (!state.channels[channelId]) {
           state.channels[channelId] = defaultChannelState();
         }
         state.channels[channelId].messages = messages;
         state.channels[channelId].hasMore = hasMore;
+        if (hasNewer !== undefined) state.channels[channelId].hasNewer = hasNewer;
         state.channels[channelId].loading = false;
       }),
 
@@ -71,6 +76,30 @@ export const useMessagesStore = create<MessagesState>()(
           ...state.channels[channelId].messages,
         ];
         state.channels[channelId].loading = false;
+      }),
+
+    appendMessages: (channelId, messages) =>
+      set((state) => {
+        if (!state.channels[channelId]) {
+          state.channels[channelId] = defaultChannelState();
+        }
+        const existingIds = new Set(
+          state.channels[channelId].messages.map((m) => m.id)
+        );
+        const newMessages = messages.filter((m) => !existingIds.has(m.id));
+        state.channels[channelId].messages = [
+          ...state.channels[channelId].messages,
+          ...newMessages,
+        ];
+        state.channels[channelId].loading = false;
+      }),
+
+    setHasNewer: (channelId, hasNewer) =>
+      set((state) => {
+        if (!state.channels[channelId]) {
+          state.channels[channelId] = defaultChannelState();
+        }
+        state.channels[channelId].hasNewer = hasNewer;
       }),
 
     addMessage: (channelId, message) =>

@@ -28,6 +28,7 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { EmojiPicker } from '@/components/ui/EmojiPicker';
 import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { ImageLightbox } from '@/components/ui/ImageLightbox';
+import { LazyImage } from '@/components/ui/LazyImage';
 import { LinkPreview } from '@/components/messaging/LinkPreview';
 import { useAuthStore } from '@/stores/auth.store';
 import { useUIStore } from '@/stores/ui.store';
@@ -37,10 +38,69 @@ import { pinMessage, unpinMessage } from '@/lib/api/channels.api';
 import { useMessagesStore } from '@/stores/messages.store';
 import { toastError } from '@/lib/toast';
 import type { MessagePayload, ReactionPayload, EmojiRef } from '@constchat/protocol';
+import hljs from 'highlight.js/lib/core';
+import javascript from 'highlight.js/lib/languages/javascript';
+import typescript from 'highlight.js/lib/languages/typescript';
+import python from 'highlight.js/lib/languages/python';
+import css from 'highlight.js/lib/languages/css';
+import xml from 'highlight.js/lib/languages/xml';
+import json from 'highlight.js/lib/languages/json';
+import bash from 'highlight.js/lib/languages/bash';
+import java from 'highlight.js/lib/languages/java';
+import csharp from 'highlight.js/lib/languages/csharp';
+import cpp from 'highlight.js/lib/languages/cpp';
+import go from 'highlight.js/lib/languages/go';
+import rust from 'highlight.js/lib/languages/rust';
+import sql from 'highlight.js/lib/languages/sql';
+import yaml from 'highlight.js/lib/languages/yaml';
+import markdown from 'highlight.js/lib/languages/markdown';
+
+hljs.registerLanguage('javascript', javascript);
+hljs.registerLanguage('js', javascript);
+hljs.registerLanguage('typescript', typescript);
+hljs.registerLanguage('ts', typescript);
+hljs.registerLanguage('python', python);
+hljs.registerLanguage('py', python);
+hljs.registerLanguage('css', css);
+hljs.registerLanguage('html', xml);
+hljs.registerLanguage('xml', xml);
+hljs.registerLanguage('json', json);
+hljs.registerLanguage('bash', bash);
+hljs.registerLanguage('sh', bash);
+hljs.registerLanguage('java', java);
+hljs.registerLanguage('csharp', csharp);
+hljs.registerLanguage('cs', csharp);
+hljs.registerLanguage('cpp', cpp);
+hljs.registerLanguage('c', cpp);
+hljs.registerLanguage('go', go);
+hljs.registerLanguage('rust', rust);
+hljs.registerLanguage('rs', rust);
+hljs.registerLanguage('sql', sql);
+hljs.registerLanguage('yaml', yaml);
+hljs.registerLanguage('yml', yaml);
+hljs.registerLanguage('markdown', markdown);
+hljs.registerLanguage('md', markdown);
 
 // ---------------------------------------------------------------------------
 // Markdown renderer (minimal, no extra deps)
 // ---------------------------------------------------------------------------
+
+function SpoilerText({ children }: { children: React.ReactNode }) {
+  const [revealed, setRevealed] = useState(false);
+  return (
+    <span
+      onClick={() => setRevealed(true)}
+      className="rounded px-0.5 cursor-pointer transition-all duration-200"
+      style={{
+        background: revealed ? 'rgba(255,255,255,0.06)' : 'var(--color-text-primary)',
+        color: revealed ? 'inherit' : 'transparent',
+        userSelect: revealed ? 'auto' : 'none',
+      }}
+    >
+      {children}
+    </span>
+  );
+}
 
 function renderContent(text: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
@@ -53,10 +113,16 @@ function renderContent(text: string): React.ReactNode[] {
     if (codeBlock) {
       const lang = codeBlock[1] ?? '';
       const code = codeBlock[2] ?? '';
+      let highlightedHtml: string | null = null;
+      if (lang && hljs.getLanguage(lang)) {
+        try {
+          highlightedHtml = hljs.highlight(code, { language: lang }).value;
+        } catch { /* fallback to plain */ }
+      }
       nodes.push(
         <pre
           key={key++}
-          className="rounded-lg overflow-x-auto my-1"
+          className="rounded-lg overflow-x-auto my-1 hljs"
           style={{
             background: 'var(--color-surface-raised)',
             border: '1px solid var(--color-border-subtle)',
@@ -66,11 +132,41 @@ function renderContent(text: string): React.ReactNode[] {
             color: 'var(--color-text-primary)',
           }}
         >
-          <code>{code}</code>
+          {lang && (
+            <span className="text-xs block mb-1" style={{ color: 'var(--color-text-disabled)' }}>{lang}</span>
+          )}
+          {highlightedHtml ? (
+            <code dangerouslySetInnerHTML={{ __html: highlightedHtml }} />
+          ) : (
+            <code>{code}</code>
+          )}
         </pre>
       );
       remaining = remaining.slice(codeBlock[0].length);
       continue;
+    }
+
+    // Blockquote (line starting with >)
+    const blockquote = remaining.match(/^(?:^|\n)(?:> (.+?)(?:\n|$))+/);
+    if (blockquote && (remaining === text || remaining.startsWith('\n'))) {
+      const bqMatch = remaining.match(/^[\n]?((?:> .+?(?:\n|$))+)/);
+      if (bqMatch) {
+        const lines = bqMatch[1]!.split('\n').filter(l => l.startsWith('> ')).map(l => l.slice(2));
+        nodes.push(
+          <div
+            key={key++}
+            className="my-1 py-0.5 px-3"
+            style={{
+              borderLeft: '3px solid var(--color-text-disabled)',
+              color: 'var(--color-text-secondary)',
+            }}
+          >
+            {lines.map((line, i) => <span key={i}>{renderContent(line)}{i < lines.length - 1 && <br />}</span>)}
+          </div>
+        );
+        remaining = remaining.slice(bqMatch[0].length);
+        continue;
+      }
     }
 
     // Inline code
@@ -94,11 +190,35 @@ function renderContent(text: string): React.ReactNode[] {
       continue;
     }
 
+    // Spoiler ||text||
+    const spoiler = remaining.match(/^\|\|(.+?)\|\|/);
+    if (spoiler) {
+      nodes.push(<SpoilerText key={key++}>{spoiler[1]}</SpoilerText>);
+      remaining = remaining.slice(spoiler[0].length);
+      continue;
+    }
+
+    // Strikethrough ~~text~~
+    const strike = remaining.match(/^~~(.+?)~~/);
+    if (strike) {
+      nodes.push(<del key={key++} style={{ color: 'var(--color-text-secondary)' }}>{strike[1]}</del>);
+      remaining = remaining.slice(strike[0].length);
+      continue;
+    }
+
     // Bold
     const bold = remaining.match(/^\*\*(.+?)\*\*/);
     if (bold) {
       nodes.push(<strong key={key++} style={{ color: 'var(--color-text-primary)', fontWeight: 700 }}>{bold[1]}</strong>);
       remaining = remaining.slice(bold[0].length);
+      continue;
+    }
+
+    // Underline __text__
+    const underline = remaining.match(/^__(.+?)__/);
+    if (underline) {
+      nodes.push(<u key={key++}>{underline[1]}</u>);
+      remaining = remaining.slice(underline[0].length);
       continue;
     }
 
@@ -156,7 +276,7 @@ function renderContent(text: string): React.ReactNode[] {
     }
 
     // Regular text — collect until a special char
-    const nextSpecial = remaining.search(/`|\*|<@|https?:\/\//);
+    const nextSpecial = remaining.search(/`|\*|<@|https?:\/\/|\|\||~~|__/);
     if (nextSpecial === -1) {
       nodes.push(<span key={key++}>{remaining}</span>);
       remaining = '';
@@ -766,7 +886,11 @@ export function MessageItem({
                       }}
                     >
                       {att.contentType?.startsWith('image/') ? (
-                        <button
+                        <LazyImage
+                          src={attUrl}
+                          alt={displayName}
+                          className="max-w-full rounded-lg hover:opacity-90 transition-opacity"
+                          style={{ maxHeight: '300px', minHeight: '80px', minWidth: '120px' }}
                           onClick={() => {
                             const imageAtts = (message.attachments ?? [])
                               .map((a, idx) => ({ a, idx }))
@@ -774,17 +898,7 @@ export function MessageItem({
                             const lightboxIdx = imageAtts.findIndex(({ idx: aIdx }) => aIdx === i);
                             setLightboxIndex(lightboxIdx >= 0 ? lightboxIdx : 0);
                           }}
-                          className="block cursor-pointer"
-                        >
-                          {/* eslint-disable-next-line @next/next/no-img-element */}
-                          <img
-                            src={attUrl}
-                            alt={displayName}
-                            className="max-w-full rounded-lg hover:opacity-90 transition-opacity"
-                            style={{ maxHeight: '300px', objectFit: 'contain' }}
-                            loading="lazy"
-                          />
-                        </button>
+                        />
                       ) : att.contentType?.startsWith('video/') ? (
                         <video
                           src={attUrl}

@@ -1,6 +1,7 @@
 import type { Metadata, Viewport } from 'next';
 import { Inter } from 'next/font/google';
 import '@/styles/globals.css';
+import 'highlight.js/styles/github-dark.css';
 
 const inter = Inter({
   subsets: ['latin'],
@@ -26,11 +27,14 @@ export const viewport: Viewport = {
   themeColor: '#0e0f11',
 };
 
+import { ServiceWorkerRegistration } from '@/components/providers/ServiceWorkerRegistration';
+
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html lang="en" className={inter.variable}>
       <body className="bg-surface-base text-text-primary antialiased overflow-hidden">
         {children}
+        <ServiceWorkerRegistration />
       </body>
     </html>
   );

@@ -14,6 +14,7 @@ import { useDMsStore } from '@/stores/dms.store';
 import { useUIStore } from '@/stores/ui.store';
 import { getGuildMembers, getGuildMember, getGuild } from '@/lib/api/guilds.api';
 import { toastError, toastInfo } from '@/lib/toast';
+import { playMessageSound, playMentionSound } from '@/lib/sounds';
 
 /**
  * Wires the singleton GatewayClient events into Zustand stores.
@@ -195,8 +196,21 @@ export function useGatewayBridge() {
       // Track lastMessageId on the channel for unread detection
       updateChannel(data.message.channelId, { lastMessageId: data.message.id } as any);
 
-      // Native notification when window is hidden/unfocused (Discord pattern)
+      // Sound + native notification when window is hidden/unfocused (Discord pattern)
       const currentUserId = useAuthStore.getState().user?.id;
+      const activeChannelId = useUIStore.getState().activeChannelId;
+      if (
+        data.message.author.id !== currentUserId &&
+        (typeof document !== 'undefined' && document.hidden || data.message.channelId !== activeChannelId)
+      ) {
+        // Play sound — mention gets a different sound
+        const isMention = data.message.mentions?.some((m: any) => m.id === currentUserId || m === currentUserId);
+        if (isMention) {
+          playMentionSound();
+        } else {
+          playMessageSound();
+        }
+      }
       if (
         data.message.author.id !== currentUserId &&
         typeof document !== 'undefined' &&

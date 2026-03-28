@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Hash,
@@ -25,6 +25,7 @@ import { useUIStore } from '@/stores/ui.store';
 import { useMessagesStore } from '@/stores/messages.store';
 import { useVoiceStore } from '@/stores/voice.store';
 import { ChannelType, type ChannelPayload, type GuildPayload } from '@constchat/protocol';
+import { updateChannel as updateChannelApi } from '@/lib/api/channels.api';
 
 // ---------------------------------------------------------------------------
 // Guild header with dropdown
@@ -135,6 +136,9 @@ interface CategorySectionProps {
   onChannelClick: (channelId: string) => void;
   guildId?: string;
   onCreateChannel?: (categoryId?: string) => void;
+  onDragStart?: (e: React.DragEvent, channelId: string) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent, targetChannelId: string) => void;
 }
 
 function CategorySection({
@@ -145,6 +149,9 @@ function CategorySection({
   onChannelClick,
   guildId,
   onCreateChannel,
+  onDragStart,
+  onDragOver,
+  onDrop,
 }: CategorySectionProps) {
   const [collapsed, setCollapsed] = useState(false);
 
@@ -204,6 +211,9 @@ function CategorySection({
                   isActive={activeChannelId === ch.id}
                   onClick={() => onChannelClick(ch.id)}
                   guildId={guildId}
+                  onDragStart={onDragStart}
+                  onDragOver={onDragOver}
+                  onDrop={onDrop}
                 />
               ))}
             </div>
@@ -234,13 +244,20 @@ function ChannelItem({
   isActive,
   onClick,
   guildId,
+  onDragStart,
+  onDragOver,
+  onDrop,
 }: {
   channel: ChannelPayload;
   isActive: boolean;
   onClick: () => void;
   guildId?: string;
+  onDragStart?: (e: React.DragEvent, channelId: string) => void;
+  onDragOver?: (e: React.DragEvent) => void;
+  onDrop?: (e: React.DragEvent, targetChannelId: string) => void;
 }) {
   const [hovered, setHovered] = useState(false);
+  const [dragOver, setDragOver] = useState(false);
   const isVoice = channel.type === ChannelType.VOICE;
 
   // Unread detection: compare channel's lastMessageId with user's lastReadId
@@ -261,11 +278,18 @@ function ChannelItem({
       <button
         onClick={onClick}
         onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
+        onMouseLeave={() => { setHovered(false); setDragOver(false); }}
+        draggable
+        onDragStart={(e) => onDragStart?.(e, channel.id)}
+        onDragOver={(e) => { e.preventDefault(); setDragOver(true); onDragOver?.(e); }}
+        onDragLeave={() => setDragOver(false)}
+        onDrop={(e) => { setDragOver(false); onDrop?.(e, channel.id); }}
         className="channel-item w-full text-left"
         style={{
           background: isActive
             ? 'var(--color-accent-subtle)'
+            : dragOver
+            ? 'var(--color-accent-muted)'
             : hovered
             ? 'var(--color-surface-raised)'
             : 'transparent',
@@ -275,6 +299,7 @@ function ChannelItem({
             ? 'var(--color-text-primary)'
             : 'var(--color-text-secondary)',
           fontWeight: hasUnread ? 600 : undefined,
+          borderTop: dragOver ? '2px solid var(--color-accent-primary)' : '2px solid transparent',
         }}
         aria-current={isActive ? 'page' : undefined}
       >
@@ -415,6 +440,42 @@ export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
     return { guildChannels: _guildChannels, categories: _categories, uncategorized: _uncategorized, channelsByCategory: _channelsByCategory };
   }, [channels, guildId]);
 
+  // Drag-and-drop channel reorder
+  const draggedChannelRef = useRef<string | null>(null);
+  const updateChannelStore = useGuildsStore((s) => s.updateChannel);
+
+  const handleDragStart = useCallback((e: React.DragEvent, channelId: string) => {
+    draggedChannelRef.current = channelId;
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', channelId);
+  }, []);
+
+  const handleDragOver = useCallback((e: React.DragEvent) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  }, []);
+
+  const handleDrop = useCallback((e: React.DragEvent, targetChannelId: string) => {
+    e.preventDefault();
+    const draggedId = draggedChannelRef.current;
+    if (!draggedId || draggedId === targetChannelId || !guildId) return;
+
+    const targetChannel = channels[targetChannelId];
+    if (!targetChannel) return;
+
+    const targetPosition = (targetChannel as any).position ?? 0;
+
+    // Optimistic update
+    updateChannelStore(draggedId, { position: targetPosition } as any);
+
+    // API call
+    updateChannelApi(draggedId, { position: targetPosition }).catch(() => {
+      // Revert on failure — just ignore, next sync will fix it
+    });
+
+    draggedChannelRef.current = null;
+  }, [guildId, channels, updateChannelStore]);
+
   const handleChannelClick = (channelId: string) => {
     setActiveChannel(channelId);
     if (guildId) {
@@ -467,6 +528,9 @@ export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
                     isActive={activeChannelId === ch.id}
                     onClick={() => handleChannelClick(ch.id)}
                     guildId={guildId}
+                    onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
                   />
                 ))}
               </div>
@@ -483,6 +547,9 @@ export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
                   onChannelClick={handleChannelClick}
                   guildId={guildId}
                   onCreateChannel={handleCreateChannel}
+                  onDragStart={handleDragStart}
+                  onDragOver={handleDragOver}
+                  onDrop={handleDrop}
                 />
             ))}
 
