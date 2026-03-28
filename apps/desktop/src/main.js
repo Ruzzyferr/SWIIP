@@ -280,7 +280,6 @@ app.on('ready', () => {
   createTray();
 
   // Set up screen capture handler for LiveKit screen sharing
-  const appSession = session.fromPartition(PERSIST_PARTITION);
   appSession.setDisplayMediaRequestHandler(async (_request, callback) => {
     try {
       // If a specific source was selected via our custom picker, use it
