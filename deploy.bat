@@ -35,15 +35,33 @@ echo ============================================================
 echo.
 echo [*] Building desktop installer (with web bundle)...
 
-:: First build Next.js standalone output
-echo [*] Building web app (Next.js standalone)...
-cd /d "%~dp0apps\web"
-call npm run build
+:: Build Next.js standalone inside Docker to avoid Windows symlink issues
+:: (Windows + pnpm + Next.js standalone = EPERM symlink errors)
+echo [*] Building web app via Docker (avoids Windows symlink issues)...
+cd /d "%~dp0"
+docker build -f apps/web/Dockerfile ^
+  --build-arg NEXT_PUBLIC_API_URL=https://swiip.app/api ^
+  --build-arg NEXT_PUBLIC_GATEWAY_URL=wss://swiip.app/gateway ^
+  --build-arg NEXT_PUBLIC_CDN_URL=https://constchat.fra1.cdn.digitaloceanspaces.com ^
+  --target builder ^
+  -t swiip-web-builder .
 if errorlevel 1 (
-    echo [!] Web build failed.
+    echo [!] Docker web build failed.
     goto desktop_fail
 )
-echo [OK] Web app built
+
+:: Extract standalone output from Docker builder stage
+echo [*] Extracting web bundle from Docker...
+docker rm swiip-web-extract 2>nul
+docker create --name swiip-web-extract swiip-web-builder
+if exist "%~dp0apps\web\.next\standalone" rmdir /s /q "%~dp0apps\web\.next\standalone"
+mkdir "%~dp0apps\web\.next\standalone" 2>nul
+docker cp swiip-web-extract:/app/apps/web/.next/standalone/. "%~dp0apps\web\.next\standalone"
+docker cp swiip-web-extract:/app/apps/web/.next/static/. "%~dp0apps\web\.next\static"
+if not exist "%~dp0apps\web\public" mkdir "%~dp0apps\web\public"
+docker cp swiip-web-extract:/app/apps/web/public/. "%~dp0apps\web\public"
+docker rm swiip-web-extract
+echo [OK] Web app built via Docker
 
 set "BDIR=C:\tmp\swiip-build"
 if exist "%BDIR%" rmdir /s /q "%BDIR%"

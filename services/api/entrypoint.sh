@@ -6,4 +6,4 @@ npx prisma migrate deploy --schema ./prisma/schema.prisma
 echo "[entrypoint] Migrations applied successfully"
 
 echo "[entrypoint] Starting API server..."
-exec node dist/services/api/src/main.js
+exec node dist/src/main.js

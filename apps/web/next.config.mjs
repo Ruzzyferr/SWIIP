@@ -48,6 +48,7 @@ const nextConfig = {
 
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion'],
+    outputFileTracingRoot: resolve(__dirname, '../../'),
   },
 
   webpack(config) {

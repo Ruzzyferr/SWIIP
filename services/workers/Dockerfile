@@ -34,13 +34,23 @@ RUN pnpm --filter @constchat/workers build
 COPY services/api/prisma ./services/workers/prisma
 RUN cd services/workers && npx prisma generate --schema=prisma/schema.prisma
 
+# Find where Prisma client was actually generated (pnpm hoisting may vary)
+RUN PRISMA_DIR=$(find /app -path "*/node_modules/.prisma/client" -type d | head -1) && \
+    echo "Found .prisma at: $PRISMA_DIR" && \
+    test -n "$PRISMA_DIR"
+
 # Create flat deployment
 RUN pnpm --filter @constchat/workers deploy --prod /app/deploy
 RUN cp -r /app/services/workers/dist /app/deploy/dist
 RUN cp -r /app/services/workers/prisma /app/deploy/prisma
 # Copy the already-generated Prisma client into deploy dir
-RUN cp -r /app/services/workers/node_modules/.prisma /app/deploy/node_modules/.prisma
-RUN cp -r /app/services/workers/node_modules/@prisma/client /app/deploy/node_modules/@prisma/client
+RUN PRISMA_DOT=$(find /app -path "*/node_modules/.prisma" -not -path "/app/deploy/*" -type d | head -1) && \
+    PRISMA_CLIENT=$(find /app -path "*/node_modules/@prisma/client" -not -path "/app/deploy/*" -type d | head -1) && \
+    echo "Copying .prisma from: $PRISMA_DOT" && \
+    echo "Copying @prisma/client from: $PRISMA_CLIENT" && \
+    test -n "$PRISMA_DOT" && test -n "$PRISMA_CLIENT" && \
+    cp -r "$PRISMA_DOT" /app/deploy/node_modules/.prisma && \
+    cp -r "$PRISMA_CLIENT" /app/deploy/node_modules/@prisma/client
 
 # ── Stage 3: runner ──────────────────────────────────────────────────────────
 FROM node:22-slim AS runner

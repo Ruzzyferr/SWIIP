@@ -38,8 +38,19 @@ RUN pnpm --filter @constchat/api deploy --prod /app/deploy
 RUN cp -r /app/services/api/dist /app/deploy/dist
 RUN cp -r /app/services/api/prisma /app/deploy/prisma
 # Copy the already-generated Prisma client into deploy dir
-RUN cp -r /app/services/api/node_modules/.prisma /app/deploy/node_modules/.prisma
-RUN cp -r /app/services/api/node_modules/@prisma/client /app/deploy/node_modules/@prisma/client
+RUN PRISMA_DOT=$(find /app -path "*/node_modules/.prisma" -not -path "/app/deploy/*" -type d | head -1) && \
+    PRISMA_CLIENT=$(find /app -path "*/node_modules/@prisma/client" -not -path "/app/deploy/*" -type d | head -1) && \
+    echo "Copying .prisma from: $PRISMA_DOT" && \
+    echo "Copying @prisma/client from: $PRISMA_CLIENT" && \
+    test -n "$PRISMA_DOT" && test -n "$PRISMA_CLIENT" && \
+    cp -r "$PRISMA_DOT" /app/deploy/node_modules/.prisma && \
+    cp -r "$PRISMA_CLIENT" /app/deploy/node_modules/@prisma/client
+# Copy prisma CLI so entrypoint can run migrations without npx downloading latest
+RUN PRISMA_CLI=$(find /app -path "*/node_modules/prisma" -not -path "/app/deploy/*" -type d | head -1) && \
+    PRISMA_ENGINES=$(find /app -path "*/node_modules/@prisma/engines" -not -path "/app/deploy/*" -type d | head -1) && \
+    test -n "$PRISMA_CLI" && \
+    cp -r "$PRISMA_CLI" /app/deploy/node_modules/prisma && \
+    test -n "$PRISMA_ENGINES" && cp -r "$PRISMA_ENGINES" /app/deploy/node_modules/@prisma/engines || true
 
 # ── Stage 3: runner ──────────────────────────────────────────────────────────
 FROM node:22-slim AS runner
