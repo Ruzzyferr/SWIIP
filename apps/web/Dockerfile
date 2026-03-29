@@ -42,6 +42,15 @@ COPY --from=builder --chown=constchat:constchat /app/apps/web/public ./public
 COPY --from=builder --chown=constchat:constchat /app/apps/web/.next/standalone ./
 COPY --from=builder --chown=constchat:constchat /app/apps/web/.next/static ./apps/web/.next/static
 
+# pnpm standalone output only copies .pnpm store — recreate top-level symlinks
+RUN find node_modules/.pnpm -path '*/node_modules/*' -maxdepth 3 -mindepth 3 -type d | while read pkg; do \
+      name=$(echo "$pkg" | sed 's|.*/node_modules/||'); \
+      if [ ! -e "node_modules/$name" ]; then \
+        mkdir -p "node_modules/$(dirname "$name")"; \
+        ln -s "$(pwd)/$pkg" "node_modules/$name"; \
+      fi; \
+    done
+
 USER constchat
 EXPOSE 3000
 ENV PORT=3000
