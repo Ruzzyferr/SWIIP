@@ -36,7 +36,7 @@ const NAV_ITEMS = [
 
 function PlaceholderPage({ title }: { title: string }) {
   return (
-    <div className="max-w-2xl">
+    <div>
       <h3
         className="text-lg font-semibold mb-2"
         style={{ color: 'var(--color-text-primary)' }}
@@ -126,11 +126,10 @@ export function SettingsOverlay() {
             background: 'var(--color-surface-base)',
           }}
         >
-          {/* Left nav */}
+          {/* Left nav — flex-1 right-aligned so nav hugs the content area */}
           <div
-            className="flex justify-end overflow-y-auto scroll-thin"
+            className="flex-1 flex justify-end overflow-y-auto scroll-thin"
             style={{
-              width: '218px',
               flexShrink: 0,
               background: 'var(--glass-bg)',
               backdropFilter: 'blur(var(--glass-blur))',
@@ -141,7 +140,7 @@ export function SettingsOverlay() {
               paddingLeft: '20px',
             }}
           >
-            <nav className="w-full space-y-1 pb-6">
+            <nav className="w-[190px] space-y-1 pb-6">
               {Object.entries(sections).map(([section, items]) => (
                 <div key={section} className="mb-3">
                   <p
@@ -210,12 +209,14 @@ export function SettingsOverlay() {
           </div>
 
           {/* Content area */}
-          <div className="flex-1 overflow-y-auto scroll-thin px-10 py-16">
-            {renderPage()}
+          <div className="flex-1 overflow-y-auto scroll-thin py-16 px-10">
+            <div className="max-w-[740px]">
+              {renderPage()}
+            </div>
           </div>
 
           {/* Close button */}
-          <div className="flex-shrink-0 pt-16 pr-6">
+          <div className="flex-shrink-0 pt-16 pr-8 pl-4">
             <button
               onClick={closeSettings}
               className="w-9 h-9 rounded-full flex items-center justify-center transition-all duration-fast"

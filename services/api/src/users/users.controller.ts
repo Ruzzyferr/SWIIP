@@ -83,15 +83,26 @@ export class UsersController {
     await this.usersService.acceptFriendRequest(user.userId, targetId);
   }
 
+  @Put('users/@me/relationships/:targetId/block')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Block a user' })
+  async blockUser(
+    @CurrentUser() user: AuthUser,
+    @Param('targetId') targetId: string,
+  ) {
+    await this.usersService.blockUser(user.userId, targetId);
+  }
+
   @Delete('users/@me/relationships/:targetId')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Remove friend, decline request, or unblock' })
+  @ApiQuery({ name: 'type', required: false, description: 'Pass "unblock" to unblock a user' })
   async removeRelationship(
     @CurrentUser() user: AuthUser,
     @Param('targetId') targetId: string,
     @Query('type') type?: string,
   ) {
-    if (type === 'block') {
+    if (type === 'unblock') {
       await this.usersService.unblockUser(user.userId, targetId);
     } else {
       await this.usersService.removeFriend(user.userId, targetId);

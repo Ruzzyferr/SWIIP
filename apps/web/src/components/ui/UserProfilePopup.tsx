@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { MessageSquare, UserPlus, UserMinus, ShieldOff, Loader2 } from 'lucide-react';
+import { MessageSquare, UserPlus, UserMinus, ShieldOff, Loader2, Check, X, Ban } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { useUIStore } from '@/stores/ui.store';
 import { usePresenceStore } from '@/stores/presence.store';
@@ -11,7 +11,9 @@ import {
   getMutualGuilds,
   sendFriendRequest,
   removeFriend,
+  acceptFriendRequest,
   blockUser,
+  unblockUser,
   type UserProfile,
   type RelationshipType,
 } from '@/lib/api/friends.api';
@@ -30,6 +32,7 @@ export function UserProfilePopup() {
   const [relationshipType, setRelationshipType] = useState<RelationshipType | null>(null);
 
   const status = usePresenceStore((s) => userId ? (s.users[userId]?.status ?? 'offline') : 'offline');
+  const customStatus = usePresenceStore((s) => userId ? s.users[userId]?.customStatus : undefined);
 
   useEffect(() => {
     if (!userId) return;
@@ -86,6 +89,36 @@ export function UserProfilePopup() {
     }
   }, [userId]);
 
+  const handleAcceptFriend = useCallback(async () => {
+    if (!userId) return;
+    try {
+      await acceptFriendRequest(userId);
+      setRelationshipType('FRIEND');
+    } catch {
+      toastError('Failed to accept friend request');
+    }
+  }, [userId]);
+
+  const handleDeclineFriend = useCallback(async () => {
+    if (!userId) return;
+    try {
+      await removeFriend(userId);
+      setRelationshipType(null);
+    } catch {
+      toastError('Failed to decline friend request');
+    }
+  }, [userId]);
+
+  const handleUnblock = useCallback(async () => {
+    if (!userId) return;
+    try {
+      await unblockUser(userId);
+      setRelationshipType(null);
+    } catch {
+      toastError('Failed to unblock user');
+    }
+  }, [userId]);
+
   if (!userId) return null;
 
   const user = profile?.user;
@@ -134,6 +167,11 @@ export function UserProfilePopup() {
               <p className="text-sm" style={{ color: 'var(--color-text-secondary)' }}>
                 {username}{user?.discriminator && user.discriminator !== '0' ? `#${user.discriminator}` : ''}
               </p>
+              {customStatus && (
+                <p className="text-sm mt-1" style={{ color: 'var(--color-text-tertiary)' }}>
+                  {customStatus}
+                </p>
+              )}
             </div>
 
             {/* Bio */}
@@ -202,29 +240,62 @@ export function UserProfilePopup() {
                   <UserMinus size={14} />
                   Remove
                 </button>
+              ) : relationshipType === 'PENDING_INCOMING' ? (
+                <>
+                  <button
+                    onClick={handleAcceptFriend}
+                    className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    style={{
+                      background: 'var(--color-success-default)',
+                      color: '#fff',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
+                  >
+                    <Check size={14} />
+                    Accept
+                  </button>
+                  <button
+                    onClick={handleDeclineFriend}
+                    className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
+                    style={{
+                      background: 'var(--color-surface-raised)',
+                      color: 'var(--color-danger-default)',
+                    }}
+                    onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-danger-muted)'; }}
+                    onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--color-surface-raised)'; }}
+                  >
+                    <X size={14} />
+                    Decline
+                  </button>
+                </>
               ) : relationshipType === 'PENDING_OUTGOING' ? (
                 <button
-                  disabled
-                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium opacity-60"
+                  onClick={handleDeclineFriend}
+                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                   style={{
                     background: 'var(--color-surface-raised)',
                     color: 'var(--color-text-secondary)',
                   }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-danger-muted)'; e.currentTarget.style.color = 'var(--color-danger-default)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'var(--color-surface-raised)'; e.currentTarget.style.color = 'var(--color-text-secondary)'; }}
                 >
-                  <UserPlus size={14} />
-                  Pending
+                  <X size={14} />
+                  Cancel Request
                 </button>
               ) : relationshipType === 'BLOCKED' ? (
                 <button
-                  disabled
-                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium opacity-60"
+                  onClick={handleUnblock}
+                  className="flex items-center justify-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
                   style={{
                     background: 'var(--color-danger-muted)',
                     color: 'var(--color-danger-default)',
                   }}
+                  onMouseEnter={(e) => { e.currentTarget.style.opacity = '0.85'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.opacity = '1'; }}
                 >
                   <ShieldOff size={14} />
-                  Blocked
+                  Unblock
                 </button>
               ) : (
                 <button

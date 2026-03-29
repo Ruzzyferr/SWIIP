@@ -9,6 +9,7 @@ import { usePresenceStore } from '@/stores/presence.store';
 import { updateProfile, uploadAvatar, uploadBanner } from '@/lib/api/users.api';
 import { getGatewayClient } from '@/lib/gateway/GatewayClient';
 import { toastError } from '@/lib/toast';
+import { updateUserStatus } from '@/lib/presence';
 import type { PresenceStatus } from '@constchat/protocol';
 
 // ---------------------------------------------------------------------------
@@ -198,7 +199,7 @@ export function AccountPage() {
   };
 
   return (
-    <div className="max-w-2xl">
+    <div>
       <h2 className="text-xl font-bold mb-6" style={{ color: 'var(--color-text-primary)' }}>
         My Account
       </h2>
@@ -378,9 +379,7 @@ export function AccountPage() {
                     <button
                       key={opt.value}
                       onClick={() => {
-                        const gw = getGatewayClient();
-                        gw.updatePresence(opt.value);
-                        setPresence(user.id, { status: opt.value, customStatus });
+                        updateUserStatus(user.id, opt.value, customStatus);
                       }}
                       className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
                       style={{
@@ -420,9 +419,7 @@ export function AccountPage() {
                       autoFocus
                       onKeyDown={(e) => {
                         if (e.key === 'Enter') {
-                          const gw = getGatewayClient();
-                          gw.updatePresence(status ?? 'online', [], statusDraft || undefined);
-                          setPresence(user.id, { status: status ?? 'online', customStatus: statusDraft });
+                          updateUserStatus(user.id, status ?? 'online', statusDraft || undefined);
                           setEditingStatus(false);
                         }
                         if (e.key === 'Escape') {
@@ -433,9 +430,7 @@ export function AccountPage() {
                     />
                     <button
                       onClick={() => {
-                        const gw = getGatewayClient();
-                        gw.updatePresence(status ?? 'online', [], statusDraft || undefined);
-                        setPresence(user.id, { status: status ?? 'online', customStatus: statusDraft });
+                        updateUserStatus(user.id, status ?? 'online', statusDraft || undefined);
                         setEditingStatus(false);
                       }}
                       className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"

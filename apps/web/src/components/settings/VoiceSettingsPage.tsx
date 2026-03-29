@@ -438,7 +438,7 @@ export function VoiceSettingsPage() {
   const { inputs, outputs } = useMediaDevices();
 
   return (
-    <div className="max-w-2xl space-y-8">
+    <div className="space-y-8">
       <h2 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
         Voice & Video
       </h2>

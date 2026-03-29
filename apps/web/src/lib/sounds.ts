@@ -1,3 +1,20 @@
+import { useVoiceStore } from '@/stores/voice.store';
+import { usePresenceStore } from '@/stores/presence.store';
+import { useAuthStore } from '@/stores/auth.store';
+
+/** Check if notification sounds should play (respects deafen, settings, and DND). */
+export function shouldPlaySound(): boolean {
+  const vs = useVoiceStore.getState();
+  if (vs.selfDeafened) return false;
+  if (!vs.settings.notificationSounds) return false;
+  const userId = useAuthStore.getState().user?.id;
+  if (userId) {
+    const presence = usePresenceStore.getState().users[userId];
+    if (presence?.status === 'dnd') return false;
+  }
+  return true;
+}
+
 let audioCtx: AudioContext | null = null;
 
 function getAudioContext(): AudioContext {

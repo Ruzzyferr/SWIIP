@@ -47,13 +47,13 @@ export async function removeFriend(targetId: string): Promise<void> {
 }
 
 export async function blockUser(targetId: string): Promise<void> {
-  await apiClient.delete(`/users/@me/relationships/${targetId}`, {
-    params: { type: 'block' },
-  });
+  await apiClient.put(`/users/@me/relationships/${targetId}/block`);
 }
 
 export async function unblockUser(targetId: string): Promise<void> {
-  await apiClient.delete(`/users/@me/relationships/${targetId}`);
+  await apiClient.delete(`/users/@me/relationships/${targetId}`, {
+    params: { type: 'unblock' },
+  });
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfile> {

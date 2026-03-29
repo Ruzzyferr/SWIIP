@@ -217,12 +217,25 @@ async function handlePresenceUpdate(
 
   session.presence = data.status === 'invisible' ? 'offline' : data.status;
 
+  // Broadcast 'offline' to others when invisible, but keep real status internally
+  const broadcastStatus = data.status === 'invisible' ? 'offline' : data.status;
   await context.presenceManager.updatePresence(
     userId,
-    data.status,
+    broadcastStatus,
     guildIds,
-    data.customStatus,
+    data.status === 'invisible' ? undefined : data.customStatus,
   );
+
+  // Store actual status (including invisible) for the user's own awareness
+  if (data.status === 'invisible') {
+    await context.presenceManager.setActualStatus(userId, 'invisible');
+  }
+
+  // Persist to database (fire-and-forget)
+  forwardToApi(context, `/internal/users/${userId}/presence`, {
+    status: data.status,
+    customStatusText: data.customStatus,
+  }).catch(() => {});
 }
 
 /**

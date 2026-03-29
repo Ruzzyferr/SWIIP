@@ -9,10 +9,10 @@ import {
   Track,
   VideoPresets,
   RemoteAudioTrack,
+  RemoteTrackPublication,
   DefaultReconnectPolicy,
   type RemoteParticipant,
   type RemoteTrack,
-  type RemoteTrackPublication,
   type LocalParticipant,
   type LocalTrackPublication,
   type Participant,
@@ -23,7 +23,7 @@ import { getGatewayClient } from '@/lib/gateway/GatewayClient';
 import { getPlatformProvider } from '@/lib/platform';
 import { useVoiceStore, type AudioMode } from '@/stores/voice.store';
 import { useAuthStore } from '@/stores/auth.store';
-import { playJoinSound, playLeaveSound } from '@/lib/sounds';
+import { playJoinSound, playLeaveSound, shouldPlaySound } from '@/lib/sounds';
 import {
   AudioPipeline,
   BrowserAudioStrategy,
@@ -60,7 +60,9 @@ export function useLiveKitRoom() {
   const credentialTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const trackOwnerRef = useRef<Map<string, string>>(new Map()); // trackSid -> userId
-  const screenShareWasActive = useRef(false); // tracks screen share state across reconnects
+  const trackSourceRef = useRef<Map<string, 'mic' | 'screen'>>(new Map()); // trackSid -> source type
+  /** Timestamp until which screen-share unpublish events should be suppressed (reconnect grace). */
+  const screenShareReconnectUntil = useRef(0);
   const [videoTracks, setVideoTracks] = useState<VideoTrackMap>({});
 
   const livekitToken = useVoiceStore((s) => s.livekitToken);
@@ -174,19 +176,54 @@ export function useLiveKitRoom() {
       if (existing) {
         try {
           existing.pause();
+          // Clear srcObject for raw screen share audio elements
+          if (existing.srcObject) existing.srcObject = null;
           existing.remove();
         } catch {
           // ignore cleanup failures
         }
         audioElementsRef.current.delete(trackSid);
         trackOwnerRef.current.delete(trackSid);
+        trackSourceRef.current.delete(trackSid);
       }
     };
 
-    const attachAudio = async (track: RemoteTrack) => {
+    const attachAudio = async (track: RemoteTrack, participant?: RemoteParticipant) => {
       if (track.kind !== Track.Kind.Audio) return;
       const trackSid = track.sid ?? `${Date.now()}-${Math.random()}`;
       detachAudio(trackSid);
+      // Map owner and source type
+      if (participant) {
+        trackOwnerRef.current.set(trackSid, participant.identity);
+      }
+      const isScreenShareAudio = track.source === Track.Source.ScreenShareAudio;
+      trackSourceRef.current.set(trackSid, isScreenShareAudio ? 'screen' : 'mic');
+
+      if (isScreenShareAudio) {
+        // Screen share audio bypasses LiveKit's audio pipeline entirely.
+        // This prevents noise suppression/processing from cutting the stream audio
+        // when other participants speak.
+        const element = document.createElement('audio');
+        element.autoplay = true;
+        element.setAttribute('playsinline', 'true');
+        const stream = new MediaStream([track.mediaStreamTrack]);
+        element.srcObject = stream;
+        element.muted = false;
+        const state = useVoiceStore.getState();
+        const globalVol = state.selfDeafened ? 0 : state.settings.outputVolume / 100;
+        const streamVol = (state.streamVolumes[participant?.identity ?? ''] ?? 100) / 100;
+        element.volume = Math.min(globalVol * streamVol, 1);
+        document.body.appendChild(element);
+        audioElementsRef.current.set(trackSid, element);
+        try {
+          await element.play();
+        } catch {
+          room.startAudio().catch(() => {});
+        }
+        return;
+      }
+
+      // Normal mic audio — use LiveKit's track.attach() which goes through audio pipeline
       const element = track.attach() as HTMLAudioElement;
       element.autoplay = true;
       element.setAttribute('playsinline', 'true');
@@ -213,7 +250,7 @@ export function useLiveKitRoom() {
     };
 
     // --- Event handlers ---
-    room.on(RoomEvent.ConnectionStateChanged, (state: ConnectionState) => {
+    room.on(RoomEvent.ConnectionStateChanged, async (state: ConnectionState) => {
       console.debug('[LiveKit] Connection state:', state);
       switch (state) {
         case ConnectionState.Connecting:
@@ -239,6 +276,12 @@ export function useLiveKitRoom() {
                 screenSharing: participant.isScreenShareEnabled,
               });
             }
+            // Re-attach audio tracks after reconnect
+            for (const pub of participant.audioTrackPublications.values()) {
+              if (pub.track && pub.isSubscribed) {
+                await attachAudio(pub.track as RemoteTrack, participant);
+              }
+            }
             for (const pub of participant.videoTrackPublications.values()) {
               if (pub.track && pub.isSubscribed) {
                 const isScreen = pub.source === Track.Source.ScreenShare;
@@ -263,11 +306,17 @@ export function useLiveKitRoom() {
           // Retry to cover cases where tracks aren't fully subscribed yet
           setTimeout(() => applyVolumes(), 800);
 
-          // Re-publish screen share if it was active before reconnect
-          if (screenShareWasActive.current) {
-            screenShareWasActive.current = false;
+          // Re-publish screen share if it was active before reconnect.
+          // We check the grace-period timestamp instead of a boolean flag
+          // to avoid race conditions with late LocalTrackUnpublished events.
+          if (screenShareReconnectUntil.current > 0 && useVoiceStore.getState().screenShareEnabled) {
             const hasScreenTrack = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
-            if (!hasScreenTrack) {
+            if (hasScreenTrack) {
+              // Track survived the reconnect — nothing to do.
+              console.debug('[LiveKit] Screen share track survived reconnect');
+              screenShareReconnectUntil.current = 0;
+            } else {
+              // Track was lost — try to re-publish.
               console.debug('[LiveKit] Re-publishing screen share after reconnect');
               const quality = useVoiceStore.getState().screenShareQuality;
               const presets = {
@@ -277,7 +326,6 @@ export function useLiveKitRoom() {
               } as const;
               const preset = presets[quality as keyof typeof presets] ?? presets['1080p30'];
               const wantAudio = useVoiceStore.getState().screenShareAudio;
-              // Direct re-publish — no toggle trick
               room.localParticipant.setScreenShareEnabled(true, {
                 contentHint: preset.fps >= 60 ? 'motion' : 'detail',
                 audio: wantAudio,
@@ -288,20 +336,39 @@ export function useLiveKitRoom() {
               }, {
                 simulcast: false,
                 videoEncoding: { maxBitrate: preset.maxBitrate, maxFramerate: preset.fps },
+              }).then(() => {
+                console.debug('[LiveKit] Screen share re-published successfully');
               }).catch((err) => {
                 console.warn('[LiveKit] Failed to re-publish screen share:', err);
                 useVoiceStore.getState().setScreenShareEnabled(false);
+                useVoiceStore.getState().setError(
+                  'Screen share stopped due to connection loss. Click the screen share button to restart.',
+                );
+              }).finally(() => {
+                screenShareReconnectUntil.current = 0;
               });
             }
+          } else {
+            screenShareReconnectUntil.current = 0;
           }
           break;
         case ConnectionState.Reconnecting:
           setConnectionState('reconnecting');
-          // Save screen share state before reconnect tears it down
-          screenShareWasActive.current = useVoiceStore.getState().screenShareEnabled;
+          // Save screen share state before reconnect tears it down.
+          // Use a 15-second grace period so that late LocalTrackUnpublished
+          // events don't falsely stop the share after we transition to Connected.
+          if (useVoiceStore.getState().screenShareEnabled) {
+            screenShareReconnectUntil.current = Date.now() + 15_000;
+          }
           break;
         case ConnectionState.Disconnected:
           setConnectionState('disconnected');
+          screenShareReconnectUntil.current = 0;
+          // If we were previously connected (i.e. reconnect failed), clean up properly
+          if (useVoiceStore.getState().currentChannelId) {
+            setError('Voice connection lost. Please rejoin the channel.');
+            disconnect();
+          }
           break;
       }
     });
@@ -368,8 +435,7 @@ export function useLiveKitRoom() {
         screenSharing: participant.isScreenShareEnabled,
       });
       bindSpeakingListener(participant);
-      const vs = useVoiceStore.getState();
-      if (!vs.selfDeafened && vs.settings.notificationSounds) {
+      if (shouldPlaySound()) {
         playJoinSound();
       }
     });
@@ -377,8 +443,7 @@ export function useLiveKitRoom() {
     room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
       if (!currentChannelId) return;
       removeParticipant(currentChannelId, participant.identity);
-      const vs = useVoiceStore.getState();
-      if (!vs.selfDeafened && vs.settings.notificationSounds) {
+      if (shouldPlaySound()) {
         playLeaveSound();
       }
     });
@@ -386,9 +451,6 @@ export function useLiveKitRoom() {
     room.on(
       RoomEvent.TrackSubscribed,
       async (track: RemoteTrack, publication: RemoteTrackPublication, participant: RemoteParticipant) => {
-        if (track.kind === Track.Kind.Audio && track.sid) {
-          trackOwnerRef.current.set(track.sid, participant.identity);
-        }
         if (track.kind === Track.Kind.Video) {
           const isScreen = publication.source === Track.Source.ScreenShare;
           updateVideoTrack(
@@ -399,12 +461,17 @@ export function useLiveKitRoom() {
           if (currentChannelId) {
             if (isScreen) {
               setParticipantScreenShare(currentChannelId, participant.identity, true);
+              // Auto-watch new screen shares
+              const ws = useVoiceStore.getState().watchingStreams;
+              if (ws[participant.identity] === undefined) {
+                useVoiceStore.getState().setWatchingStream(participant.identity, true);
+              }
             } else {
               setParticipantVideo(currentChannelId, participant.identity, true);
             }
           }
         }
-        await attachAudio(track);
+        await attachAudio(track, participant);
         // Apply persisted volume to newly subscribed audio tracks.
         // Use initial delay + retry to ensure Web Audio pipeline is ready.
         if (track.kind === Track.Kind.Audio) {
@@ -429,6 +496,8 @@ export function useLiveKitRoom() {
         if (currentChannelId) {
           if (isScreen) {
             setParticipantScreenShare(currentChannelId, participant.identity, false);
+            // Clean up stream volume/watching state when screen share ends
+            useVoiceStore.getState().clearStreamState(participant.identity);
           } else {
             setParticipantVideo(currentChannelId, participant.identity, false);
           }
@@ -509,10 +578,13 @@ export function useLiveKitRoom() {
         if (currentChannelId) {
           setParticipantScreenShare(currentChannelId, participant.identity, false);
         }
-        // Only sync screen share stop if NOT reconnecting and not flagged for re-publish.
+        // Only sync screen share stop if NOT in a reconnect grace period.
         // During LiveKit reconnect, tracks get unpublished/republished automatically.
-        // screenShareWasActive ref prevents false stop during reconnect transitions.
-        if (!screenShareWasActive.current && room.state !== ConnectionState.Reconnecting) {
+        // The timestamp-based grace window prevents late unpublish events from
+        // falsely stopping the share after transitioning back to Connected.
+        const inReconnectGrace = Date.now() < screenShareReconnectUntil.current
+          || room.state === ConnectionState.Reconnecting;
+        if (!inReconnectGrace) {
           useVoiceStore.getState().setScreenShareEnabled(false);
           const gw = getGatewayClient();
           gw.send(OpCode.DISPATCH, { t: ClientEventType.SCREEN_SHARE_STOP, d: {} });
@@ -679,21 +751,35 @@ export function useLiveKitRoom() {
     const globalVol = state.selfDeafened ? 0 : state.settings.outputVolume / 100;
 
     // Apply via LiveKit's RemoteAudioTrack.setVolume (Web Audio API GainNode)
+    // Screen share audio and mic audio use independent volume controls.
     for (const [, participant] of room.remoteParticipants) {
       const userVol = (state.userVolumes[participant.identity] ?? 100) / 100;
-      const finalVol = globalVol * userVol;
+      const streamVol = (state.streamVolumes[participant.identity] ?? 100) / 100;
+
       for (const pub of participant.audioTrackPublications.values()) {
         if (pub.track && pub.track instanceof RemoteAudioTrack) {
-          pub.track.setVolume(finalVol);
+          const isScreenAudio = pub.source === Track.Source.ScreenShareAudio;
+          const trackVol = isScreenAudio ? streamVol : userVol;
+          pub.track.setVolume(globalVol * trackVol);
+          // Keep trackOwnerRef in sync in case SID was assigned after initial mapping
+          if (pub.track.sid) {
+            trackOwnerRef.current.set(pub.track.sid, participant.identity);
+            trackSourceRef.current.set(pub.track.sid, isScreenAudio ? 'screen' : 'mic');
+          }
         }
       }
     }
 
-    // Also update raw HTMLAudioElement volumes as fallback
+    // Also update raw HTMLAudioElement volumes (used for screen share audio bypass)
     for (const [trackSid, audioElement] of audioElementsRef.current.entries()) {
       const ownerId = trackOwnerRef.current.get(trackSid);
-      const userVol = ownerId ? (state.userVolumes[ownerId] ?? 100) / 100 : 1;
-      audioElement.volume = Math.min(globalVol * userVol, 1);
+      const isScreen = trackSourceRef.current.get(trackSid) === 'screen';
+      const vol = ownerId
+        ? ((isScreen
+            ? (state.streamVolumes[ownerId] ?? 100)
+            : (state.userVolumes[ownerId] ?? 100)) / 100)
+        : 1;
+      audioElement.volume = Math.min(globalVol * vol, 1);
     }
   }, []);
 
@@ -713,6 +799,44 @@ export function useLiveKitRoom() {
     });
     return unsub;
   }, [applyVolumes]);
+
+  // Subscribe to per-stream volume changes
+  useEffect(() => {
+    let prev = useVoiceStore.getState().streamVolumes;
+    const unsub = useVoiceStore.subscribe((state) => {
+      if (state.streamVolumes !== prev) {
+        prev = state.streamVolumes;
+        applyVolumes();
+      }
+    });
+    return unsub;
+  }, [applyVolumes]);
+
+  // Subscribe to watchingStreams changes — toggle track subscriptions
+  useEffect(() => {
+    let prev = useVoiceStore.getState().watchingStreams;
+    const unsub = useVoiceStore.subscribe((state) => {
+      if (state.watchingStreams !== prev) {
+        prev = state.watchingStreams;
+        const room = roomRef.current;
+        if (!room || room.state !== ConnectionState.Connected) return;
+
+        for (const [, participant] of room.remoteParticipants) {
+          const isWatching = state.watchingStreams[participant.identity] !== false;
+          for (const pub of participant.trackPublications.values()) {
+            if (
+              (pub.source === Track.Source.ScreenShare ||
+               pub.source === Track.Source.ScreenShareAudio) &&
+              'setSubscribed' in pub
+            ) {
+              (pub as RemoteTrackPublication).setSubscribed(isWatching);
+            }
+          }
+        }
+      }
+    });
+    return unsub;
+  }, []);
 
   // Sync input device to LiveKit + notify pipeline of device change
   useEffect(() => {

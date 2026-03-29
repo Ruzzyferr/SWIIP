@@ -92,7 +92,16 @@ export class InternalController {
       },
     });
 
-    const guilds = memberships.map((m: any) => m.guild);
+    const guilds = memberships.map((m: any) => {
+      const guild = m.guild;
+      if (guild.roles) {
+        guild.roles = guild.roles.map((r: any) => {
+          const { permissionsInteger, ...rest } = r;
+          return { ...rest, permissions: (permissionsInteger ?? 0n).toString() };
+        });
+      }
+      return guild;
+    });
 
     const dmParticipants = await this.prisma.dMParticipant.findMany({
       where: { userId, leftAt: null },
@@ -211,5 +220,58 @@ export class InternalController {
       },
     });
     return { ok: true };
+  }
+
+  @Post('users/:userId/presence')
+  async updatePresenceState(
+    @Param('userId') userId: string,
+    @Headers('x-internal-token') token: string,
+    @Body() body: { status: string; customStatusText?: string; customStatusEmoji?: string },
+  ) {
+    this.validateToken(token);
+
+    const statusMap: Record<string, string> = {
+      online: 'ONLINE',
+      idle: 'IDLE',
+      dnd: 'DND',
+      offline: 'OFFLINE',
+      invisible: 'INVISIBLE',
+    };
+    const dbStatus = statusMap[body.status] ?? 'ONLINE';
+
+    await this.prisma.presenceState.upsert({
+      where: { userId },
+      create: {
+        userId,
+        status: dbStatus as any,
+        customStatusText: body.customStatusText ?? null,
+        customStatusEmoji: body.customStatusEmoji ?? null,
+        lastSeenAt: new Date(),
+      },
+      update: {
+        status: dbStatus as any,
+        customStatusText: body.customStatusText ?? null,
+        customStatusEmoji: body.customStatusEmoji ?? null,
+        lastSeenAt: new Date(),
+      },
+    });
+
+    return { ok: true };
+  }
+
+  @Get('users/:userId/presence')
+  async getPresenceState(
+    @Param('userId') userId: string,
+    @Headers('x-internal-token') token: string,
+  ) {
+    this.validateToken(token);
+
+    const state = await this.prisma.presenceState.findUnique({
+      where: { userId },
+      select: { status: true, customStatusText: true, customStatusEmoji: true },
+    });
+
+    if (!state) return { status: 'ONLINE', customStatusText: null, customStatusEmoji: null };
+    return state;
   }
 }

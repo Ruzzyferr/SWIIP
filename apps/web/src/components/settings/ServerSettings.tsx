@@ -1018,6 +1018,15 @@ export function ServerSettings({ guildId, onClose }: ServerSettingsProps) {
     router.push('/channels/@me');
   };
 
+  // Escape to close
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onClose();
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [onClose]);
+
   // Group nav items by section
   const sections = NAV_ITEMS.reduce<Record<string, typeof NAV_ITEMS>>((acc, item) => {
     if (!acc[item.section]) acc[item.section] = [];
@@ -1060,67 +1069,88 @@ export function ServerSettings({ guildId, onClose }: ServerSettingsProps) {
         className="fixed inset-0 flex"
         style={{ zIndex: 'var(--z-modal)', background: 'var(--color-surface-base)' }}
       >
-        {/* Sidebar */}
+        {/* Sidebar — flex-1 right-aligned so nav hugs the content area */}
         <div
-          className="w-56 flex-shrink-0 flex flex-col h-full overflow-y-auto py-6 px-3"
+          className="flex-1 flex justify-end overflow-y-auto scroll-thin"
           style={{
+            flexShrink: 0,
             background: 'var(--color-surface-elevated)',
             borderRight: '1px solid var(--color-border-subtle)',
+            paddingTop: '60px',
+            paddingRight: '8px',
+            paddingLeft: '20px',
           }}
         >
-          <h3 className="text-xs font-bold uppercase tracking-wider px-2 mb-3"
-            style={{ color: 'var(--color-text-disabled)' }}>
-            {guild?.name ?? 'Server'} Settings
-          </h3>
+          <nav className="w-[190px] space-y-1 pb-6">
+            <h3 className="text-xs font-bold uppercase tracking-wider px-2 mb-3"
+              style={{ color: 'var(--color-text-disabled)' }}>
+              {guild?.name ?? 'Server'} Settings
+            </h3>
 
-          {Object.entries(sections).map(([section, items]) => (
-            <div key={section} className="mb-4">
-              <p className="text-[10px] font-bold uppercase tracking-wider px-2 mb-1"
-                style={{ color: 'var(--color-text-disabled)' }}>
-                {section}
-              </p>
-              {items.map((item) => {
-                const Icon = item.icon;
-                const isActive = activePage === item.id;
-                return (
-                  <button
-                    key={item.id}
-                    onClick={() => setActivePage(item.id)}
-                    className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors mb-0.5"
-                    style={{
-                      background: isActive ? 'var(--color-accent-subtle)' : 'transparent',
-                      color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
-                    }}
-                  >
-                    <Icon size={16} />
-                    {item.label}
-                  </button>
-                );
-              })}
-            </div>
-          ))}
+            {Object.entries(sections).map(([section, items]) => (
+              <div key={section} className="mb-4">
+                <p className="text-[10px] font-bold uppercase tracking-wider px-2 mb-1"
+                  style={{ color: 'var(--color-text-disabled)' }}>
+                  {section}
+                </p>
+                {items.map((item) => {
+                  const Icon = item.icon;
+                  const isActive = activePage === item.id;
+                  return (
+                    <button
+                      key={item.id}
+                      onClick={() => setActivePage(item.id)}
+                      className="w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors mb-0.5"
+                      style={{
+                        background: isActive ? 'var(--color-accent-subtle)' : 'transparent',
+                        color: isActive ? 'var(--color-text-primary)' : 'var(--color-text-secondary)',
+                      }}
+                    >
+                      <Icon size={16} />
+                      {item.label}
+                    </button>
+                  );
+                })}
+              </div>
+            ))}
+          </nav>
         </div>
 
         {/* Content */}
-        <div className="flex-1 overflow-y-auto">
-          <div className="max-w-2xl mx-auto py-8 px-10">
+        <div className="flex-1 overflow-y-auto scroll-thin py-16 px-10">
+          <div className="max-w-[740px]">
             {renderPage()}
           </div>
         </div>
 
-        {/* Close button — pushed below Electron titlebar overlay (32px) */}
-        <button
-          onClick={onClose}
-          className="absolute right-4 p-2 rounded-full transition-colors"
-          style={{
-            top: 'calc(env(titlebar-area-height, 32px) + 8px)',
-            color: 'var(--color-text-tertiary)',
-            border: '2px solid var(--color-border-default)',
-          }}
-          aria-label="Close settings"
-        >
-          <X size={20} />
-        </button>
+        {/* Close button */}
+        <div className="flex-shrink-0 pt-16 pr-8 pl-4">
+          <button
+            onClick={onClose}
+            className="w-9 h-9 rounded-full flex items-center justify-center transition-all duration-fast"
+            style={{
+              border: '2px solid var(--color-border-strong)',
+              color: 'var(--color-text-secondary)',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-text-primary)';
+              e.currentTarget.style.color = 'var(--color-text-primary)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.borderColor = 'var(--color-border-strong)';
+              e.currentTarget.style.color = 'var(--color-text-secondary)';
+            }}
+            aria-label="Close settings"
+          >
+            <X size={16} />
+          </button>
+          <p
+            className="text-xs mt-1 text-center"
+            style={{ color: 'var(--color-text-disabled)' }}
+          >
+            ESC
+          </p>
+        </div>
       </motion.div>
     </AnimatePresence>
   );

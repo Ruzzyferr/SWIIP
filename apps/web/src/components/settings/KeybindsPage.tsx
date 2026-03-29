@@ -40,7 +40,7 @@ function KeyCap({ children }: { children: string }) {
 
 export function KeybindsPage() {
   return (
-    <div className="max-w-2xl space-y-8">
+    <div className="space-y-8">
       <div>
         <h2 className="text-xl font-bold" style={{ color: 'var(--color-text-primary)' }}>
           Keybinds

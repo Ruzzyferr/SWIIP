@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import {
   Users,
@@ -13,6 +13,9 @@ import {
   Clock,
   Ban,
   Menu,
+  UserMinus,
+  ShieldOff,
+  User,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -25,8 +28,8 @@ import {
   acceptFriendRequest,
   removeFriend,
   blockUser,
+  unblockUser,
   type RelationshipPayload,
-  type RelationshipType,
 } from '@/lib/api/friends.api';
 import { openDM } from '@/lib/api/dms.api';
 import { useDMsStore } from '@/stores/dms.store';
@@ -53,7 +56,6 @@ function AddFriendForm() {
     e.preventDefault();
     setStatus('idle');
 
-    // Parse "username#discriminator"
     const parts = input.split('#');
     if (parts.length !== 2 || !parts[0] || !parts[1]) {
       setStatus('error');
@@ -68,7 +70,7 @@ function AddFriendForm() {
       setInput('');
     } catch (err: any) {
       setStatus('error');
-      setMessage(err?.message ?? 'Failed to send friend request');
+      setMessage(err?.response?.data?.message ?? err?.message ?? 'Failed to send friend request');
     }
   };
 
@@ -126,6 +128,114 @@ function AddFriendForm() {
 }
 
 // ---------------------------------------------------------------------------
+// Dropdown menu for friend actions
+// ---------------------------------------------------------------------------
+
+function FriendDropdown({
+  relationship,
+  onMessage,
+  onRemove,
+  onBlock,
+  onUnblock,
+  onProfile,
+  onClose,
+}: {
+  relationship: RelationshipPayload;
+  onMessage: () => void;
+  onRemove: () => void;
+  onBlock: () => void;
+  onUnblock: () => void;
+  onProfile: () => void;
+  onClose: () => void;
+}) {
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [onClose]);
+
+  const itemClass =
+    'w-full px-3 py-1.5 text-sm text-left rounded flex items-center gap-2 transition-colors';
+
+  return (
+    <div
+      ref={ref}
+      className="absolute right-0 top-full mt-1 z-50 w-48 rounded-lg py-1 shadow-xl"
+      style={{
+        background: 'var(--color-surface-overlay)',
+        border: '1px solid var(--color-border-subtle)',
+      }}
+    >
+      <button
+        className={itemClass}
+        style={{ color: 'var(--color-text-secondary)' }}
+        onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-surface-raised)'; e.currentTarget.style.color = 'var(--color-text-primary)'; }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)'; }}
+        onClick={() => { onProfile(); onClose(); }}
+      >
+        <User size={14} />
+        Profile
+      </button>
+
+      {relationship.type === 'FRIEND' && (
+        <button
+          className={itemClass}
+          style={{ color: 'var(--color-text-secondary)' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-surface-raised)'; e.currentTarget.style.color = 'var(--color-text-primary)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; e.currentTarget.style.color = 'var(--color-text-secondary)'; }}
+          onClick={() => { onMessage(); onClose(); }}
+        >
+          <MessageSquare size={14} />
+          Message
+        </button>
+      )}
+
+      <div className="my-1 mx-2 border-t" style={{ borderColor: 'var(--color-border-subtle)' }} />
+
+      {relationship.type === 'BLOCKED' ? (
+        <button
+          className={itemClass}
+          style={{ color: 'var(--color-success-default)' }}
+          onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-success-muted)'; }}
+          onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+          onClick={() => { onUnblock(); onClose(); }}
+        >
+          <ShieldOff size={14} />
+          Unblock
+        </button>
+      ) : (
+        <>
+          <button
+            className={itemClass}
+            style={{ color: 'var(--color-danger-default)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-danger-muted)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            onClick={() => { onRemove(); onClose(); }}
+          >
+            <UserMinus size={14} />
+            Remove Friend
+          </button>
+          <button
+            className={itemClass}
+            style={{ color: 'var(--color-danger-default)' }}
+            onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-danger-muted)'; }}
+            onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            onClick={() => { onBlock(); onClose(); }}
+          >
+            <Ban size={14} />
+            Block
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Friend row
 // ---------------------------------------------------------------------------
 
@@ -134,36 +244,56 @@ function FriendRow({
   onMessage,
   onAccept,
   onRemove,
+  onBlock,
+  onUnblock,
+  onProfile,
 }: {
   relationship: RelationshipPayload;
   onMessage: () => void;
   onAccept?: () => void;
   onRemove: () => void;
+  onBlock: () => void;
+  onUnblock: () => void;
+  onProfile: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
   const presence = usePresenceStore((s) => relationship.user ? s.users[relationship.user.id] : undefined);
   const status = (presence?.status ?? 'offline') as PresenceStatus;
+  const customStatus = presence?.customStatus;
 
   const isPending = relationship.type === 'PENDING_INCOMING' || relationship.type === 'PENDING_OUTGOING';
   const isBlocked = relationship.type === 'BLOCKED';
 
   if (!relationship.user) return null;
 
+  const statusText = isPending
+    ? relationship.type === 'PENDING_INCOMING' ? 'Incoming friend request' : 'Outgoing friend request'
+    : isBlocked
+    ? 'Blocked'
+    : customStatus
+    ? customStatus
+    : status === 'online' ? 'Online'
+    : status === 'idle' ? 'Idle'
+    : status === 'dnd' ? 'Do Not Disturb'
+    : 'Offline';
+
   return (
     <div
       className="flex items-center gap-3 px-4 py-2 rounded-lg transition-colors cursor-pointer"
       style={{
         background: hovered ? 'var(--color-surface-raised)' : 'transparent',
+        borderBottom: '1px solid var(--color-border-subtle)',
       }}
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => { setHovered(false); setMenuOpen(false); }}
+      onClick={onProfile}
     >
       <Avatar
         src={relationship.user.avatar}
         displayName={relationship.user.globalName ?? relationship.user.username}
         size="lg"
-        status={isPending || isBlocked ? null : status}
+        status={isPending || isBlocked ? undefined : status}
       />
 
       <div className="flex-1 min-w-0">
@@ -177,77 +307,95 @@ function FriendRow({
           </span>
         </div>
         <p className="text-xs truncate" style={{ color: 'var(--color-text-secondary)' }}>
-          {isPending && relationship.type === 'PENDING_INCOMING' && 'Incoming friend request'}
-          {isPending && relationship.type === 'PENDING_OUTGOING' && 'Outgoing friend request'}
-          {isBlocked && 'Blocked'}
-          {relationship.type === 'FRIEND' && (
-            status === 'online' ? 'Online' :
-            status === 'idle' ? 'Idle' :
-            status === 'dnd' ? 'Do Not Disturb' :
-            'Offline'
-          )}
+          {statusText}
         </p>
       </div>
 
-      <div className="flex items-center gap-1">
+      <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
+        {/* Pending incoming: Accept + Decline */}
         {relationship.type === 'PENDING_INCOMING' && onAccept && (
           <Tooltip content="Accept" placement="top">
             <button
-              onClick={(e) => { e.stopPropagation(); onAccept(); }}
+              onClick={onAccept}
               className="p-2 rounded-full transition-colors"
               style={{ background: 'var(--color-surface-overlay)', color: 'var(--color-text-secondary)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-success-default)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-secondary)'; }}
             >
               <Check size={16} />
             </button>
           </Tooltip>
         )}
-
         {relationship.type === 'PENDING_INCOMING' && (
           <Tooltip content="Decline" placement="top">
             <button
-              onClick={(e) => { e.stopPropagation(); onRemove(); }}
+              onClick={onRemove}
               className="p-2 rounded-full transition-colors"
               style={{ background: 'var(--color-surface-overlay)', color: 'var(--color-text-secondary)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-danger-default)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-secondary)'; }}
             >
               <X size={16} />
             </button>
           </Tooltip>
         )}
 
+        {/* Pending outgoing: Cancel */}
+        {relationship.type === 'PENDING_OUTGOING' && (
+          <Tooltip content="Cancel Request" placement="top">
+            <button
+              onClick={onRemove}
+              className="p-2 rounded-full transition-colors"
+              style={{ background: 'var(--color-surface-overlay)', color: 'var(--color-text-secondary)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-danger-default)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-secondary)'; }}
+            >
+              <X size={16} />
+            </button>
+          </Tooltip>
+        )}
+
+        {/* Friend: Message button */}
         {relationship.type === 'FRIEND' && (
           <Tooltip content="Message" placement="top">
             <button
-              onClick={(e) => { e.stopPropagation(); onMessage(); }}
+              onClick={onMessage}
               className="p-2 rounded-full transition-colors"
               style={{ background: 'var(--color-surface-overlay)', color: 'var(--color-text-secondary)' }}
+              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-primary)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-secondary)'; }}
             >
               <MessageSquare size={16} />
             </button>
           </Tooltip>
         )}
 
+        {/* More menu for friends and blocked */}
         {!isPending && (
-          <Tooltip content={isBlocked ? 'Unblock' : 'More'} placement="top">
-            <button
-              onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
-              className="p-2 rounded-full transition-colors"
-              style={{ background: 'var(--color-surface-overlay)', color: 'var(--color-text-secondary)' }}
-            >
-              <MoreVertical size={16} />
-            </button>
-          </Tooltip>
-        )}
-
-        {relationship.type === 'PENDING_OUTGOING' && (
-          <Tooltip content="Cancel" placement="top">
-            <button
-              onClick={(e) => { e.stopPropagation(); onRemove(); }}
-              className="p-2 rounded-full transition-colors"
-              style={{ background: 'var(--color-surface-overlay)', color: 'var(--color-text-secondary)' }}
-            >
-              <X size={16} />
-            </button>
-          </Tooltip>
+          <div className="relative">
+            <Tooltip content="More" placement="top">
+              <button
+                onClick={() => setMenuOpen(!menuOpen)}
+                className="p-2 rounded-full transition-colors"
+                style={{ background: 'var(--color-surface-overlay)', color: 'var(--color-text-secondary)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-primary)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-secondary)'; }}
+              >
+                <MoreVertical size={16} />
+              </button>
+            </Tooltip>
+            {menuOpen && (
+              <FriendDropdown
+                relationship={relationship}
+                onMessage={onMessage}
+                onRemove={onRemove}
+                onBlock={onBlock}
+                onUnblock={onUnblock}
+                onProfile={onProfile}
+                onClose={() => setMenuOpen(false)}
+              />
+            )}
+          </div>
         )}
       </div>
     </div>
@@ -263,6 +411,7 @@ export function FriendsList() {
   const tCommon = useTranslations('common');
   const router = useRouter();
   const toggleMobileNav = useUIStore((s) => s.toggleMobileNav);
+  const openModal = useUIStore((s) => s.openModal);
   const [activeTab, setActiveTab] = useState<FriendsTab>('online');
   const [searchQuery, setSearchQuery] = useState('');
   const relationships = useFriendsStore((s) => s.relationships);
@@ -271,45 +420,74 @@ export function FriendsList() {
   const addConversation = useDMsStore((s) => s.addConversation);
   const presences = usePresenceStore((s) => s.users);
 
+  const refreshRelationships = useCallback(async () => {
+    try {
+      const updated = await getRelationships();
+      setRelationships(updated);
+    } catch (err) {
+      console.error('Failed to refresh relationships:', err);
+    }
+  }, [setRelationships]);
+
   useEffect(() => {
     if (!isLoaded) {
-      getRelationships()
-        .then(setRelationships)
-        .catch(console.error);
+      refreshRelationships();
     }
-  }, [isLoaded, setRelationships]);
+  }, [isLoaded, refreshRelationships]);
 
   const handleMessage = useCallback(async (userId: string) => {
     try {
       const dm = await openDM(userId);
       addConversation(dm);
       router.push(`/channels/@me/${dm.id}`);
-    } catch (err) {
-      console.error('Failed to open DM:', err);
+    } catch {
+      toastError('Failed to open DM');
     }
   }, [addConversation, router]);
 
   const handleAccept = useCallback(async (targetId: string) => {
     try {
       await acceptFriendRequest(targetId);
-      const updated = await getRelationships();
-      setRelationships(updated);
+      await refreshRelationships();
       toastSuccess('Friend request accepted!');
     } catch (err: any) {
-      toastError(err?.message ?? 'Failed to accept friend request');
+      toastError(err?.response?.data?.message ?? err?.message ?? 'Failed to accept');
     }
-  }, [setRelationships]);
+  }, [refreshRelationships]);
 
   const handleRemove = useCallback(async (targetId: string) => {
     try {
       await removeFriend(targetId);
-      const updated = await getRelationships();
-      setRelationships(updated);
+      await refreshRelationships();
       toastSuccess('Removed successfully');
     } catch (err: any) {
-      toastError(err?.message ?? 'Failed to remove');
+      toastError(err?.response?.data?.message ?? err?.message ?? 'Failed to remove');
     }
-  }, [setRelationships]);
+  }, [refreshRelationships]);
+
+  const handleBlock = useCallback(async (targetId: string) => {
+    try {
+      await blockUser(targetId);
+      await refreshRelationships();
+      toastSuccess('User blocked');
+    } catch (err: any) {
+      toastError(err?.response?.data?.message ?? err?.message ?? 'Failed to block');
+    }
+  }, [refreshRelationships]);
+
+  const handleUnblock = useCallback(async (targetId: string) => {
+    try {
+      await unblockUser(targetId);
+      await refreshRelationships();
+      toastSuccess('User unblocked');
+    } catch (err: any) {
+      toastError(err?.response?.data?.message ?? err?.message ?? 'Failed to unblock');
+    }
+  }, [refreshRelationships]);
+
+  const handleProfile = useCallback((userId: string) => {
+    openModal('user-profile', { userId });
+  }, [openModal]);
 
   // Filter relationships by tab
   const filtered = useMemo(() => relationships.filter((r) => {
@@ -327,9 +505,28 @@ export function FriendsList() {
   const displayed = useMemo(() => searchQuery
     ? filtered.filter((r) => {
         const name = (r.user?.globalName ?? r.user?.username ?? '').toLowerCase();
-        return name.includes(searchQuery.toLowerCase());
+        const uname = (r.user?.username ?? '').toLowerCase();
+        const q = searchQuery.toLowerCase();
+        return name.includes(q) || uname.includes(q);
       })
     : filtered, [filtered, searchQuery]);
+
+  // Sort: incoming first for pending, online first for friends
+  const sorted = useMemo(() => [...displayed].sort((a, b) => {
+    if (activeTab === 'pending') {
+      if (a.type === 'PENDING_INCOMING' && b.type !== 'PENDING_INCOMING') return -1;
+      if (a.type !== 'PENDING_INCOMING' && b.type === 'PENDING_INCOMING') return 1;
+    }
+    if (activeTab === 'online' || activeTab === 'all') {
+      const aOnline = (presences[a.user?.id ?? '']?.status ?? 'offline') !== 'offline';
+      const bOnline = (presences[b.user?.id ?? '']?.status ?? 'offline') !== 'offline';
+      if (aOnline && !bOnline) return -1;
+      if (!aOnline && bOnline) return 1;
+    }
+    const aName = a.user?.globalName ?? a.user?.username ?? '';
+    const bName = b.user?.globalName ?? b.user?.username ?? '';
+    return aName.localeCompare(bName);
+  }), [displayed, activeTab, presences]);
 
   const pendingCount = useMemo(() => relationships.filter(
     (r) => r.type === 'PENDING_INCOMING'
@@ -369,7 +566,7 @@ export function FriendsList() {
         {tabs.map((tab) => (
           <button
             key={tab.id}
-            onClick={() => setActiveTab(tab.id)}
+            onClick={() => { setActiveTab(tab.id); setSearchQuery(''); }}
             className="px-3 py-1 rounded text-sm font-medium transition-colors relative"
             style={{
               background: activeTab === tab.id ? 'var(--color-surface-overlay)' : 'transparent',
@@ -439,10 +636,10 @@ export function FriendsList() {
           <p className="text-xs font-semibold uppercase tracking-wider px-2 mb-2"
             style={{ color: 'var(--color-text-disabled)' }}>
             {activeTab === 'online' ? t('online') : activeTab === 'all' ? t('all') : activeTab === 'pending' ? t('pending') : t('blocked')}
-            {' — '}{displayed.length}
+            {' — '}{sorted.length}
           </p>
 
-          {displayed.length === 0 && (
+          {sorted.length === 0 && (
             <div className="flex flex-col items-center justify-center py-12 gap-3">
               {activeTab === 'pending' ? (
                 <Clock size={48} style={{ color: 'var(--color-text-disabled)' }} />
@@ -453,7 +650,7 @@ export function FriendsList() {
               )}
               <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
                 {searchQuery
-                  ? (tCommon('none'))
+                  ? tCommon('none')
                   : activeTab === 'online'
                   ? t('noFriends')
                   : activeTab === 'pending'
@@ -465,7 +662,7 @@ export function FriendsList() {
             </div>
           )}
 
-          {displayed.map((rel) => (
+          {sorted.map((rel) => (
             <FriendRow
               key={rel.id}
               relationship={rel}
@@ -476,6 +673,9 @@ export function FriendsList() {
                   : undefined
               }
               onRemove={() => handleRemove(rel.user.id)}
+              onBlock={() => handleBlock(rel.user.id)}
+              onUnblock={() => handleUnblock(rel.user.id)}
+              onProfile={() => handleProfile(rel.user.id)}
             />
           ))}
         </div>

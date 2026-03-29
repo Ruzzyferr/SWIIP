@@ -125,9 +125,14 @@ export class PresenceManager {
 
   /**
    * Called when a user's session connects.
-   * Sets presence to 'online' and refreshes TTL.
+   * Restores persisted status or defaults to 'online'.
    */
-  async onConnect(userId: string, sessionId: string, guildIds: string[]): Promise<void> {
+  async onConnect(
+    userId: string,
+    sessionId: string,
+    guildIds: string[],
+    preferredStatus?: PresenceStatus,
+  ): Promise<void> {
     // Add sessionId to user's session set
     const sessionsKey = `swiip:user_sessions:${userId}`;
     await this.redis.sadd(sessionsKey, sessionId);
@@ -137,7 +142,13 @@ export class PresenceManager {
     // Check if any other session is already online
     const currentPresence = await this.getPresence(userId);
     if (!currentPresence || currentPresence.status === 'offline') {
-      await this.updatePresence(userId, 'online', guildIds);
+      const status = preferredStatus ?? 'online';
+      // Invisible users broadcast as offline to others
+      const broadcastStatus = status === 'invisible' ? 'offline' : status;
+      await this.updatePresence(userId, broadcastStatus, guildIds);
+      if (status === 'invisible') {
+        await this.setActualStatus(userId, 'invisible');
+      }
     } else {
       // Just refresh the TTL
       await this.redis.expire(`swiip:presence:${userId}`, PRESENCE_TTL_SECONDS);
@@ -173,6 +184,26 @@ export class PresenceManager {
   async refreshTTL(userId: string): Promise<void> {
     const key = `swiip:presence:${userId}`;
     await this.redis.expire(key, PRESENCE_TTL_SECONDS);
+    // Also refresh actual status TTL if it exists (invisible users)
+    await this.redis.expire(`swiip:presence:actual:${userId}`, PRESENCE_TTL_SECONDS);
+  }
+
+  /**
+   * Stores the user's actual status (e.g. 'invisible') separately from the broadcast status.
+   * This allows the user's own client to know they're invisible while others see 'offline'.
+   */
+  async setActualStatus(userId: string, status: PresenceStatus): Promise<void> {
+    await this.redis.set(`swiip:presence:actual:${userId}`, status, 'EX', PRESENCE_TTL_SECONDS);
+  }
+
+  /**
+   * Gets the user's actual status (checks invisible override first, falls back to presence).
+   */
+  async getActualStatus(userId: string): Promise<PresenceStatus> {
+    const actual = await this.redis.get(`swiip:presence:actual:${userId}`);
+    if (actual) return actual as PresenceStatus;
+    const presence = await this.getPresence(userId);
+    return presence?.status ?? 'offline';
   }
 
   /**

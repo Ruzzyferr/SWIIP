@@ -15,6 +15,8 @@ import {
   VideoOff,
   Monitor,
   MonitorOff,
+  Eye,
+  EyeOff,
 } from 'lucide-react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { Avatar } from '@/components/ui/Avatar';
@@ -102,6 +104,46 @@ function UserVolumeSlider({ userId }: { userId: string }) {
 }
 
 // ---------------------------------------------------------------------------
+// Per-stream volume slider (independent from user mic volume)
+// ---------------------------------------------------------------------------
+
+function StreamVolumeSlider({ userId }: { userId: string }) {
+  const volume = useVoiceStore((s) => s.streamVolumes[userId] ?? 100);
+  const setStreamVolume = useVoiceStore((s) => s.setStreamVolume);
+
+  const handleChange = useCallback(
+    (e: React.ChangeEvent<HTMLInputElement>) => {
+      setStreamVolume(userId, Number(e.target.value));
+    },
+    [userId, setStreamVolume],
+  );
+
+  return (
+    <div className="flex flex-col gap-1.5 min-w-[160px]">
+      <div className="flex items-center gap-2">
+        <Monitor size={14} style={{ color: 'var(--color-text-secondary)', flexShrink: 0 }} />
+        <span className="text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+          Stream Volume
+        </span>
+        <span className="text-xs ml-auto tabular-nums" style={{ color: 'var(--color-text-tertiary)' }}>
+          {volume}%
+        </span>
+      </div>
+      <input
+        type="range"
+        min={0}
+        max={100}
+        step={1}
+        value={volume}
+        onChange={handleChange}
+        className="w-full accent-[var(--color-accent-primary)] h-1.5"
+        style={{ cursor: 'pointer' }}
+      />
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Participant Tile (audio-only — shows avatar, mute/deaf badges, speaking ring)
 // ---------------------------------------------------------------------------
 
@@ -155,6 +197,16 @@ function ParticipantTile({
           type: 'custom',
           customContent: <UserVolumeSlider userId={participant.userId} />,
         },
+        // Show stream volume slider if this participant is screen sharing
+        ...(participant.screenSharing
+          ? [
+              { type: 'separator' as const },
+              {
+                type: 'custom' as const,
+                customContent: <StreamVolumeSlider userId={participant.userId} />,
+              },
+            ]
+          : []),
         { type: 'separator' },
         {
           type: 'item',
@@ -247,6 +299,26 @@ function ParticipantTile({
             <Video size={isCompact ? 9 : 12} style={{ color: 'var(--color-success-default)' }} />
           </motion.div>
         )}
+
+        {/* Screen sharing LIVE badge */}
+        {participant.screenSharing && (
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            className="absolute -top-1 -right-1 rounded flex items-center justify-center"
+            style={{
+              padding: '1px 4px',
+              background: '#ed4245',
+              fontSize: isCompact ? 8 : 9,
+              fontWeight: 700,
+              color: '#fff',
+              lineHeight: 1.2,
+              letterSpacing: '0.05em',
+            }}
+          >
+            LIVE
+          </motion.div>
+        )}
       </div>
 
       {/* Name */}
@@ -332,17 +404,72 @@ function VoiceRoomContent({
     return screenSharers.find((s) => s.userId === pinnedId) ?? screenSharers[0] ?? null;
   }, [screenSharers, pinnedId]);
 
+  const watchingStreams = useVoiceStore((s) => s.watchingStreams);
+  const setWatchingStream = useVoiceStore((s) => s.setWatchingStream);
+
   if (participants.length === 0) return null;
 
   // ── SPOTLIGHT MODE: Someone is screen sharing ──
   if (screenSharers.length > 0) {
+    // Split into watched and unwatched streams
+    const watchedSharers = screenSharers.filter((s) => watchingStreams[s.userId] !== false);
+    const unwatchedSharers = screenSharers.filter((s) => watchingStreams[s.userId] === false);
+
     // Calculate screen share grid layout — supports any number of sharers
-    const screenGridCols = screenSharers.length <= 1 ? 1 : screenSharers.length <= 4 ? 2 : 3;
+    const screenGridCols = watchedSharers.length <= 1 ? 1 : watchedSharers.length <= 4 ? 2 : 3;
 
     return (
       <LayoutGroup>
         <div className="flex-1 flex flex-col gap-3 w-full max-w-6xl min-h-0">
+          {/* "Not watching" banners for unwatched streams */}
+          {unwatchedSharers.map((sharer) => {
+            const sharerMember = members?.[sharer.userId];
+            const sharerName =
+              sharerMember?.nick ??
+              sharerMember?.user?.globalName ??
+              sharerMember?.user?.username ??
+              sharer.userId;
+            return (
+              <motion.div
+                key={`unwatched-${sharer.userId}`}
+                initial={{ opacity: 0, height: 0 }}
+                animate={{ opacity: 1, height: 'auto' }}
+                exit={{ opacity: 0, height: 0 }}
+                className="flex items-center justify-between rounded-lg px-4 py-2 shrink-0"
+                style={{
+                  background: 'var(--color-surface-overlay)',
+                  border: '1px solid var(--color-border-subtle)',
+                }}
+              >
+                <div className="flex items-center gap-2">
+                  <Monitor size={14} style={{ color: 'var(--color-text-secondary)' }} />
+                  <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>
+                    <strong>{sharerName}</strong> is sharing their screen
+                  </span>
+                  <span
+                    className="text-xs font-bold px-1.5 py-0.5 rounded"
+                    style={{ background: '#ed4245', color: '#fff' }}
+                  >
+                    LIVE
+                  </span>
+                </div>
+                <button
+                  onClick={() => setWatchingStream(sharer.userId, true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                  style={{
+                    background: 'var(--color-brand-default)',
+                    color: '#fff',
+                  }}
+                >
+                  <Eye size={12} />
+                  Watch Stream
+                </button>
+              </motion.div>
+            );
+          })}
+
           {/* Screen share area — single spotlight or grid */}
+          {watchedSharers.length > 0 && (
           <div
             className="flex-1 min-h-0 grid gap-2"
             style={{
@@ -351,7 +478,7 @@ function VoiceRoomContent({
             }}
           >
             <AnimatePresence mode="popLayout">
-              {screenSharers.map((sharer) => {
+              {watchedSharers.map((sharer) => {
                 const screenTrack = videoTracks[sharer.userId]?.screen;
                 const sharerMember = members?.[sharer.userId];
                 const sharerName =
@@ -360,6 +487,9 @@ function VoiceRoomContent({
                   sharerMember?.user?.username ??
                   sharer.userId;
                 const isThisPinned = pinnedScreenSharer?.userId === sharer.userId;
+                const watcherCount = participants.filter(
+                  (p) => p.userId !== sharer.userId && watchingStreams[p.userId] !== false,
+                ).length;
 
                 return (
                   <motion.div
@@ -368,8 +498,42 @@ function VoiceRoomContent({
                     initial="hidden"
                     animate="visible"
                     exit="exit"
-                    className="min-h-0"
+                    className="min-h-0 relative"
                   >
+                    {/* LIVE badge + Stop Watching overlay */}
+                    <div className="absolute top-2 left-2 z-10 flex items-center gap-2">
+                      <span
+                        className="text-xs font-bold px-1.5 py-0.5 rounded"
+                        style={{ background: '#ed4245', color: '#fff' }}
+                      >
+                        LIVE
+                      </span>
+                      <span
+                        className="text-xs px-1.5 py-0.5 rounded flex items-center gap-1"
+                        style={{ background: 'rgba(0,0,0,0.6)', color: '#fff' }}
+                      >
+                        <Eye size={10} />
+                        {watcherCount}
+                      </span>
+                    </div>
+                    {sharer.userId !== userId && (
+                      <div className="absolute top-2 right-2 z-10 flex items-center gap-1">
+                        <Tooltip content="Stop Watching" placement="bottom">
+                          <button
+                            onClick={() => setWatchingStream(sharer.userId, false)}
+                            className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                            style={{
+                              background: 'rgba(0,0,0,0.6)',
+                              color: '#fff',
+                            }}
+                            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(237,66,69,0.8)'; }}
+                            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(0,0,0,0.6)'; }}
+                          >
+                            <EyeOff size={14} />
+                          </button>
+                        </Tooltip>
+                      </div>
+                    )}
                     <VideoTile
                       participantId={sharer.userId}
                       displayName={sharerName}
@@ -383,13 +547,14 @@ function VoiceRoomContent({
                       isSpeaking={sharer.speaking && !sharer.selfMute}
                       isPinned={isThisPinned}
                       onPin={() => setPinnedParticipant(sharer.userId)}
-                      viewerCount={participants.length - 1}
+                      viewerCount={watcherCount}
                     />
                   </motion.div>
                 );
               })}
             </AnimatePresence>
           </div>
+          )}
 
           {/* Bottom strip: All participants (including sharers' cameras) */}
           <div className="flex gap-2 overflow-x-auto pb-1 justify-center shrink-0">

@@ -88,6 +88,12 @@ interface VoiceState {
   // Per-user volume overrides (persisted, 0-100, default 100)
   userVolumes: Record<string, number>;
 
+  // Per-stream volume overrides (persisted, 0-100, default 100) — separate from userVolumes
+  streamVolumes: Record<string, number>;
+
+  // Which streams the local user is watching (userId → boolean, default true = auto-watch)
+  watchingStreams: Record<string, boolean>;
+
   // Audio pipeline state (non-persisted)
   audioCapabilities: AudioCapabilities;
   effectiveAudioMode: AudioMode;
@@ -113,6 +119,9 @@ interface VoiceState {
   setError: (error: string | null) => void;
   updateSettings: (patch: Partial<VoiceSettings>) => void;
   setUserVolume: (userId: string, volume: number) => void;
+  setStreamVolume: (userId: string, volume: number) => void;
+  setWatchingStream: (userId: string, watching: boolean) => void;
+  clearStreamState: (userId: string) => void;
   setAudioCapabilities: (patch: Partial<AudioCapabilities>) => void;
   setEffectiveAudioMode: (mode: AudioMode) => void;
   setAudioReconfigureRequired: (required: boolean) => void;
@@ -173,6 +182,8 @@ export const useVoiceStore = create<VoiceState>()(
     error: null,
     settings: { ...DEFAULT_SETTINGS },
     userVolumes: {},
+    streamVolumes: {},
+    watchingStreams: {},
     audioCapabilities: { enhancedAvailable: false, enhancedChecked: false },
     effectiveAudioMode: 'standard',
     audioReconfigureRequired: false,
@@ -252,6 +263,21 @@ export const useVoiceStore = create<VoiceState>()(
     setUserVolume: (userId, volume) =>
       set((state) => {
         state.userVolumes[userId] = Math.max(0, Math.min(100, volume));
+      }),
+
+    setStreamVolume: (userId, volume) =>
+      set((state) => {
+        state.streamVolumes[userId] = Math.max(0, Math.min(100, volume));
+      }),
+
+    setWatchingStream: (userId, watching) =>
+      set((state) => {
+        state.watchingStreams[userId] = watching;
+      }),
+
+    clearStreamState: (userId) =>
+      set((state) => {
+        delete state.watchingStreams[userId];
       }),
 
     setAudioCapabilities: (patch) =>
@@ -378,6 +404,7 @@ export const useVoiceStore = create<VoiceState>()(
         state.cameraEnabled = false;
         state.screenShareEnabled = false;
         state.pinnedParticipantId = null;
+        state.watchingStreams = {};
         state.error = null;
         state.effectiveAudioMode = state.settings.audioMode;
         state.audioReconfigureRequired = false;
@@ -392,6 +419,7 @@ export const useVoiceStore = create<VoiceState>()(
     partialize: (state) => ({
       settings: state.settings,
       userVolumes: state.userVolumes,
+      streamVolumes: state.streamVolumes,
       selfMuted: state.selfMuted,
       selfDeafened: state.selfDeafened,
     }),

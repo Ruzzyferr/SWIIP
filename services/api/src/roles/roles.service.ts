@@ -103,6 +103,12 @@ export class RolesService {
     }
   }
 
+  /** Map Prisma Role (permissionsInteger) → RolePayload (permissions) */
+  private serializeRole(role: any) {
+    const { permissionsInteger, ...rest } = role;
+    return { ...rest, permissions: (permissionsInteger ?? 0n).toString() };
+  }
+
   async create(guildId: string, actorId: string, dto: CreateRoleDto) {
     const perms = await this.permissionsService.computePermissionsForUser(actorId, guildId);
     if (
@@ -145,7 +151,7 @@ export class RolesService {
     });
 
     this.eventEmitter.emit('role.created', { guildId, roleId: role.id, actorId });
-    return role;
+    return this.serializeRole(role);
   }
 
   async update(roleId: string, guildId: string, actorId: string, dto: UpdateRoleDto) {
@@ -188,7 +194,7 @@ export class RolesService {
     });
 
     this.eventEmitter.emit('role.updated', { guildId, roleId, actorId });
-    return updated;
+    return this.serializeRole(updated);
   }
 
   async delete(roleId: string, guildId: string, actorId: string) {
@@ -242,10 +248,11 @@ export class RolesService {
       ),
     );
 
-    return this.prisma.role.findMany({
+    const reordered = await this.prisma.role.findMany({
       where: { guildId },
       orderBy: { position: 'asc' },
     });
+    return reordered.map((r: any) => this.serializeRole(r));
   }
 
   async addMemberRole(guildId: string, memberId: string, roleId: string, actorId: string) {
@@ -331,10 +338,11 @@ export class RolesService {
   }
 
   async getRoles(guildId: string) {
-    return this.prisma.role.findMany({
+    const roles = await this.prisma.role.findMany({
       where: { guildId },
       orderBy: { position: 'asc' },
     });
+    return roles.map((r: any) => this.serializeRole(r));
   }
 
   async computePermissions(userId: string, guildId: string, channelId?: string): Promise<string> {

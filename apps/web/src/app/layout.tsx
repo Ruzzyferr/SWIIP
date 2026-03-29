@@ -1,15 +1,15 @@
 import type { Metadata, Viewport } from 'next';
-import { Inter } from 'next/font/google';
+import localFont from 'next/font/local';
 import '@/styles/globals.css';
 import 'highlight.js/styles/github-dark.css';
 import { NextIntlClientProvider } from 'next-intl';
 import { getLocale, getMessages } from 'next-intl/server';
 
-const inter = Inter({
-  subsets: ['latin', 'latin-ext'],
+const inter = localFont({
+  src: '../fonts/InterVariable.woff2',
   variable: '--font-sans',
   display: 'swap',
-  weight: ['400', '500', '600', '700'],
+  weight: '100 900',
 });
 
 export const metadata: Metadata = {

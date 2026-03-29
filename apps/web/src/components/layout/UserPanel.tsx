@@ -1,8 +1,10 @@
 'use client';
 
+import { useState } from 'react';
 import { Mic, MicOff, Headphones, EarOff, Settings } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Tooltip } from '@/components/ui/Tooltip';
+import { StatusPicker } from '@/components/ui/StatusPicker';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePresenceStore } from '@/stores/presence.store';
 import { useUIStore } from '@/stores/ui.store';
@@ -13,6 +15,7 @@ export function UserPanel() {
   const user = useAuthStore((s) => s.user);
   const openSettings = useUIStore((s) => s.openSettings);
   const getPresence = usePresenceStore((s) => s.getPresence);
+  const customStatus = usePresenceStore((s) => user?.id ? s.users[user.id]?.customStatus : undefined);
   const selfMuted = useVoiceStore((s) => s.selfMuted);
   const selfDeafened = useVoiceStore((s) => s.selfDeafened);
   const connectionState = useVoiceStore((s) => s.connectionState);
@@ -23,6 +26,7 @@ export function UserPanel() {
     return s.participants[key]?.speaking === true && !s.selfMuted;
   });
   const { toggleMute, toggleDeafen } = useVoiceActions();
+  const [showStatusPicker, setShowStatusPicker] = useState(false);
 
   if (!user) return null;
 
@@ -47,25 +51,17 @@ export function UserPanel() {
         borderTop: '1px solid var(--color-border-subtle)',
       }}
     >
-      {/* Avatar + name */}
-      <button
-        className="flex items-center gap-2 flex-1 min-w-0 rounded-lg px-1.5 py-1 transition-all duration-fast"
-        style={{ color: 'var(--color-text-primary)' }}
-        onMouseEnter={(e) => {
-          e.currentTarget.style.background = 'var(--color-surface-overlay)';
-        }}
-        onMouseLeave={(e) => {
-          e.currentTarget.style.background = 'transparent';
-        }}
-        onClick={() => openSettings('account')}
-        aria-label="Open account settings"
-      >
-        <div
-          className="rounded-full transition-shadow duration-200"
+      {/* Avatar (opens status picker) + name (opens settings) */}
+      <div className="flex items-center gap-2 flex-1 min-w-0 relative">
+        {/* Avatar — opens StatusPicker */}
+        <button
+          className="rounded-full transition-shadow duration-200 flex-shrink-0"
           style={{
             boxShadow: isSpeaking ? '0 0 0 2px var(--color-voice-speaking, #43b581)' : 'none',
             borderRadius: '50%',
           }}
+          onClick={() => setShowStatusPicker(!showStatusPicker)}
+          aria-label="Set status"
         >
           <Avatar
             src={user.avatar}
@@ -74,8 +70,21 @@ export function UserPanel() {
             size="sm"
             status={status}
           />
-        </div>
-        <div className="flex-1 min-w-0 text-left">
+        </button>
+
+        {/* Name — opens settings */}
+        <button
+          className="flex-1 min-w-0 text-left rounded-lg px-1.5 py-1 transition-all duration-fast"
+          style={{ color: 'var(--color-text-primary)' }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'var(--color-surface-overlay)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+          }}
+          onClick={() => openSettings('account')}
+          aria-label="Open account settings"
+        >
           <p
             className="text-sm font-semibold truncate leading-tight"
             style={{ color: 'var(--color-text-primary)' }}
@@ -84,12 +93,17 @@ export function UserPanel() {
           </p>
           <p
             className="text-xs truncate leading-tight"
-            style={{ color: 'var(--color-text-tertiary)' }}
+            style={{ color: customStatus ? 'var(--color-text-secondary)' : 'var(--color-text-tertiary)' }}
           >
-            @{user.username}
+            {customStatus || `@${user.username}`}
           </p>
-        </div>
-      </button>
+        </button>
+
+        {/* Status Picker Popover */}
+        {showStatusPicker && (
+          <StatusPicker onClose={() => setShowStatusPicker(false)} />
+        )}
+      </div>
 
       {/* Controls */}
       <div className="flex items-center gap-0.5">

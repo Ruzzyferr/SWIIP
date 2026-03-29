@@ -2,13 +2,16 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { UserMinus, Ban, Edit3, MessageSquare, User } from 'lucide-react';
+import { UserMinus, Ban, Edit3, MessageSquare, User, UserPlus, ShieldOff } from 'lucide-react';
 import { kickMember, banMember, updateMember } from '@/lib/api/guilds.api';
 import { openDM } from '@/lib/api/dms.api';
+import { sendFriendRequest, blockUser } from '@/lib/api/friends.api';
+import { useFriendsStore } from '@/stores/friends.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { useUIStore } from '@/stores/ui.store';
 import { useRouter } from 'next/navigation';
+import { toastSuccess, toastError } from '@/lib/toast';
 import type { MemberPayload } from '@constchat/protocol';
 
 interface MemberContextMenuProps {
@@ -37,8 +40,12 @@ export function MemberContextMenu({
   const [nickValue, setNickValue] = useState(member.nick || '');
   const [loading, setLoading] = useState(false);
 
+  const relationships = useFriendsStore((s) => s.relationships);
   const isSelf = currentUserId === member.user?.id;
   const canManage = isOwner && !isSelf;
+  const isFriend = relationships.some((r) => r.user?.id === member.user?.id && r.type === 'FRIEND');
+  const isPending = relationships.some((r) => r.user?.id === member.user?.id && (r.type === 'PENDING_OUTGOING' || r.type === 'PENDING_INCOMING'));
+  const isBlocked = relationships.some((r) => r.user?.id === member.user?.id && r.type === 'BLOCKED');
 
   const handleSendMessage = async () => {
     if (!member.user?.id) return;
@@ -176,6 +183,60 @@ export function MemberContextMenu({
                 <MessageSquare size={14} />
                 Message
               </button>
+            </>
+          )}
+
+          {/* Friend / Block actions */}
+          {!isSelf && !confirmAction && !editNick && (
+            <>
+              {!isFriend && !isPending && !isBlocked && (
+                <button
+                  className={menuItemClass}
+                  style={{ color: 'var(--color-success-default)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-success-muted)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                  onClick={async () => {
+                    if (!member.user?.username) return;
+                    try {
+                      await sendFriendRequest(member.user.username, member.user.discriminator ?? '0');
+                      toastSuccess('Friend request sent!');
+                      onClose();
+                    } catch (err: any) {
+                      toastError(err?.response?.data?.message ?? 'Failed to send request');
+                    }
+                  }}
+                >
+                  <UserPlus size={14} />
+                  Add Friend
+                </button>
+              )}
+              {isPending && (
+                <button disabled className={menuItemClass} style={{ color: 'var(--color-text-disabled)', cursor: 'default' }}>
+                  <UserPlus size={14} />
+                  Request Pending
+                </button>
+              )}
+              {!isBlocked && (
+                <button
+                  className={menuItemClass}
+                  style={{ color: 'var(--color-danger-default)' }}
+                  onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-danger-muted)'; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+                  onClick={async () => {
+                    if (!member.user?.id) return;
+                    try {
+                      await blockUser(member.user.id);
+                      toastSuccess('User blocked');
+                      onClose();
+                    } catch {
+                      toastError('Failed to block user');
+                    }
+                  }}
+                >
+                  <Ban size={14} />
+                  Block
+                </button>
+              )}
             </>
           )}
 

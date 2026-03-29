@@ -12,6 +12,7 @@ import { useDesktopTray } from '@/hooks/useDesktopTray';
 import { LiveKitContext } from '@/contexts/LiveKitContext';
 import { VoiceDebugOverlay } from '@/components/voice/VoiceDebugOverlay';
 import { Spinner } from '@/components/ui/Spinner';
+import { checkPendingStatusClear } from '@/lib/presence';
 
 // ---------------------------------------------------------------------------
 // Inner shell: only mounts after auth is fully validated so hooks
@@ -31,6 +32,9 @@ function AuthenticatedShell({ children }: { children: ReactNode }) {
 
   // Desktop tray: sync voice state + handle tray actions (no-op on web)
   useDesktopTray();
+
+  // Check if a "clear after" timer for custom status has expired
+  useEffect(() => { checkPendingStatusClear(); }, []);
 
   const liveKitContextValue = useMemo(() => ({ videoTracks, roomRef: room }), [videoTracks, room]);
 

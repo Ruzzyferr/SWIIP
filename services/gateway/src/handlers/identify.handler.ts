@@ -154,9 +154,25 @@ export async function handleIdentify(
     log.warn({ err, userId }, 'Failed to persist guild subscriptions to Redis');
   }
 
-  // 9. Update presence
+  // 9. Update presence — restore persisted status from DB if available
   try {
-    await context.presenceManager.onConnect(userId, session.id, guildIds);
+    let preferredStatus: 'online' | 'idle' | 'dnd' | 'invisible' | undefined;
+    try {
+      const res = await fetch(`${context.apiBaseUrl}/internal/users/${userId}/presence`, {
+        headers: { 'X-Internal-Token': context.config.JWT_SECRET, 'Content-Type': 'application/json' },
+        signal: AbortSignal.timeout(2_000),
+      });
+      if (res.ok) {
+        const persisted = (await res.json()) as { status: string };
+        const statusMap: Record<string, typeof preferredStatus> = {
+          ONLINE: 'online', IDLE: 'idle', DND: 'dnd', INVISIBLE: 'invisible',
+        };
+        preferredStatus = statusMap[persisted.status];
+      }
+    } catch {
+      // Non-fatal: fall back to 'online'
+    }
+    await context.presenceManager.onConnect(userId, session.id, guildIds, preferredStatus);
   } catch (err) {
     log.warn({ err, userId }, 'Failed to update presence on connect');
   }
