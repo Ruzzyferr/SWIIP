@@ -24,120 +24,18 @@ import { getPlatformProvider } from '@/lib/platform';
 import { useVoiceStore, type AudioMode } from '@/stores/voice.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { playJoinSound, playLeaveSound } from '@/lib/sounds';
+import {
+  AudioPipeline,
+  BrowserAudioStrategy,
+  DesktopAudioStrategy,
+  buildCaptureConstraints,
+  requiresRepublish,
+  type AudioPlatform,
+} from '@/lib/audio';
 
-// --- Krisp Noise Filter ---
-// Dynamic import avoids "Worker is not defined" during Next.js SSR/prerender.
-// IMPORTANT: We cache the KrispNoiseFilter *constructor* (factory), NOT the instance.
-// Each Room connection gets a FRESH processor instance to avoid stale WASM state
-// that causes buzzing/vacuum noise after reconnects.
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let krispFactory: (() => any) | null = null;
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-let krispLoadPromise: Promise<(() => any) | null> | null = null;
-
-async function loadKrispFactory(): Promise<(() => any) | null> {
-  if (krispFactory) return krispFactory;
-  if (krispLoadPromise) return krispLoadPromise;
-
-  krispLoadPromise = (async () => {
-    try {
-      const mod = await import('@livekit/krisp-noise-filter');
-      krispFactory = mod.KrispNoiseFilter;
-      console.debug('[Krisp] Noise filter factory loaded');
-      return krispFactory;
-    } catch (err) {
-      console.warn('[Krisp] Failed to load noise filter, falling back to browser NS:', err);
-      krispLoadPromise = null;
-      return null;
-    }
-  })();
-
-  return krispLoadPromise;
-}
-
-/** Creates a fresh Krisp processor instance (one per Room connection). */
-async function createKrispProcessor(): Promise<any> {
-  const factory = await loadKrispFactory();
-  if (!factory) return null;
-  try {
-    const processor = factory();
-    console.debug('[Krisp] Created fresh noise filter instance');
-    return processor;
-  } catch (err) {
-    console.warn('[Krisp] Failed to create processor instance:', err);
-    return null;
-  }
-}
-
-function needsEchoCancellation(mode: AudioMode): boolean {
-  return mode !== 'raw';
-}
-
-/** Initial mic capture options — includes echoCancellation (set once at publish time). */
-function getInitialAudioCaptureForMode(mode: AudioMode) {
-  switch (mode) {
-    case 'standard':
-      return { echoCancellation: true, noiseSuppression: true, autoGainControl: false };
-    case 'enhanced':
-      return { echoCancellation: true, noiseSuppression: false, autoGainControl: false };
-    case 'raw':
-      return { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
-  }
-}
-
-/** Runtime-safe constraints — NO echoCancellation (cannot toggle mid-track). */
-function getRuntimeAudioConstraintsForMode(mode: AudioMode) {
-  switch (mode) {
-    case 'standard':
-      return { noiseSuppression: true, autoGainControl: false };
-    case 'enhanced':
-      return { noiseSuppression: false, autoGainControl: false };
-    case 'raw':
-      return { noiseSuppression: false, autoGainControl: false };
-  }
-}
-
-/** Applies Krisp processor to the mic track. Updates effectiveAudioMode in store. */
-async function applyEnhancedProcessor(room: Room): Promise<boolean> {
-  const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
-  if (!micPub?.track) {
-    console.warn('[Audio] No mic track available for enhanced processing');
-    return false;
-  }
-
-  const store = useVoiceStore.getState();
-
-  const krisp = await createKrispProcessor();
-  if (!krisp) {
-    console.warn('[Audio] Enhanced requested but unavailable, using Standard');
-    try {
-      await micPub.track.mediaStreamTrack.applyConstraints({
-        noiseSuppression: true, autoGainControl: false,
-      });
-    } catch { /* ignore */ }
-    store.setEffectiveAudioMode('standard');
-    return false;
-  }
-
-  try {
-    await micPub.track.stopProcessor().catch(() => {});
-    await micPub.track.setProcessor(krisp);
-    await micPub.track.mediaStreamTrack.applyConstraints({
-      noiseSuppression: false, autoGainControl: false,
-    }).catch(() => {});
-    console.debug('[Audio] Krisp processor applied successfully');
-    store.setEffectiveAudioMode('enhanced');
-    return true;
-  } catch (err) {
-    console.warn('[Audio] Enhanced requested but unavailable, using Standard:', err);
-    try {
-      await micPub.track.mediaStreamTrack.applyConstraints({
-        noiseSuppression: true, autoGainControl: false,
-      });
-    } catch { /* ignore */ }
-    store.setEffectiveAudioMode('standard');
-    return false;
-  }
+/** Create the appropriate strategy for the current platform. */
+function createStrategy(platform: AudioPlatform) {
+  return platform === 'desktop' ? new DesktopAudioStrategy() : new BrowserAudioStrategy();
 }
 
 /** Map of participantIdentity → { camera?: MediaStreamTrack, screen?: MediaStreamTrack } */
@@ -158,6 +56,7 @@ const CREDENTIAL_TIMEOUT_MS = 12_000;
  */
 export function useLiveKitRoom() {
   const roomRef = useRef<Room | null>(null);
+  const pipelineRef = useRef<AudioPipeline | null>(null);
   const credentialTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
   const trackOwnerRef = useRef<Map<string, string>>(new Map()); // trackSid -> userId
@@ -262,7 +161,10 @@ export function useLiveKitRoom() {
           maxFramerate: 30,
         },
       },
-      audioCaptureDefaults: getInitialAudioCaptureForMode(currentAudioMode),
+      audioCaptureDefaults: buildCaptureConstraints(
+        platform.isDesktop ? 'desktop' : 'browser',
+        currentAudioMode,
+      ),
     });
 
     roomRef.current = room;
@@ -411,21 +313,8 @@ export function useLiveKitRoom() {
       }
     });
 
-    room.on(RoomEvent.Reconnected, async () => {
-      console.debug('[LiveKit] Reconnected — resetting audio processor state');
-      krispFactory = null;
-      krispLoadPromise = null;
-
-      await new Promise((r) => setTimeout(r, 500));
-
-      const mode = useVoiceStore.getState().settings.audioMode;
-      if (mode === 'enhanced') {
-        await applyEnhancedProcessor(room);
-      } else {
-        useVoiceStore.getState().setEffectiveAudioMode(mode);
-      }
-      useVoiceStore.getState().setAudioReconfigureRequired(false);
-    });
+    // Reconnect audio handling is managed by AudioPipeline.handleReconnect()
+    // which is wired via pipeline.onTransition() — see below.
 
     // Connection quality monitoring + adaptive video quality
     room.on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
@@ -676,18 +565,25 @@ export function useLiveKitRoom() {
         await room.startAudio().catch(() => {});
 
         try {
-          const micCaptureOpts = getInitialAudioCaptureForMode(currentAudioMode);
-          await room.localParticipant.setMicrophoneEnabled(true, micCaptureOpts);
+          // Create and apply AudioPipeline
+          const audioPlatform: AudioPlatform = platform.isDesktop ? 'desktop' : 'browser';
+          const strategy = createStrategy(audioPlatform);
+          const pipeline = new AudioPipeline(audioPlatform, strategy);
 
-          if (currentAudioMode === 'enhanced') {
-            await applyEnhancedProcessor(room);
-          } else {
-            useVoiceStore.getState().setEffectiveAudioMode(currentAudioMode);
-          }
-          useVoiceStore.getState().setAudioReconfigureRequired(false);
+          // Wire pipeline state changes to voice store
+          pipeline.onTransition((uiState) => {
+            const store = useVoiceStore.getState();
+            store.setPipelineUIState(uiState);
+            store.setEffectiveAudioMode(uiState.activeMode);
+            if (uiState.isDegraded !== store.audioReconfigureRequired) {
+              store.setAudioReconfigureRequired(uiState.isDegraded);
+            }
+          });
+
+          pipelineRef.current = pipeline;
+          await pipeline.applyToRoom(room, currentAudioMode);
         } catch (micErr) {
           console.warn('[LiveKit] Microphone access denied or failed — joining muted', micErr);
-          // Still connected, just muted
           useVoiceStore.getState().setSelfMuted(true);
         }
 
@@ -742,6 +638,11 @@ export function useLiveKitRoom() {
 
     return () => {
       console.debug('[LiveKit] Cleaning up room');
+      // Dispose audio pipeline first
+      if (pipelineRef.current) {
+        pipelineRef.current.dispose();
+        pipelineRef.current = null;
+      }
       room.disconnect();
       room.removeAllListeners();
       for (const sid of audioElementsRef.current.keys()) {
@@ -805,12 +706,17 @@ export function useLiveKitRoom() {
     return unsub;
   }, [applyVolumes]);
 
-  // Sync input device to LiveKit
+  // Sync input device to LiveKit + notify pipeline of device change
   useEffect(() => {
     const room = roomRef.current;
     if (!room || room.state !== ConnectionState.Connected) return;
     if (inputDeviceId && inputDeviceId !== 'default') {
-      room.switchActiveDevice('audioinput', inputDeviceId).catch(console.error);
+      room.switchActiveDevice('audioinput', inputDeviceId)
+        .then(() => {
+          // Notify pipeline to re-apply processor after device change
+          pipelineRef.current?.handleDeviceChange(inputDeviceId);
+        })
+        .catch(console.error);
     }
   }, [inputDeviceId]);
 
@@ -824,48 +730,29 @@ export function useLiveKitRoom() {
     }
   }, [outputDeviceId]);
 
-  // Switch audio processing mode at runtime WITHOUT restarting the mic track.
-  // echoCancellation is NOT changed at runtime — only at initial publish.
+  // Switch audio processing mode at runtime via AudioPipeline.
+  // The pipeline handles EC boundary detection, constraint changes, and processor swaps.
   const prevAudioModeRef = useRef<AudioMode | null>(null);
   useEffect(() => {
     const room = roomRef.current;
-    if (!room || room.state !== ConnectionState.Connected) return;
+    const pipeline = pipelineRef.current;
+    if (!room || room.state !== ConnectionState.Connected || !pipeline) return;
 
-    const store = useVoiceStore.getState();
     const prevMode = prevAudioModeRef.current;
     prevAudioModeRef.current = audioMode;
 
-    // Detect EC boundary cross: raw needs EC off, standard/enhanced need EC on.
-    // Only set true — never auto-clear. Flag clears only on successful re-publish.
+    // Detect EC boundary cross for reconfigure flag
     if (prevMode !== null) {
-      const prevNeedsEC = needsEchoCancellation(prevMode);
-      const nextNeedsEC = needsEchoCancellation(audioMode);
-      if (prevNeedsEC !== nextNeedsEC) {
-        store.setAudioReconfigureRequired(true);
+      const platform: AudioPlatform = getPlatformProvider().isDesktop ? 'desktop' : 'browser';
+      if (requiresRepublish(platform, prevMode, audioMode)) {
+        useVoiceStore.getState().setAudioReconfigureRequired(true);
       }
     }
 
-    if (store.selfMuted) return;
+    if (useVoiceStore.getState().selfMuted) return;
 
-    (async () => {
-      const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
-      if (!micPub?.track) return;
-
-      await micPub.track.stopProcessor().catch(() => {});
-
-      const constraints = getRuntimeAudioConstraintsForMode(audioMode);
-      try {
-        await micPub.track.mediaStreamTrack.applyConstraints(constraints);
-      } catch { /* ignore */ }
-
-      if (audioMode === 'enhanced') {
-        await applyEnhancedProcessor(room);
-      } else {
-        useVoiceStore.getState().setEffectiveAudioMode(audioMode);
-      }
-
-      console.debug(`[Audio] Switched to ${audioMode} mode`);
-    })();
+    pipeline.requestMode(audioMode);
+    console.debug(`[Audio] Requested mode switch to ${audioMode}`);
   }, [audioMode]);
 
   // Sync camera enabled state to LiveKit
@@ -1014,6 +901,10 @@ export function useLiveKitRoom() {
     if (credentialTimeoutRef.current) {
       clearTimeout(credentialTimeoutRef.current);
       credentialTimeoutRef.current = null;
+    }
+    if (pipelineRef.current) {
+      pipelineRef.current.dispose();
+      pipelineRef.current = null;
     }
     const room = roomRef.current;
     if (room) {

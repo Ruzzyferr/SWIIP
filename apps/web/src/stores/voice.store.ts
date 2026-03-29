@@ -1,6 +1,7 @@
 import { create } from 'zustand';
 import { persist } from 'zustand/middleware';
 import { immer } from 'zustand/middleware/immer';
+import { type AudioPipelineUIState, createDefaultPipelineUIState } from '@/lib/audio/types';
 
 export interface VoiceParticipant {
   userId: string;
@@ -92,6 +93,9 @@ interface VoiceState {
   effectiveAudioMode: AudioMode;
   audioReconfigureRequired: boolean;
 
+  /** Full pipeline UI state — replaces simple booleans with honest state model */
+  pipelineUIState: AudioPipelineUIState;
+
   // Actions
   setConnectionState: (state: VoiceConnectionState) => void;
   setCurrentChannel: (channelId: string | null, guildId: string | null) => void;
@@ -112,6 +116,8 @@ interface VoiceState {
   setAudioCapabilities: (patch: Partial<AudioCapabilities>) => void;
   setEffectiveAudioMode: (mode: AudioMode) => void;
   setAudioReconfigureRequired: (required: boolean) => void;
+  setPipelineUIState: (state: AudioPipelineUIState) => void;
+  patchPipelineUIState: (patch: Partial<AudioPipelineUIState>) => void;
 
   // Participant management
   setParticipant: (participant: VoiceParticipant) => void;
@@ -170,6 +176,7 @@ export const useVoiceStore = create<VoiceState>()(
     audioCapabilities: { enhancedAvailable: false, enhancedChecked: false },
     effectiveAudioMode: 'standard',
     audioReconfigureRequired: false,
+    pipelineUIState: createDefaultPipelineUIState('browser', 'standard'),
 
     setConnectionState: (connectionState) =>
       set((state) => {
@@ -260,6 +267,16 @@ export const useVoiceStore = create<VoiceState>()(
     setAudioReconfigureRequired: (required) =>
       set((state) => {
         state.audioReconfigureRequired = required;
+      }),
+
+    setPipelineUIState: (uiState) =>
+      set((state) => {
+        state.pipelineUIState = uiState;
+      }),
+
+    patchPipelineUIState: (patch) =>
+      set((state) => {
+        Object.assign(state.pipelineUIState, patch);
       }),
 
     setConnectionQuality: (quality) =>
@@ -364,6 +381,10 @@ export const useVoiceStore = create<VoiceState>()(
         state.error = null;
         state.effectiveAudioMode = state.settings.audioMode;
         state.audioReconfigureRequired = false;
+        state.pipelineUIState = createDefaultPipelineUIState(
+          state.pipelineUIState.supportDetection.platform,
+          state.settings.audioMode,
+        );
       }),
   })),
   {

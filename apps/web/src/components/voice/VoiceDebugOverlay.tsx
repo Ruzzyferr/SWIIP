@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { X } from 'lucide-react';
 import { useVoiceStore } from '@/stores/voice.store';
+import { audioTelemetry, type AudioTelemetryEvent } from '@/lib/audio';
 
 interface TrackStats {
   kind: 'audio' | 'video';
@@ -32,6 +33,8 @@ export function VoiceDebugOverlay({ room }: { room: React.MutableRefObject<any |
   const [stats, setStats] = useState<DebugStats | null>(null);
   const connectionQuality = useVoiceStore((s) => s.connectionQuality);
   const connectionState = useVoiceStore((s) => s.connectionState);
+  const pipelineUI = useVoiceStore((s) => s.pipelineUIState);
+  const [recentTelemetry, setRecentTelemetry] = useState<AudioTelemetryEvent[]>([]);
 
   // Toggle with Ctrl+Shift+D
   useEffect(() => {
@@ -125,6 +128,16 @@ export function VoiceDebugOverlay({ room }: { room: React.MutableRefObject<any |
     return () => clearInterval(interval);
   }, [visible, collectStats]);
 
+  // Subscribe to audio telemetry when visible
+  useEffect(() => {
+    if (!visible) return;
+    setRecentTelemetry(audioTelemetry.getRecent(20));
+    const unsub = audioTelemetry.subscribe(() => {
+      setRecentTelemetry(audioTelemetry.getRecent(20));
+    });
+    return unsub;
+  }, [visible]);
+
   if (!visible) return null;
 
   const qualityLabel = ['Lost', 'Poor', 'Good', 'Excellent'][connectionQuality] ?? 'Unknown';
@@ -162,6 +175,53 @@ export function VoiceDebugOverlay({ room }: { room: React.MutableRefObject<any |
           <Row label="Quality" value={qualityLabel} valueColor={qualityColor} />
           <Row label="RTT" value={stats ? `${Math.round(stats.rtt)}ms` : '—'} />
         </div>
+
+        {/* Audio Pipeline */}
+        <div>
+          <SectionTitle>Audio Pipeline</SectionTitle>
+          <Row label="Requested" value={pipelineUI.requestedMode} />
+          <Row label="Active" value={pipelineUI.activeMode}
+            valueColor={pipelineUI.isDegraded ? '#faa61a' : '#43b581'} />
+          <Row label="Pipeline" value={pipelineUI.pipelineState} />
+          <Row label="Degraded" value={pipelineUI.isDegraded ? 'Yes' : 'No'}
+            valueColor={pipelineUI.isDegraded ? '#faa61a' : '#43b581'} />
+          {pipelineUI.degradedReason && (
+            <Row label="Reason" value={pipelineUI.degradedReason} valueColor="#faa61a" />
+          )}
+          {pipelineUI.degradedErrorCode && (
+            <Row label="Error" value={pipelineUI.degradedErrorCode} valueColor="#f04747" />
+          )}
+          <Row label="Krisp" value={pipelineUI.processorStatus.krisp} />
+          <Row label="Worklet" value={pipelineUI.processorStatus.worklet} />
+          <Row label="Platform" value={pipelineUI.supportDetection.platform} />
+          <Row label="Krisp Support" value={pipelineUI.supportDetection.krisp} />
+          {pipelineUI.latency.workletMs !== null && (
+            <Row
+              label="Worklet Latency"
+              value={`${pipelineUI.latency.workletMs.toFixed(1)}ms`}
+              valueColor={pipelineUI.latency.withinBudget ? '#43b581' : '#faa61a'}
+            />
+          )}
+        </div>
+
+        {/* Telemetry Log */}
+        {recentTelemetry.length > 0 && (
+          <div>
+            <SectionTitle>Audio Events (last 20)</SectionTitle>
+            <div className="space-y-0.5 max-h-32 overflow-y-auto">
+              {recentTelemetry.slice().reverse().map((evt, i) => (
+                <div key={i} className="text-[10px] leading-tight opacity-70">
+                  <span className="text-white/40">
+                    {new Date(evt.timestamp).toLocaleTimeString()}
+                  </span>{' '}
+                  <span className="text-white/80">{evt.type}</span>
+                  {evt.reason && <span className="text-white/50"> {evt.reason}</span>}
+                  {evt.errorCode && <span className="text-red-400"> [{evt.errorCode}]</span>}
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Local tracks */}
         {stats && stats.localStats.length > 0 && (

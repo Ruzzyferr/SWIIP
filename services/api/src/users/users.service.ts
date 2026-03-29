@@ -67,7 +67,7 @@ export class UsersService {
       },
     });
     if (!user) throw new NotFoundException('User not found');
-    return user;
+    return this.mapUserFields(user);
   }
 
   async findById(id: string) {
@@ -91,7 +91,7 @@ export class UsersService {
       },
     });
     if (!user) throw new NotFoundException('User not found');
-    return user;
+    return this.mapUserFields(user);
   }
 
   async findByEmail(email: string) {
@@ -136,23 +136,34 @@ export class UsersService {
         updatedAt: true,
       },
     });
-    return updated;
+    return this.mapUserFields(updated);
   }
 
   async updateAvatar(userId: string, avatarId: string) {
-    return this.prisma.user.update({
+    const result = await this.prisma.user.update({
       where: { id: userId },
       data: { avatarId },
       select: { id: true, avatarId: true },
     });
+    return { id: result.id, avatar: result.avatarId };
   }
 
   async updateBanner(userId: string, bannerId: string) {
-    return this.prisma.user.update({
+    const result = await this.prisma.user.update({
       where: { id: userId },
       data: { bannerId },
       select: { id: true, bannerId: true },
     });
+    return { id: result.id, banner: result.bannerId };
+  }
+
+  private mapUserFields(user: any) {
+    const { avatarId, bannerId, ...rest } = user;
+    return {
+      ...rest,
+      avatar: avatarId ?? null,
+      banner: bannerId ?? null,
+    };
   }
 
   async getProfile(userId: string, requesterId: string) {
@@ -185,7 +196,7 @@ export class UsersService {
     const mutualGuilds = await this.getMutualGuilds(requesterId, userId);
 
     return {
-      ...user,
+      user: this.mapUserFields(user),
       relationshipType: relationship?.type ?? null,
       mutualGuildCount: mutualGuilds.length,
     };
@@ -234,7 +245,7 @@ export class UsersService {
 
     return relationships.map((r: any) => {
       const friend = r.requesterId === userId ? r.target : r.requester;
-      return friend;
+      return this.mapUserFields(friend);
     });
   }
 
@@ -253,13 +264,13 @@ export class UsersService {
       ...sent.map((r: any) => ({
         id: r.id,
         type: r.type,
-        user: r.target,
+        user: this.mapUserFields(r.target),
         since: new Date().toISOString(),
       })),
       ...received.map((r: any) => ({
         id: r.id,
         type: r.type,
-        user: r.requester,
+        user: this.mapUserFields(r.requester),
         since: new Date().toISOString(),
       })),
     ];

@@ -19,6 +19,25 @@ export class DMsService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
+  /** Map participants array to recipients (UserPayload[]) with avatar/banner fields */
+  private toRecipients(participants: any[]): any[] {
+    return participants.map((p: any) => {
+      const u = p.user;
+      if (!u) return p;
+      const { avatarId, ...rest } = u;
+      return { ...rest, avatar: avatarId ?? null };
+    });
+  }
+
+  /** Transform a raw conversation record into DMChannelPayload shape */
+  private toDMPayload(conv: any): any {
+    const { participants, ...rest } = conv;
+    return {
+      ...rest,
+      recipients: this.toRecipients(participants ?? []),
+    };
+  }
+
   async getOrCreateDM(userId: string, targetId: string) {
     if (userId === targetId) {
       throw new BadRequestException('Cannot DM yourself');
@@ -55,7 +74,7 @@ export class DMsService {
     if (existingConversation) {
       const participantIds = existingConversation.participants.map((p: any) => p.userId);
       if (participantIds.includes(userId) && participantIds.includes(targetId)) {
-        return existingConversation;
+        return this.toDMPayload(existingConversation);
       }
     }
 
@@ -90,7 +109,7 @@ export class DMsService {
     this.logger.log(`DM created between ${userId} and ${targetId}`);
     this.eventEmitter.emit('dm.created', { conversationId: conversation.id, userId, targetId });
 
-    return conversation;
+    return this.toDMPayload(conversation);
   }
 
   async createGroupDM(userId: string, recipientIds: string[], name?: string) {
@@ -134,7 +153,7 @@ export class DMsService {
     this.logger.log(`Group DM created by ${userId} with ${uniqueIds.length} members`);
     this.eventEmitter.emit('dm.groupCreated', { conversationId: conversation.id, userId });
 
-    return conversation;
+    return this.toDMPayload(conversation);
   }
 
   async addGroupDMMember(conversationId: string, userId: string, targetId: string) {
@@ -243,18 +262,7 @@ export class DMsService {
 
     return participations.map((p: any) => {
       const conv = p.conversation;
-      const otherParticipants = conv.participants.filter((part: any) => part.userId !== userId);
-
-      return {
-        id: conv.id,
-        type: conv.type,
-        name: conv.type === 'DM' ? otherParticipants[0]?.user.globalName ?? otherParticipants[0]?.user.username : conv.name,
-        icon: conv.icon,
-        lastMessageId: conv.lastMessageId,
-        participants: conv.participants,
-        updatedAt: conv.updatedAt,
-        createdAt: conv.createdAt,
-      };
+      return this.toDMPayload(conv);
     });
   }
 
@@ -287,7 +295,7 @@ export class DMsService {
     });
 
     if (!conversation) throw new NotFoundException('Conversation not found');
-    return conversation;
+    return this.toDMPayload(conversation);
   }
 
   async getDMMessages(conversationId: string, userId: string, options: {
@@ -327,6 +335,12 @@ export class DMsService {
       take: limit,
     });
 
-    return messages.reverse();
+    return messages.reverse().map((msg: any) => {
+      if (msg.author) {
+        const { avatarId, ...rest } = msg.author;
+        msg.author = { ...rest, avatar: avatarId ?? null };
+      }
+      return msg;
+    });
   }
 }

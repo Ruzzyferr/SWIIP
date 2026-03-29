@@ -264,8 +264,8 @@ export function ServerRail() {
           <Image
             src="/logo.png"
             alt="Swiip"
-            width={28}
-            height={28}
+            width={40}
+            height={40}
             className="rounded-sm"
           />
         </button>

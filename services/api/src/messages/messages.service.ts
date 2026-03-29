@@ -72,6 +72,19 @@ export class MessagesService {
     private readonly searchService: SearchService,
   ) {}
 
+  /** Map avatarId → avatar on author/referencedMessage.author for protocol compat */
+  private mapMessage(msg: any) {
+    if (msg?.author) {
+      const { avatarId, ...rest } = msg.author;
+      msg = { ...msg, author: { ...rest, avatar: avatarId ?? null } };
+    }
+    if (msg?.referencedMessage?.author) {
+      const { avatarId, ...rest } = msg.referencedMessage.author;
+      msg = { ...msg, referencedMessage: { ...msg.referencedMessage, author: { ...rest, avatar: avatarId ?? null } } };
+    }
+    return msg;
+  }
+
   private readonly MESSAGE_INCLUDE = {
     author: {
       select: {
@@ -233,7 +246,7 @@ export class MessagesService {
       timestamp: message.createdAt,
     }).catch((err) => this.logger.warn({ err }, 'Failed to index message for search'));
 
-    return message;
+    return this.mapMessage(message);
   }
 
   async getMessages(channelId: string, userId: string, options: GetMessagesDto = {}) {
@@ -266,7 +279,7 @@ export class MessagesService {
       take: limit,
     });
 
-    return messages.reverse();
+    return messages.reverse().map((m: any) => this.mapMessage(m));
   }
 
   async getMessage(messageId: string, channelId: string, userId: string) {
@@ -279,7 +292,7 @@ export class MessagesService {
     });
 
     if (!message) throw new NotFoundException('Message not found');
-    return message;
+    return this.mapMessage(message);
   }
 
   async update(messageId: string, userId: string, dto: UpdateMessageDto) {
@@ -499,7 +512,10 @@ export class MessagesService {
       },
     });
 
-    return reactions.map((r: any) => r.user);
+    return reactions.map((r: any) => {
+      const { avatarId, ...rest } = r.user;
+      return { ...rest, avatar: avatarId ?? null };
+    });
   }
 
   async removeAllReactions(messageId: string, actorId: string) {

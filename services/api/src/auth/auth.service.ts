@@ -182,7 +182,7 @@ export class AuthService {
       username: user.username,
       discriminator: user.discriminator,
       globalName: user.globalName,
-      avatarId: user.avatarId,
+      avatar: user.avatarId ?? null,
       flags: user.flags,
       verified: user.verified,
       mfaEnabled: user.mfaEnabled,

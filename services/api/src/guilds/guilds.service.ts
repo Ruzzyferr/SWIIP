@@ -59,6 +59,15 @@ export class GuildsService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
+  /** Map avatarId → avatar on a user sub-object for protocol compatibility */
+  private mapMemberUser(member: any) {
+    if (member?.user) {
+      const { avatarId, bannerId, ...rest } = member.user;
+      member = { ...member, user: { ...rest, avatar: avatarId ?? null, ...(bannerId !== undefined ? { banner: bannerId ?? null } : {}) } };
+    }
+    return member;
+  }
+
   async create(userId: string, dto: CreateGuildDto) {
     const guild = await this.prisma.$transaction(async (tx: any) => {
       const newGuild = await tx.guild.create({
@@ -258,7 +267,7 @@ export class GuildsService {
       },
       take: limit,
       orderBy: { userId: 'asc' },
-    });
+    }).then((members: any[]) => members.map((m) => this.mapMemberUser(m)));
   }
 
   async getMember(guildId: string, userId: string) {
@@ -280,7 +289,7 @@ export class GuildsService {
     });
 
     if (!member) throw new NotFoundException('Member not found');
-    return member;
+    return this.mapMemberUser(member);
   }
 
   async addMember(guildId: string, userId: string, inviteCode?: string) {
@@ -392,9 +401,10 @@ export class GuildsService {
       },
     });
 
-    this.eventEmitter.emit('guild.memberUpdate', { guildId, userId: targetId, member: updated });
+    const mappedUpdated = this.mapMemberUser(updated);
+    this.eventEmitter.emit('guild.memberUpdate', { guildId, userId: targetId, member: mappedUpdated });
 
-    return updated;
+    return mappedUpdated;
   }
 
   async banMember(

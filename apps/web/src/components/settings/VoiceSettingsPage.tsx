@@ -3,6 +3,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { Mic, Volume2, MicOff, Shield, Sparkles, Music, AlertTriangle } from 'lucide-react';
 import { useVoiceStore, type AudioMode } from '@/stores/voice.store';
+import { getPlatformProvider } from '@/lib/platform';
 
 interface DeviceInfo {
   deviceId: string;
@@ -302,27 +303,32 @@ function PushToTalkKeybind({ currentKey, onChange }: { currentKey: string; onCha
   );
 }
 
-const AUDIO_MODES: { value: AudioMode; label: string; description: string; icon: typeof Mic; requiresEnhanced?: boolean }[] = [
-  {
-    value: 'standard',
-    label: 'Standard',
-    description: 'Browser noise suppression — works everywhere',
-    icon: Shield,
-  },
-  {
-    value: 'enhanced',
-    label: 'Enhanced',
-    description: 'AI-powered noise filter (Krisp)',
-    icon: Sparkles,
-    requiresEnhanced: true,
-  },
-  {
-    value: 'raw',
-    label: 'Music / Studio',
-    description: 'No processing — for instruments and studio mics',
-    icon: Music,
-  },
-];
+function getAudioModes(): { value: AudioMode; label: string; description: string; icon: typeof Mic; requiresEnhanced?: boolean }[] {
+  const isDesktop = getPlatformProvider().isDesktop;
+  return [
+    {
+      value: 'standard',
+      label: 'Standard',
+      description: isDesktop
+        ? 'Echo reduction + audio cleanup (rumble filter, limiter)'
+        : 'Browser echo & noise reduction',
+      icon: Shield,
+    },
+    {
+      value: 'enhanced',
+      label: 'Enhanced',
+      description: 'AI-powered noise filter (Krisp)',
+      icon: Sparkles,
+      requiresEnhanced: true,
+    },
+    {
+      value: 'raw',
+      label: 'Music / Studio',
+      description: 'No processing — for instruments and studio mics',
+      icon: Music,
+    },
+  ];
+}
 
 function AudioModeSelector({ value, onChange }: { value: AudioMode; onChange: (mode: AudioMode) => void }) {
   const { enhancedAvailable, enhancedChecked } = useVoiceStore((s) => s.audioCapabilities);
@@ -349,7 +355,7 @@ function AudioModeSelector({ value, onChange }: { value: AudioMode; onChange: (m
 
   return (
     <div className="space-y-2">
-      {AUDIO_MODES.map((mode) => {
+      {getAudioModes().map((mode) => {
         const isEnhancedUnchecked = mode.requiresEnhanced && !enhancedChecked;
         const isDisabled = mode.requiresEnhanced && (isEnhancedUnchecked || !enhancedAvailable);
         const isSelected = value === mode.value;
@@ -408,13 +414,10 @@ function AudioModeSelector({ value, onChange }: { value: AudioMode; onChange: (m
 }
 
 function AudioModeMismatchBanner() {
-  const selectedMode = useVoiceStore((s) => s.settings.audioMode);
-  const effectiveMode = useVoiceStore((s) => s.effectiveAudioMode);
   const connectionState = useVoiceStore((s) => s.connectionState);
+  const pipelineUI = useVoiceStore((s) => s.pipelineUIState);
 
-  if (connectionState !== 'connected' || selectedMode === effectiveMode) return null;
-
-  const isEnhancedFallback = selectedMode === 'enhanced' && effectiveMode === 'standard';
+  if (connectionState !== 'connected' || !pipelineUI.isDegraded) return null;
 
   return (
     <div className="text-xs px-3 py-2 rounded-lg space-y-0.5"
@@ -425,10 +428,13 @@ function AudioModeMismatchBanner() {
     >
       <p className="flex items-center gap-1.5">
         <AlertTriangle size={13} />
-        Requested: {EFFECTIVE_MODE_LABELS[selectedMode]} &middot; Active: {EFFECTIVE_MODE_LABELS[effectiveMode]}
+        Requested: {EFFECTIVE_MODE_LABELS[pipelineUI.requestedMode]} &middot; Active: {EFFECTIVE_MODE_LABELS[pipelineUI.activeMode]}
       </p>
-      {isEnhancedFallback && (
-        <p className="pl-5">Enhanced unavailable right now — using Standard processing</p>
+      {pipelineUI.degradedReason && (
+        <p className="pl-5">{pipelineUI.degradedReason}</p>
+      )}
+      {pipelineUI.degradedErrorCode && (
+        <p className="pl-5 opacity-60 font-mono">{pipelineUI.degradedErrorCode}</p>
       )}
     </div>
   );

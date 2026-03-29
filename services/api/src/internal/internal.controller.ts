@@ -65,6 +65,10 @@ export class InternalController {
     });
     if (!user) throw new NotFoundException('User not found');
 
+    // Map avatarId/bannerId to avatar/banner for protocol compatibility
+    const { avatarId: userAvatarId, bannerId: userBannerId, ...userRest } = user as any;
+    const mappedUser = { ...userRest, avatar: userAvatarId ?? null, banner: userBannerId ?? null };
+
     const memberships = await this.prisma.guildMember.findMany({
       where: { userId },
       include: {
@@ -104,7 +108,19 @@ export class InternalController {
       take: 50,
     });
 
-    const dms = dmParticipants.map((p: any) => p.conversation);
+    const dms = dmParticipants.map((p: any) => {
+      const conv = p.conversation;
+      const { participants, ...convRest } = conv;
+      return {
+        ...convRest,
+        recipients: (participants ?? []).map((part: any) => {
+          const u = part.user;
+          if (!u) return part;
+          const { avatarId, ...rest } = u;
+          return { ...rest, avatar: avatarId ?? null };
+        }),
+      };
+    });
 
     // Fetch read states for all channels the user has access to
     const readStates = await this.prisma.readState.findMany({
@@ -116,7 +132,7 @@ export class InternalController {
       },
     });
 
-    return { user, guilds, dms, readStates };
+    return { user: mappedUser, guilds, dms, readStates };
   }
 
   @Get('guilds/:guildId/member-ids')
@@ -153,7 +169,14 @@ export class InternalController {
       },
       take: 1000,
     });
-    return { members };
+    const mapped = members.map((m: any) => {
+      if (m.user) {
+        const { avatarId, ...rest } = m.user;
+        m.user = { ...rest, avatar: avatarId ?? null };
+      }
+      return m;
+    });
+    return { members: mapped };
   }
 
   @Post('read-state')

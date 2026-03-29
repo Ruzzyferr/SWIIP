@@ -44,7 +44,7 @@ export default function LandingPage() {
       <nav className="fixed top-0 left-0 right-0 z-50 glass-panel" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <Image src="/logo.png" alt="Swiip" width={36} height={36} className="rounded-xl" />
+            <Image src="/logo.png" alt="Swiip" width={48} height={48} className="rounded-xl" />
             <span className="text-lg font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
               Swiip
             </span>
@@ -216,7 +216,7 @@ export default function LandingPage() {
       <footer className="py-8 px-6" style={{ borderTop: '1px solid var(--color-border-subtle)', zIndex: 1, position: 'relative' }}>
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <Image src="/logo.png" alt="Swiip" width={24} height={24} className="rounded-md" />
+            <Image src="/logo.png" alt="Swiip" width={36} height={36} className="rounded-md" />
             <span className="text-sm font-medium" style={{ color: 'var(--color-text-tertiary)' }}>
               Swiip
             </span>

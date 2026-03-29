@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
+import Image from 'next/image';
 import { Eye, EyeOff, Loader2, Github, Chrome } from 'lucide-react';
 import { login } from '@/lib/api/auth.api';
 import { useAuthStore } from '@/stores/auth.store';
@@ -121,17 +122,13 @@ function LoginContent() {
             href="/"
             className="inline-flex items-center gap-2.5 mb-6 transition-opacity hover:opacity-80"
           >
-            <div
-              className="w-9 h-9 rounded-xl flex items-center justify-center"
-              style={{ background: 'var(--color-accent-gradient)' }}
-            >
-              <svg width="20" height="20" viewBox="0 0 20 20" fill="none">
-                <path
-                  d="M4 6C4 4.895 4.895 4 6 4H14C15.105 4 16 4.895 16 6V11C16 12.105 15.105 13 14 13H11L8 16V13H6C4.895 13 4 12.105 4 11V6Z"
-                  fill="white"
-                />
-              </svg>
-            </div>
+            <Image
+              src="/logo.png"
+              alt="Swiip"
+              width={48}
+              height={48}
+              className="rounded-xl"
+            />
             <span
               className="text-xl font-bold tracking-tight"
               style={{ color: 'var(--color-text-primary)' }}
