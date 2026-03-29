@@ -125,7 +125,7 @@ export function VoiceConnectionPanel() {
             width: 200,
             height: 80,
             borderRadius: '50%',
-            background: 'radial-gradient(circle, rgba(108,92,231,0.12), transparent 70%)',
+            background: 'radial-gradient(circle, rgba(16,185,129,0.12), transparent 70%)',
             filter: 'blur(20px)',
           }}
         />

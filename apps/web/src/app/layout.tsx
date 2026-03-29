@@ -32,7 +32,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: 'cover',
-  themeColor: '#0e0f11',
+  themeColor: '#090B0B',
 };
 
 import { ServiceWorkerRegistration } from '@/components/providers/ServiceWorkerRegistration';

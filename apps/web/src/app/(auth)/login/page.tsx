@@ -97,15 +97,15 @@ function LoginContent() {
       >
         <div
           className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full opacity-[0.07]"
-          style={{ background: 'radial-gradient(circle, #6c5ce7, transparent 65%)' }}
+          style={{ background: 'radial-gradient(circle, #10B981, transparent 65%)' }}
         />
         <div
           className="absolute -bottom-48 -right-48 w-[700px] h-[700px] rounded-full opacity-[0.05]"
-          style={{ background: 'radial-gradient(circle, #a29bfe, transparent 65%)' }}
+          style={{ background: 'radial-gradient(circle, #34D399, transparent 65%)' }}
         />
         <div
           className="absolute top-[40%] right-[20%] w-[400px] h-[400px] rounded-full opacity-[0.04]"
-          style={{ background: 'radial-gradient(circle, #fd79a8, transparent 65%)' }}
+          style={{ background: 'radial-gradient(circle, #6EE7B7, transparent 65%)' }}
         />
       </div>
 
@@ -208,7 +208,7 @@ function LoginContent() {
                     : 'var(--color-border-focus)';
                   e.currentTarget.style.boxShadow = errors.email
                     ? '0 0 0 3px rgba(239,68,68,0.15)'
-                    : '0 0 0 3px rgba(99,102,241,0.15)';
+                    : '0 0 0 3px rgba(16,185,129,0.15)';
                 }}
                 onBlur={(e) => {
                   e.currentTarget.style.borderColor = errors.email
@@ -263,7 +263,7 @@ function LoginContent() {
                       : 'var(--color-border-focus)';
                     e.currentTarget.style.boxShadow = errors.password
                       ? '0 0 0 3px rgba(239,68,68,0.15)'
-                      : '0 0 0 3px rgba(99,102,241,0.15)';
+                      : '0 0 0 3px rgba(16,185,129,0.15)';
                   }}
                   onBlur={(e) => {
                     e.currentTarget.style.borderColor = errors.password
@@ -305,17 +305,17 @@ function LoginContent() {
                   ? 'var(--color-accent-hover)'
                   : 'var(--color-accent-gradient)',
                 opacity: isSubmitting ? 0.8 : 1,
-                boxShadow: isSubmitting ? 'none' : '0 4px 15px rgba(108,92,231,0.3)',
+                boxShadow: isSubmitting ? 'none' : '0 4px 15px rgba(16,185,129,0.3)',
               }}
               onMouseEnter={(e) => {
                 if (!isSubmitting) {
-                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(108,92,231,0.45)';
+                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(16,185,129,0.45)';
                   e.currentTarget.style.transform = 'translateY(-1px)';
                 }
               }}
               onMouseLeave={(e) => {
                 if (!isSubmitting) {
-                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(108,92,231,0.3)';
+                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(16,185,129,0.3)';
                   e.currentTarget.style.transform = 'translateY(0)';
                 }
               }}

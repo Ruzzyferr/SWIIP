@@ -69,14 +69,14 @@ export default function ForgotPasswordPage() {
           className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full"
           style={{
             background:
-              'radial-gradient(circle, rgba(99,102,241,0.08) 0%, transparent 70%)',
+              'radial-gradient(circle, rgba(16,185,129,0.08) 0%, transparent 70%)',
           }}
         />
         <div
           className="absolute -bottom-48 -right-48 w-[700px] h-[700px] rounded-full"
           style={{
             background:
-              'radial-gradient(circle, rgba(99,102,241,0.06) 0%, transparent 70%)',
+              'radial-gradient(circle, rgba(16,185,129,0.06) 0%, transparent 70%)',
           }}
         />
         <svg
@@ -156,7 +156,7 @@ export default function ForgotPasswordPage() {
             <>
               <div
                 className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5"
-                style={{ background: 'var(--color-accent-muted, rgba(99,102,241,0.15))' }}
+                style={{ background: 'var(--color-accent-muted, rgba(16,185,129,0.15))' }}
               >
                 <Mail size={28} style={{ color: 'var(--color-accent-primary)' }} />
               </div>
@@ -259,7 +259,7 @@ export default function ForgotPasswordPage() {
                         : 'var(--color-border-focus)';
                       e.currentTarget.style.boxShadow = errors.email
                         ? '0 0 0 3px rgba(239,68,68,0.15)'
-                        : '0 0 0 3px rgba(99,102,241,0.15)';
+                        : '0 0 0 3px rgba(16,185,129,0.15)';
                     }}
                     onBlur={(e) => {
                       e.currentTarget.style.borderColor = errors.email

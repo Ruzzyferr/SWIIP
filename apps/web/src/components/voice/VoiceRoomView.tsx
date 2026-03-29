@@ -17,6 +17,7 @@ import {
   MonitorOff,
   Eye,
   EyeOff,
+  UserPlus,
 } from 'lucide-react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { Avatar } from '@/components/ui/Avatar';
@@ -164,11 +165,6 @@ function ParticipantTile({
     member?.nick ?? member?.user?.globalName ?? member?.user?.username ?? participant.userId;
 
   const isSpeaking = participant.speaking && !participant.selfMute;
-  const borderColor = isSpeaking
-    ? 'var(--color-voice-speaking)'
-    : participant.selfDeaf
-    ? 'var(--color-voice-deafened)'
-    : 'transparent';
 
   const isCompact = size === 'compact';
 
@@ -232,13 +228,20 @@ function ParticipantTile({
       initial="hidden"
       animate="visible"
       exit="exit"
-      className="flex flex-col items-center justify-center rounded-xl"
+      className="flex flex-col items-center justify-center"
       style={{
         background: 'var(--color-surface-raised)',
-        border: `2px solid ${borderColor}`,
-        transition: 'border-color 0.1s',
-        padding: isCompact ? '12px 8px' : '24px 16px',
-        gap: isCompact ? 6 : 10,
+        borderRadius: 12,
+        padding: isCompact ? 12 : 16,
+        display: 'flex',
+        flexDirection: 'column',
+        alignItems: 'center',
+        gap: isCompact ? 6 : 8,
+        border: isSpeaking
+          ? '2px solid var(--color-accent-primary)'
+          : '2px solid var(--color-border-subtle)',
+        boxShadow: isSpeaking ? '0 0 20px rgba(16, 185, 129, 0.25)' : 'none',
+        transition: 'border-color 0.2s, box-shadow 0.2s',
         minWidth: isCompact ? 80 : 0,
         aspectRatio: isCompact ? undefined : '1 / 1',
       }}
@@ -308,7 +311,7 @@ function ParticipantTile({
             className="absolute -top-1 -right-1 rounded flex items-center justify-center"
             style={{
               padding: '1px 4px',
-              background: '#ed4245',
+              background: 'var(--color-danger-default)',
               fontSize: isCompact ? 8 : 9,
               fontWeight: 700,
               color: '#fff',
@@ -448,7 +451,7 @@ function VoiceRoomContent({
                   </span>
                   <span
                     className="text-xs font-bold px-1.5 py-0.5 rounded"
-                    style={{ background: '#ed4245', color: '#fff' }}
+                    style={{ background: 'var(--color-danger-default)', color: '#fff' }}
                   >
                     LIVE
                   </span>
@@ -504,7 +507,7 @@ function VoiceRoomContent({
                     <div className="absolute top-2 left-2 z-10 flex items-center gap-2">
                       <span
                         className="text-xs font-bold px-1.5 py-0.5 rounded"
-                        style={{ background: '#ed4245', color: '#fff' }}
+                        style={{ background: 'var(--color-danger-default)', color: '#fff' }}
                       >
                         LIVE
                       </span>
@@ -723,6 +726,25 @@ function VoiceRoomContent({
   );
 }
 
+function EmptyRoomInvite() {
+  return (
+    <div className="flex flex-col items-center gap-3 mt-8">
+      <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
+        No one else in this room yet.
+      </p>
+      <button className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
+        style={{
+          border: '1.5px solid var(--color-accent-primary)',
+          color: 'var(--color-accent-primary)',
+          background: 'transparent',
+        }}>
+        <UserPlus size={14} />
+        Invite to Join
+      </button>
+    </div>
+  );
+}
+
 // ---------------------------------------------------------------------------
 // Screen Share Button
 // ---------------------------------------------------------------------------
@@ -731,9 +753,6 @@ function ScreenShareButton() {
   const screenShareEnabled = useVoiceStore((s) => s.screenShareEnabled);
   const { toggleScreenShare } = useVoiceActions();
   const [modalOpen, setModalOpen] = useState(false);
-
-  const btnClass =
-    'w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200';
 
   const handleClick = () => {
     if (screenShareEnabled) {
@@ -752,11 +771,14 @@ function ScreenShareButton() {
       <Tooltip content={screenShareEnabled ? 'Stop Sharing' : 'Share Screen'} placement="top">
         <button
           onClick={handleClick}
-          className={btnClass}
+          className="flex items-center justify-center transition-all duration-200"
           style={{
-            color: screenShareEnabled ? '#fff' : 'var(--color-text-primary)',
+            width: 40,
+            height: 40,
+            borderRadius: 12,
+            color: screenShareEnabled ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)',
             background: screenShareEnabled
-              ? 'var(--color-danger-default)'
+              ? 'var(--color-accent-muted)'
               : 'var(--color-surface-raised)',
           }}
           onMouseEnter={(e) => {
@@ -828,26 +850,34 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
     (connectionState === 'connecting' || connectionState === 'reconnecting');
   const hasError = isInThisChannel && connectionState === 'error';
 
-  const btnClass =
-    'w-12 h-12 rounded-2xl flex items-center justify-center transition-all duration-200';
-
   return (
     <div
-      className="flex-1 flex flex-col items-center gap-4 p-4 sm:p-6 overflow-y-auto overflow-x-hidden"
-      style={{ background: 'var(--color-surface-base)' }}
+      className="flex-1 flex flex-col items-center gap-4 overflow-y-auto overflow-x-hidden"
+      style={{ background: 'var(--color-surface-base)', position: 'relative', paddingBottom: 80 }}
     >
-      {/* Channel header */}
-      <div className="text-center shrink-0">
-        <h2
-          className="text-lg font-bold"
-          style={{ color: 'var(--color-text-primary)' }}
-        >
-          {channel?.name ?? 'Voice Channel'}
-        </h2>
-        <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
-          {participants.length} participant{participants.length !== 1 ? 's' : ''}
-          {channel?.userLimit ? ` / ${channel.userLimit}` : ''}
-        </p>
+      {/* Room Header */}
+      <div className="flex items-center justify-between px-6 py-4 w-full shrink-0">
+        <div className="flex items-center gap-3">
+          <h2 className="text-xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+            {channel?.name || 'Voice Channel'}
+          </h2>
+          {participants.length > 0 && (
+            <span className="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider"
+              style={{
+                background: 'var(--color-accent-muted)',
+                color: 'var(--color-accent-primary)',
+                border: '1px solid var(--color-accent-primary)',
+              }}>
+              LIVE
+            </span>
+          )}
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+            {isInThisChannel ? 'Connected' : `${participants.length} participant${participants.length !== 1 ? 's' : ''}`}
+            {channel?.userLimit ? ` / ${channel.userLimit}` : ''}
+          </span>
+        </div>
       </div>
 
       {/* Status messages */}
@@ -885,13 +915,19 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
       </AnimatePresence>
 
       {/* Main content area — grows but shrinks to keep controls visible */}
-      <div className="flex-1 flex items-center justify-center w-full min-h-0 overflow-hidden shrink">
+      <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0 overflow-hidden shrink">
         {participants.length > 0 ? (
-          <VoiceRoomContent
-            participants={participants}
-            guildId={guildId}
-            userId={userId}
-          />
+          <>
+            <VoiceRoomContent
+              participants={participants}
+              guildId={guildId}
+              userId={userId}
+            />
+            {/* Empty state: only self in the room */}
+            {participants.length === 1 && participants[0]?.userId === userId && (
+              <EmptyRoomInvite />
+            )}
+          </>
         ) : !isInThisChannel ? (
           <motion.div
             initial={{ opacity: 0 }}
@@ -908,43 +944,62 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
               No one is in this voice channel.
             </p>
           </motion.div>
+        ) : isInThisChannel && participants.length === 0 ? (
+          <EmptyRoomInvite />
         ) : null}
       </div>
 
-      {/* Controls bar — always at bottom, never hidden */}
-      <motion.div
-        className="flex items-center gap-3 shrink-0 pb-2 sm:pb-0"
-        layout
-      >
+      {/* Floating Control Bar */}
+      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10">
         {!isInThisChannel ? (
-          <button
-            onClick={() => joinVoiceChannel(channelId)}
-            className="flex items-center gap-2 px-6 py-3 rounded-2xl font-semibold text-sm transition-all duration-200"
+          <div className="flex items-center px-4 py-3 rounded-2xl"
             style={{
-              background: 'var(--color-accent-primary)',
-              color: '#fff',
-            }}
-            onMouseEnter={(e) => {
-              e.currentTarget.style.background = 'var(--color-accent-hover)';
-            }}
-            onMouseLeave={(e) => {
-              e.currentTarget.style.background = 'var(--color-accent-primary)';
-            }}
-          >
-            <Phone size={16} />
-            Join Voice
-          </button>
+              background: 'var(--glass-bg)',
+              backdropFilter: 'blur(var(--glass-blur))',
+              border: '1px solid var(--glass-border)',
+              boxShadow: 'var(--shadow-float)',
+            }}>
+            <button
+              onClick={() => joinVoiceChannel(channelId)}
+              className="flex items-center gap-2 px-6 py-3 rounded-2xl font-semibold text-sm transition-all duration-200"
+              style={{
+                background: 'var(--color-accent-primary)',
+                color: '#fff',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'var(--color-accent-hover)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'var(--color-accent-primary)';
+              }}
+            >
+              <Phone size={16} />
+              Join Voice
+            </button>
+          </div>
         ) : (
-          <>
+          <motion.div
+            className="flex items-center gap-2 px-4 py-3 rounded-2xl"
+            style={{
+              background: 'var(--glass-bg)',
+              backdropFilter: 'blur(var(--glass-blur))',
+              border: '1px solid var(--glass-border)',
+              boxShadow: 'var(--shadow-float)',
+            }}
+            layout
+          >
             {/* Mute */}
             <Tooltip content={selfMuted ? 'Unmute' : 'Mute'} placement="top">
               <button
                 onClick={toggleMute}
-                className={btnClass}
+                className="flex items-center justify-center transition-all duration-200"
                 style={{
-                  color: selfMuted ? '#fff' : 'var(--color-text-primary)',
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  color: selfMuted ? 'var(--color-danger-default)' : 'var(--color-text-secondary)',
                   background: selfMuted
-                    ? 'var(--color-danger-default)'
+                    ? 'var(--color-danger-muted)'
                     : 'var(--color-surface-raised)',
                 }}
                 onMouseEnter={(e) => {
@@ -963,11 +1018,14 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
             <Tooltip content={selfDeafened ? 'Undeafen' : 'Deafen'} placement="top">
               <button
                 onClick={toggleDeafen}
-                className={btnClass}
+                className="flex items-center justify-center transition-all duration-200"
                 style={{
-                  color: selfDeafened ? '#fff' : 'var(--color-text-primary)',
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  color: selfDeafened ? 'var(--color-danger-default)' : 'var(--color-text-secondary)',
                   background: selfDeafened
-                    ? 'var(--color-danger-default)'
+                    ? 'var(--color-danger-muted)'
                     : 'var(--color-surface-raised)',
                 }}
                 onMouseEnter={(e) => {
@@ -986,11 +1044,14 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
             <Tooltip content={cameraEnabled ? 'Turn Off Camera' : 'Turn On Camera'} placement="top">
               <button
                 onClick={toggleCamera}
-                className={btnClass}
+                className="flex items-center justify-center transition-all duration-200"
                 style={{
-                  color: cameraEnabled ? '#fff' : 'var(--color-text-primary)',
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  color: cameraEnabled ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)',
                   background: cameraEnabled
-                    ? 'var(--color-success-default)'
+                    ? 'var(--color-accent-muted)'
                     : 'var(--color-surface-raised)',
                 }}
                 onMouseEnter={(e) => {
@@ -1008,12 +1069,19 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
             {/* Screen Share */}
             <ScreenShareButton />
 
+            {/* Separator before Leave */}
+            <div style={{ width: 1, height: 24, background: 'var(--color-border-default)', margin: '0 4px' }} />
+
             {/* Disconnect */}
             <Tooltip content="Disconnect" placement="top">
               <button
                 onClick={leaveVoiceChannel}
-                className={btnClass}
+                className="flex items-center gap-2 font-medium text-sm transition-all duration-200"
                 style={{
+                  paddingLeft: 16,
+                  paddingRight: 16,
+                  height: 40,
+                  borderRadius: 12,
                   color: '#fff',
                   background: 'var(--color-danger-default)',
                 }}
@@ -1025,12 +1093,13 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
                 }}
                 aria-label="Disconnect"
               >
-                <PhoneOff size={20} />
+                <PhoneOff size={18} />
+                Leave
               </button>
             </Tooltip>
-          </>
+          </motion.div>
         )}
-      </motion.div>
+      </div>
     </div>
   );
 }

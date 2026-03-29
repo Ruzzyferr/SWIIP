@@ -141,6 +141,18 @@ export const VideoTile = memo(function VideoTile({
       }}
       onDoubleClick={handleDoubleClick}
     >
+      {/* Reconnecting overlay for screen shares */}
+      {isScreen && !isPlaying && track && (
+        <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 z-10"
+          style={{ background: 'rgba(0,0,0,0.5)' }}>
+          <div className="animate-spin w-6 h-6 border-2 border-current border-t-transparent rounded-full"
+            style={{ color: 'var(--color-accent-primary)' }} />
+          <span className="text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+            Stream reconnecting...
+          </span>
+        </div>
+      )}
+
       {/* Video element — always mounted, visibility toggled */}
       <video
         ref={videoRef}

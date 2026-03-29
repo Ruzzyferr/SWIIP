@@ -6,7 +6,7 @@
  *   elevation steps, not shadows alone.
  * - Controlled blur and translucency for overlays and floating elements.
  * - Thin, low-opacity borders to suggest containment without harsh division.
- * - Low-saturation indigo accent that reads as intentional, not aggressive.
+ * - Emerald accent that reads as intentional, not aggressive.
  * - Strong typographic hierarchy through size and weight, not color noise.
  */
 
@@ -24,24 +24,23 @@ export const colors = {
    * floating: tooltips, context menus, dropdowns at the very top
    */
   surface: {
-    base: '#0e0f11',
-    elevated: '#141518',
-    raised: '#1a1c20',
-    overlay: '#1f2126',
-    floating: '#252830',
+    base: '#090B0B',
+    elevated: '#121616',
+    raised: '#181E1D',
+    overlay: '#202827',
+    floating: '#2B3533',
   },
 
   /**
-   * Accent — indigo-based, deliberately desaturated so it works with dark
-   * surfaces without overwhelming them.
+   * Accent — emerald green, balanced for dark surfaces.
    */
   accent: {
-    primary: '#6366f1',
-    hover: '#4f52d9',
-    active: '#4346c4',
-    muted: 'rgba(99, 102, 241, 0.15)',
-    subtle: 'rgba(99, 102, 241, 0.08)',
-    strong: 'rgba(99, 102, 241, 0.30)',
+    primary: '#10B981',
+    hover: '#059669',
+    active: '#047857',
+    muted: 'rgba(52, 211, 153, 0.16)',
+    subtle: 'rgba(52, 211, 153, 0.08)',
+    strong: 'rgba(52, 211, 153, 0.25)',
   },
 
   /**
@@ -49,32 +48,32 @@ export const colors = {
    * tertiary for placeholders and hints, disabled for non-interactive labels.
    */
   text: {
-    primary: '#f0f1f3',
-    secondary: '#9ca3af',
-    tertiary: '#6b7280',
-    disabled: '#4b5563',
-    inverse: '#111318',
-    accent: '#818cf8',
+    primary: '#F5F7F6',
+    secondary: '#B7C3BF',
+    tertiary: '#788682',
+    disabled: '#3D4A46',
+    inverse: '#090B0B',
+    accent: '#34D399',
   },
 
   /**
    * Borders — all alpha-based so they adapt to any surface color.
    */
   border: {
-    subtle: 'rgba(255, 255, 255, 0.06)',
-    default: 'rgba(255, 255, 255, 0.10)',
-    strong: 'rgba(255, 255, 255, 0.16)',
-    focus: 'rgba(99, 102, 241, 0.60)',
+    subtle: 'rgba(255, 255, 255, 0.04)',
+    default: 'rgba(255, 255, 255, 0.07)',
+    strong: 'rgba(255, 255, 255, 0.12)',
+    focus: 'rgba(16, 185, 129, 0.50)',
   },
 
   /**
    * Presence / status indicators.
    */
   status: {
-    online: '#22c55e',
-    idle: '#f59e0b',
-    dnd: '#ef4444',
-    offline: '#6b7280',
+    online: '#10B981',
+    idle: '#F59E0B',
+    dnd: '#EF4444',
+    offline: '#788682',
   },
 
   /** Destructive actions and error states. */
@@ -88,10 +87,10 @@ export const colors = {
 
   /** Positive confirmations and success states. */
   success: {
-    default: '#22c55e',
-    hover: '#16a34a',
-    muted: 'rgba(34, 197, 94, 0.15)',
-    subtle: 'rgba(34, 197, 94, 0.08)',
+    default: '#10B981',
+    hover: '#059669',
+    muted: 'rgba(16, 185, 129, 0.12)',
+    subtle: 'rgba(16, 185, 129, 0.06)',
   },
 
   /** Caution and warning states. */
@@ -104,18 +103,18 @@ export const colors = {
 
   /** @mention highlight in message content. */
   mention: {
-    bg: 'rgba(99, 102, 241, 0.12)',
-    border: 'rgba(99, 102, 241, 0.40)',
-    hover: 'rgba(99, 102, 241, 0.18)',
-    text: '#a5b4fc',
+    bg: 'rgba(16, 185, 129, 0.10)',
+    border: 'rgba(16, 185, 129, 0.35)',
+    hover: 'rgba(16, 185, 129, 0.16)',
+    text: '#34D399',
   },
 
   /** Voice channel participant state colors. */
   voice: {
-    speaking: '#22c55e',
+    speaking: '#10B981',
     mutedSpeaking: '#f59e0b',
     deafened: '#ef4444',
-    disconnected: '#6b7280',
+    disconnected: '#788682',
   },
 } as const;
 
@@ -235,8 +234,8 @@ export const shadow = {
   lg: '0 8px 24px rgba(0, 0, 0, 0.60)',
   xl: '0 16px 48px rgba(0, 0, 0, 0.70)',
   '2xl': '0 24px 64px rgba(0, 0, 0, 0.80)',
-  glow: '0 0 20px rgba(99, 102, 241, 0.30)',
-  glowStrong: '0 0 32px rgba(99, 102, 241, 0.50)',
+  glow: '0 0 20px rgba(16, 185, 129, 0.30)',
+  glowStrong: '0 0 32px rgba(16, 185, 129, 0.50)',
   inset: 'inset 0 1px 3px rgba(0, 0, 0, 0.40)',
 } as const;
 
@@ -303,9 +302,9 @@ export const zIndex = {
  * as constants — not to be overridden by component styles.
  */
 export const layout = {
-  serverRailWidth: '72px',
+  serverRailWidth: '64px',
   channelSidebarWidth: '240px',
-  memberSidebarWidth: '240px',
+  memberSidebarWidth: '260px',
   bottomBarHeight: '52px',
   titleBarHeight: '48px',
   messageInputMinHeight: '44px',

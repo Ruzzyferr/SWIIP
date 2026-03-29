@@ -102,13 +102,13 @@ export default function PrivacyPage() {
         <div
           className="absolute -top-32 -right-32 w-[600px] h-[600px] rounded-full opacity-40"
           style={{
-            background: 'radial-gradient(circle, #6c5ce7 0%, transparent 65%)',
+            background: 'radial-gradient(circle, #10B981 0%, transparent 65%)',
           }}
         />
         <div
           className="absolute bottom-0 -left-48 w-[500px] h-[500px] rounded-full opacity-30"
           style={{
-            background: 'radial-gradient(circle, #a29bfe 0%, transparent 65%)',
+            background: 'radial-gradient(circle, #34D399 0%, transparent 65%)',
           }}
         />
       </div>
@@ -173,8 +173,8 @@ export default function PrivacyPage() {
           <div
             className="rounded-xl p-4 text-sm leading-relaxed"
             style={{
-              background: 'rgba(108, 92, 231, 0.08)',
-              border: '1px solid rgba(108, 92, 231, 0.15)',
+              background: 'rgba(16, 185, 129, 0.08)',
+              border: '1px solid rgba(16, 185, 129, 0.15)',
               color: 'var(--color-text-secondary)',
             }}
           >

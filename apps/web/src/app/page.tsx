@@ -33,11 +33,11 @@ export default function LandingPage() {
       {/* ---- Atmospheric Background ---- */}
       <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
         <div className="absolute top-[-20%] left-[30%] w-[700px] h-[700px] rounded-full opacity-[0.07]"
-          style={{ background: 'radial-gradient(circle, #6c5ce7, transparent 65%)' }} />
+          style={{ background: 'radial-gradient(circle, #10B981, transparent 65%)' }} />
         <div className="absolute top-[30%] right-[10%] w-[500px] h-[500px] rounded-full opacity-[0.05]"
-          style={{ background: 'radial-gradient(circle, #a29bfe, transparent 65%)' }} />
+          style={{ background: 'radial-gradient(circle, #34D399, transparent 65%)' }} />
         <div className="absolute bottom-[-10%] left-[10%] w-[600px] h-[600px] rounded-full opacity-[0.04]"
-          style={{ background: 'radial-gradient(circle, #fd79a8, transparent 65%)' }} />
+          style={{ background: 'radial-gradient(circle, #6EE7B7, transparent 65%)' }} />
       </div>
 
       {/* ---- Navigation ---- */}
@@ -71,9 +71,9 @@ export default function LandingPage() {
           {/* Beta tag */}
           <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium mb-10 animate-fade-in-up"
             style={{
-              background: 'rgba(108,92,231,0.08)',
+              background: 'rgba(16,185,129,0.08)',
               color: 'var(--color-text-accent)',
-              border: '1px solid rgba(108,92,231,0.15)',
+              border: '1px solid rgba(16,185,129,0.15)',
               animationDelay: '0.1s',
             }}>
             <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--color-status-online)' }} />
@@ -154,7 +154,7 @@ export default function LandingPage() {
                 }}
                 onMouseEnter={(e) => {
                   e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-                  e.currentTarget.style.borderColor = 'rgba(108,92,231,0.15)';
+                  e.currentTarget.style.borderColor = 'rgba(16,185,129,0.15)';
                   e.currentTarget.style.transform = 'translateY(-2px)';
                   e.currentTarget.style.boxShadow = '0 8px 30px rgba(0,0,0,0.3)';
                 }}
@@ -188,12 +188,12 @@ export default function LandingPage() {
         <div
           className="max-w-3xl mx-auto text-center p-12 rounded-3xl relative overflow-hidden"
           style={{
-            background: 'rgba(108,92,231,0.06)',
-            border: '1px solid rgba(108,92,231,0.12)',
+            background: 'rgba(16,185,129,0.06)',
+            border: '1px solid rgba(16,185,129,0.12)',
           }}
         >
           <div className="absolute inset-0 pointer-events-none"
-            style={{ background: 'radial-gradient(ellipse at center top, rgba(108,92,231,0.12), transparent 70%)' }} />
+            style={{ background: 'radial-gradient(ellipse at center top, rgba(16,185,129,0.12), transparent 70%)' }} />
           <div className="relative">
             <h2
               className="text-3xl font-bold mb-4"

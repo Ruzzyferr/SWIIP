@@ -142,8 +142,8 @@ export function VoiceDebugOverlay({ room }: { room: React.MutableRefObject<any |
 
   const qualityLabel = ['Lost', 'Poor', 'Good', 'Excellent'][connectionQuality] ?? 'Unknown';
   const qualityColor =
-    connectionQuality >= 3 ? '#43b581' :
-    connectionQuality === 2 ? '#43b581' :
+    connectionQuality >= 3 ? '#10B981' :
+    connectionQuality === 2 ? '#10B981' :
     connectionQuality === 1 ? '#faa61a' : '#f04747';
 
   return (
@@ -181,10 +181,10 @@ export function VoiceDebugOverlay({ room }: { room: React.MutableRefObject<any |
           <SectionTitle>Audio Pipeline</SectionTitle>
           <Row label="Requested" value={pipelineUI.requestedMode} />
           <Row label="Active" value={pipelineUI.activeMode}
-            valueColor={pipelineUI.isDegraded ? '#faa61a' : '#43b581'} />
+            valueColor={pipelineUI.isDegraded ? '#faa61a' : '#10B981'} />
           <Row label="Pipeline" value={pipelineUI.pipelineState} />
           <Row label="Degraded" value={pipelineUI.isDegraded ? 'Yes' : 'No'}
-            valueColor={pipelineUI.isDegraded ? '#faa61a' : '#43b581'} />
+            valueColor={pipelineUI.isDegraded ? '#faa61a' : '#10B981'} />
           {pipelineUI.degradedReason && (
             <Row label="Reason" value={pipelineUI.degradedReason} valueColor="#faa61a" />
           )}
@@ -199,7 +199,7 @@ export function VoiceDebugOverlay({ room }: { room: React.MutableRefObject<any |
             <Row
               label="Worklet Latency"
               value={`${pipelineUI.latency.workletMs.toFixed(1)}ms`}
-              valueColor={pipelineUI.latency.withinBudget ? '#43b581' : '#faa61a'}
+              valueColor={pipelineUI.latency.withinBudget ? '#10B981' : '#faa61a'}
             />
           )}
         </div>
@@ -267,7 +267,7 @@ function Row({ label, value, valueColor }: { label: string; value: string; value
 }
 
 function TrackRow({ stat }: { stat: TrackStats }) {
-  const lossColor = stat.packetLoss > 5 ? '#f04747' : stat.packetLoss > 1 ? '#faa61a' : '#43b581';
+  const lossColor = stat.packetLoss > 5 ? '#f04747' : stat.packetLoss > 1 ? '#faa61a' : '#10B981';
   return (
     <div className="py-1 px-2 rounded mb-1" style={{ background: 'rgba(255,255,255,0.04)' }}>
       <div className="flex justify-between">

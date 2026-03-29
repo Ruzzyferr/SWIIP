@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Monitor, Volume2, VolumeX } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import type { ScreenShareQuality } from '@/stores/voice.store';
@@ -24,7 +24,12 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
   const [sources, setSources] = useState<DesktopSource[]>([]);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [loadingSources, setLoadingSources] = useState(false);
+  const [sourceTab, setSourceTab] = useState<'screens' | 'windows'>('screens');
   const isDesktop = typeof window !== 'undefined' && window.constchat?.platform === 'desktop';
+
+  const screenSources = useMemo(() => sources.filter((s) => s.id.startsWith('screen:')), [sources]);
+  const windowSources = useMemo(() => sources.filter((s) => s.id.startsWith('window:')), [sources]);
+  const filteredSources = sourceTab === 'screens' ? screenSources : windowSources;
 
   // Fetch desktop sources when modal opens on desktop
   useEffect(() => {
@@ -38,6 +43,14 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
       setLoadingSources(false);
     }).catch(() => setLoadingSources(false));
   }, [open, isDesktop]);
+
+  // Auto-select first source when tab changes
+  useEffect(() => {
+    const list = sourceTab === 'screens' ? screenSources : windowSources;
+    if (list.length > 0 && !list.find((s) => s.id === selectedSourceId)) {
+      setSelectedSourceId(list[0]!.id);
+    }
+  }, [sourceTab, screenSources, windowSources, selectedSourceId]);
 
   const handleStart = useCallback(async () => {
     // On desktop, send selected source and audio preference to main process
@@ -57,9 +70,31 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
         {/* Desktop Source Picker */}
         {isDesktop && (
           <div className="space-y-2">
-            <label className="text-xs font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-tertiary)' }}>
-              Choose what to share
-            </label>
+            {/* Tab bar */}
+            <div className="flex gap-2">
+              <button
+                onClick={() => setSourceTab('screens')}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={{
+                  background: sourceTab === 'screens' ? 'var(--color-accent-muted)' : 'var(--color-surface-raised)',
+                  color: sourceTab === 'screens' ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)',
+                  border: sourceTab === 'screens' ? '1px solid var(--color-accent-primary)' : '1px solid var(--color-border-subtle)',
+                }}
+              >
+                Ekranlar
+              </button>
+              <button
+                onClick={() => setSourceTab('windows')}
+                className="px-3 py-1.5 rounded-lg text-xs font-semibold transition-all"
+                style={{
+                  background: sourceTab === 'windows' ? 'var(--color-accent-muted)' : 'var(--color-surface-raised)',
+                  color: sourceTab === 'windows' ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)',
+                  border: sourceTab === 'windows' ? '1px solid var(--color-accent-primary)' : '1px solid var(--color-border-subtle)',
+                }}
+              >
+                Pencereler
+              </button>
+            </div>
             {loadingSources ? (
               <div className="flex items-center justify-center py-8" style={{ color: 'var(--color-text-tertiary)' }}>
                 <div className="animate-spin w-5 h-5 border-2 border-current border-t-transparent rounded-full" />
@@ -67,7 +102,7 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
               </div>
             ) : (
               <div className="grid grid-cols-3 gap-2 max-h-[280px] overflow-y-auto pr-1">
-                {sources.map((source) => (
+                {filteredSources.map((source) => (
                   <button
                     key={source.id}
                     onClick={() => setSelectedSourceId(source.id)}
@@ -161,7 +196,7 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
                       {isDesktop
                         ? isWindowCapture
                           ? 'Audio sharing is not available for window captures'
-                          : 'Captures all system audio (including voice chat)'
+                          : 'Captures system audio — use headphones to prevent echo'
                         : 'Share tab or system audio (Chrome/Edge only)'}
                     </p>
                   </div>
@@ -183,7 +218,7 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
               </div>
               {isDesktop && shareAudio && !isWindowCapture && (
                 <p className="text-xs px-1" style={{ color: 'var(--color-warning-default, #faa61a)' }}>
-                  Warning: Audio sharing captures all system sounds including voice chat. Other participants may hear echo.
+                  Use headphones to prevent echo. Voice chat audio is routed to your selected output device.
                 </p>
               )}
             </div>

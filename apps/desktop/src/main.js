@@ -113,7 +113,7 @@ function createWindow() {
     icon: path.join(__dirname, '..', 'build', 'icon.png'),
     frame: false,
     // Use a near-black background to minimize flash on both dark and light themes
-    backgroundColor: '#111119',
+    backgroundColor: '#090B0B',
     webPreferences: {
       preload: path.join(__dirname, 'preload.js'),
       contextIsolation: true,
@@ -298,8 +298,8 @@ function createSplashWindow() {
 <html><head><meta charset="utf-8"><style>
   * { margin: 0; padding: 0; box-sizing: border-box; }
   body {
-    background: #111119;
-    color: #e0e0e8;
+    background: #090B0B;
+    color: #F5F7F6;
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
     display: flex;
     flex-direction: column;
@@ -315,34 +315,34 @@ function createSplashWindow() {
     width: 80px; height: 80px;
     margin-bottom: 24px;
     border-radius: 20px;
-    background: linear-gradient(135deg, #6c5ce7, #a855f7);
+    background: linear-gradient(135deg, #10B981, #34D399);
     display: flex; align-items: center; justify-content: center;
     font-size: 36px; font-weight: 700; color: #fff;
-    box-shadow: 0 8px 32px rgba(108, 92, 231, 0.3);
+    box-shadow: 0 8px 32px rgba(16, 185, 129, 0.3);
   }
   .app-name {
     font-size: 22px; font-weight: 700;
     margin-bottom: 32px;
-    background: linear-gradient(135deg, #c4b5fd, #a855f7);
+    background: linear-gradient(135deg, #6EE7B7, #34D399);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
   }
   .status {
     font-size: 12px;
-    color: #8b8b9e;
+    color: #788682;
     margin-bottom: 16px;
     min-height: 16px;
     transition: opacity 0.3s;
   }
   .progress-container {
     width: 200px; height: 4px;
-    background: #1e1e2e;
+    background: #181E1D;
     border-radius: 2px;
     overflow: hidden;
   }
   .progress-bar {
     height: 100%;
-    background: linear-gradient(90deg, #6c5ce7, #a855f7);
+    background: linear-gradient(90deg, #10B981, #34D399);
     border-radius: 2px;
     width: 0%;
     transition: width 0.3s ease;
@@ -357,8 +357,8 @@ function createSplashWindow() {
   }
   .spinner {
     width: 24px; height: 24px;
-    border: 2.5px solid #1e1e2e;
-    border-top: 2.5px solid #a855f7;
+    border: 2.5px solid #181E1D;
+    border-top: 2.5px solid #34D399;
     border-radius: 50%;
     animation: spin 0.8s linear infinite;
     margin-bottom: 16px;

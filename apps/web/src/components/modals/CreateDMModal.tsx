@@ -99,7 +99,7 @@ export function CreateDMModal() {
                       borderColor: 'var(--color-surface-overlay)',
                       background: status === 'online' ? '#3ba55c' :
                         status === 'idle' ? '#faa61a' :
-                          status === 'dnd' ? '#ed4245' : '#747f8d',
+                          status === 'dnd' ? 'var(--color-status-dnd)' : '#788682',
                     }} />
                 </div>
                 <div className="flex-1 min-w-0">

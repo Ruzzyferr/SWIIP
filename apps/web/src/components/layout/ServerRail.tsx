@@ -39,43 +39,28 @@ function ServerIcon({
 
   return (
     <Tooltip content={name} placement="right">
-      <div className="relative flex items-center justify-center" style={{ height: 52, width: '100%' }}>
-        {/* Gradient pill indicator */}
-        <div
-          style={{
-            position: 'absolute',
-            left: 0,
-            top: '50%',
-            transform: 'translateY(-50%)',
-            width: 3,
-            borderRadius: '0 6px 6px 0',
-            background: 'var(--color-accent-gradient)',
-            transition: 'height 250ms cubic-bezier(0.34,1.56,0.64,1), opacity 200ms',
-            height: isActive ? 28 : hovered ? 12 : hasUnread ? 8 : 0,
-            opacity: isActive || hovered || hasUnread ? 1 : 0,
-          }}
-        />
-
+      <div className="relative flex items-center justify-center" style={{ height: 48, width: '100%' }}>
         <button
           onClick={onClick}
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
           className="relative flex items-center justify-center overflow-hidden flex-shrink-0"
           style={{
-            width: 48,
-            height: 48,
-            borderRadius: isActive || hovered ? 16 : 24,
+            width: 40,
+            height: 40,
+            borderRadius: isActive ? 12 : hovered ? 14 : 16,
             background: iconUrl
               ? 'transparent'
               : isActive
-              ? 'var(--color-accent-primary)'
-              : 'var(--color-surface-raised)',
-            transition: 'border-radius 300ms cubic-bezier(0.45,0,0.15,1), background 200ms, box-shadow 300ms',
-            boxShadow: isActive
-              ? '0 0 20px rgba(108,92,231,0.25), inset 0 0 0 1px rgba(255,255,255,0.08)'
+              ? 'var(--color-accent-muted)'
               : hovered
-              ? '0 0 12px rgba(108,92,231,0.12), inset 0 0 0 1px rgba(255,255,255,0.06)'
+              ? 'var(--color-surface-overlay)'
+              : 'var(--color-surface-raised)',
+            transition: 'border-radius 300ms cubic-bezier(0.45,0,0.15,1), background 200ms, box-shadow 300ms, transform 200ms',
+            boxShadow: isActive
+              ? '0 0 16px rgba(16,185,129,0.20)'
               : 'inset 0 0 0 1px rgba(255,255,255,0.04)',
+            transform: isActive ? 'scale(1.05)' : hovered ? 'scale(1.03)' : 'scale(1)',
           }}
           aria-label={name}
           aria-pressed={isActive}
@@ -84,15 +69,15 @@ function ServerIcon({
             <Image
               src={iconUrl}
               alt={name}
-              width={48}
-              height={48}
+              width={40}
+              height={40}
               className="object-cover w-full h-full"
             />
           ) : (
             <span
               className="font-semibold"
               style={{
-                fontSize: 14,
+                fontSize: 12,
                 letterSpacing: '-0.02em',
                 color: isActive ? '#ffffff' : 'var(--color-text-secondary)',
               }}
@@ -145,9 +130,10 @@ function RailDivider() {
     <div
       style={{
         width: 32,
-        height: 1,
-        margin: '2px auto',
-        background: 'linear-gradient(90deg, transparent, rgba(255,255,255,0.06), transparent)',
+        height: 2,
+        borderRadius: 1,
+        background: 'linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.3), transparent)',
+        margin: '4px 0',
       }}
     />
   );
@@ -178,15 +164,14 @@ function RailActionButton({
         onMouseLeave={() => setHovered(false)}
         className="flex items-center justify-center flex-shrink-0"
         style={{
-          width: 48,
-          height: 48,
-          borderRadius: hovered ? 16 : 24,
-          background: hovered ? accentColor : 'var(--color-surface-raised)',
-          color: hovered ? '#ffffff' : accentColor,
+          width: 40,
+          height: 40,
+          borderRadius: 14,
+          background: hovered ? 'var(--color-accent-muted)' : 'transparent',
+          color: 'var(--color-accent-primary)',
+          border: '1.5px solid var(--color-accent-primary)',
           transition: 'all 300ms cubic-bezier(0.45,0,0.15,1)',
-          boxShadow: hovered
-            ? `0 0 16px ${accentColor}30`
-            : 'inset 0 0 0 1px rgba(255,255,255,0.04)',
+          boxShadow: 'none',
         }}
         aria-label={label}
       >
@@ -224,13 +209,24 @@ export function ServerRail() {
 
   return (
     <nav
-      className="flex flex-col items-center scroll-hidden overflow-y-auto py-3 gap-1"
+      className="flex flex-col items-center scroll-hidden overflow-y-auto"
       style={{
-        width: 'var(--layout-server-rail-width)',
-        background: 'var(--color-surface-base)',
+        width: 64,
+        margin: '8px',
+        borderRadius: 20,
+        background: 'var(--color-surface-elevated)',
+        border: '1px solid var(--color-border-subtle)',
+        boxShadow: 'var(--shadow-float)',
+        display: 'flex',
+        flexDirection: 'column' as const,
+        alignItems: 'center',
+        padding: '12px 0',
+        gap: 4,
+        height: 'calc(100dvh - 16px)',
+        overflow: 'hidden',
+        position: 'relative' as const,
+        zIndex: 10,
         flexShrink: 0,
-        height: '100dvh',
-        borderRight: '1px solid var(--color-border-subtle)',
       }}
       aria-label="Server list"
       role="navigation"
@@ -243,20 +239,18 @@ export function ServerRail() {
           onMouseLeave={() => setDmHovered(false)}
           className="relative flex items-center justify-center flex-shrink-0"
           style={{
-            width: 48,
-            height: 48,
-            borderRadius: !activeGuildId || dmHovered ? 16 : 24,
+            width: 40,
+            height: 40,
+            borderRadius: !activeGuildId ? 12 : 14,
             overflow: 'hidden',
             background: !activeGuildId
-              ? '#e8e4ef'
+              ? 'var(--color-accent-muted)'
               : dmHovered
-              ? '#e8e4ef'
+              ? 'var(--color-surface-overlay)'
               : 'var(--color-surface-raised)',
             transition: 'all 300ms cubic-bezier(0.45,0,0.15,1)',
             boxShadow: !activeGuildId
-              ? 'var(--shadow-glow)'
-              : dmHovered
-              ? '0 0 16px rgba(108,92,231,0.20)'
+              ? '0 0 16px rgba(16,185,129,0.20)'
               : 'inset 0 0 0 1px rgba(255,255,255,0.04)',
           }}
           aria-label={t('directMessages')}
@@ -265,9 +259,14 @@ export function ServerRail() {
           <Image
             src="/logo.png"
             alt="Swiip"
-            width={48}
-            height={48}
+            width={40}
+            height={40}
             className="w-full h-full object-contain"
+            style={{
+              filter: !activeGuildId
+                ? 'none'
+                : 'grayscale(0.5) opacity(0.7)',
+            }}
           />
         </button>
       </Tooltip>

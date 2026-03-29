@@ -57,7 +57,7 @@ export function UserPanel() {
         <button
           className="rounded-full transition-shadow duration-200 flex-shrink-0"
           style={{
-            boxShadow: isSpeaking ? '0 0 0 2px var(--color-voice-speaking, #43b581)' : 'none',
+            boxShadow: isSpeaking ? '0 0 0 2px var(--color-accent-primary)' : 'none',
             borderRadius: '50%',
           }}
           onClick={() => setShowStatusPicker(!showStatusPicker)}

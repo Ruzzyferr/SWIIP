@@ -51,17 +51,30 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <ConnectionBanner />
 
         <div className="flex flex-1 overflow-hidden relative" style={{ minHeight: 0 }}>
-          {/* Atmospheric ambient glow — top left corner */}
+          {/* Atmospheric emerald nebula — bottom left */}
           <div
             className="absolute pointer-events-none"
             style={{
-              top: -100,
-              left: -100,
-              width: 500,
-              height: 500,
+              bottom: '-20%',
+              left: '-10%',
+              width: '60%',
+              height: '60%',
               borderRadius: '50%',
-              background: 'radial-gradient(circle, rgba(108,92,231,0.04), transparent 70%)',
-              filter: 'blur(40px)',
+              background: 'radial-gradient(ellipse, rgba(16, 185, 129, 0.06) 0%, transparent 70%)',
+              filter: 'blur(80px)',
+            }}
+          />
+          {/* Atmospheric emerald nebula — top right */}
+          <div
+            className="absolute pointer-events-none"
+            style={{
+              top: '-15%',
+              right: '-10%',
+              width: '50%',
+              height: '50%',
+              borderRadius: '50%',
+              background: 'radial-gradient(ellipse, rgba(52, 211, 153, 0.03) 0%, transparent 70%)',
+              filter: 'blur(80px)',
             }}
           />
 

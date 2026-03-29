@@ -97,13 +97,13 @@ export default function TermsPage() {
         <div
           className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full opacity-40"
           style={{
-            background: 'radial-gradient(circle, #a29bfe 0%, transparent 65%)',
+            background: 'radial-gradient(circle, #34D399 0%, transparent 65%)',
           }}
         />
         <div
           className="absolute bottom-0 -right-48 w-[500px] h-[500px] rounded-full opacity-30"
           style={{
-            background: 'radial-gradient(circle, #6c5ce7 0%, transparent 65%)',
+            background: 'radial-gradient(circle, #10B981 0%, transparent 65%)',
           }}
         />
       </div>

@@ -9,8 +9,8 @@ interface NestedRecord {
  * declarations, applying a naming prefix at each level.
  *
  * Example:
- *   flattenTokens({ surface: { base: '#0e0f11' } }, '--color')
- *   → { '--color-surface-base': '#0e0f11' }
+ *   flattenTokens({ surface: { base: '#090B0B' } }, '--color')
+ *   → { '--color-surface-base': '#090B0B' }
  */
 function flattenTokens(
   obj: NestedRecord,

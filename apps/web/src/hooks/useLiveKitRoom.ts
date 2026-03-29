@@ -171,6 +171,16 @@ export function useLiveKitRoom() {
 
     roomRef.current = room;
 
+    /** Route an audio element to the user's selected output device (isolates from loopback capture). */
+    const applySinkId = (element: HTMLAudioElement) => {
+      const deviceId = useVoiceStore.getState().settings.outputDeviceId;
+      if (deviceId && deviceId !== 'default' && typeof element.setSinkId === 'function') {
+        element.setSinkId(deviceId).catch((err: any) => {
+          console.warn('[LiveKit] Failed to set audio output device:', err);
+        });
+      }
+    };
+
     const detachAudio = (trackSid: string) => {
       const existing = audioElementsRef.current.get(trackSid);
       if (existing) {
@@ -214,6 +224,7 @@ export function useLiveKitRoom() {
         const streamVol = (state.streamVolumes[participant?.identity ?? ''] ?? 100) / 100;
         element.volume = Math.min(globalVol * streamVol, 1);
         document.body.appendChild(element);
+        applySinkId(element);
         audioElementsRef.current.set(trackSid, element);
         try {
           await element.play();
@@ -232,6 +243,7 @@ export function useLiveKitRoom() {
       const currentOutputVol = useVoiceStore.getState().settings.outputVolume;
       element.volume = currentDeafened ? 0 : Math.min(currentOutputVol / 100, 1);
       document.body.appendChild(element);
+      applySinkId(element);
       audioElementsRef.current.set(trackSid, element);
       try {
         await element.play();
@@ -300,11 +312,26 @@ export function useLiveKitRoom() {
               }
             }
           }
-          // Apply persisted volume settings to all remote tracks
-          // (covers both initial connect and reconnect scenarios)
-          setTimeout(() => applyVolumes(), 200);
-          // Retry to cover cases where tracks aren't fully subscribed yet
-          setTimeout(() => applyVolumes(), 800);
+          // Apply volumes with progressive retries to cover late track subscriptions
+          for (const delay of [200, 800, 2000, 5000]) {
+            setTimeout(() => applyVolumes(), delay);
+          }
+
+          // Reconcile: remove stale participants from store that are no longer in room
+          if (currentChannelId) {
+            const storeParticipants = useVoiceStore.getState().participants;
+            const roomIdentities = new Set(
+              Array.from(room.remoteParticipants.values()).map((p) => p.identity),
+            );
+            roomIdentities.add(room.localParticipant.identity);
+            for (const key of Object.keys(storeParticipants)) {
+              if (!key.startsWith(currentChannelId + ':')) continue;
+              const userId = key.split(':')[1];
+              if (userId && !roomIdentities.has(userId)) {
+                removeParticipant(currentChannelId, userId);
+              }
+            }
+          }
 
           // Re-publish screen share if it was active before reconnect.
           // We check the grace-period timestamp instead of a boolean flag
@@ -355,10 +382,10 @@ export function useLiveKitRoom() {
         case ConnectionState.Reconnecting:
           setConnectionState('reconnecting');
           // Save screen share state before reconnect tears it down.
-          // Use a 15-second grace period so that late LocalTrackUnpublished
+          // Use a 30-second grace period so that late LocalTrackUnpublished
           // events don't falsely stop the share after we transition to Connected.
           if (useVoiceStore.getState().screenShareEnabled) {
-            screenShareReconnectUntil.current = Date.now() + 15_000;
+            screenShareReconnectUntil.current = Date.now() + 30_000; // 30s grace
           }
           break;
         case ConnectionState.Disconnected:
@@ -441,6 +468,13 @@ export function useLiveKitRoom() {
     });
 
     room.on(RoomEvent.ParticipantDisconnected, (participant: RemoteParticipant) => {
+      console.debug('[LiveKit] Participant disconnected:', participant.identity);
+      // During reconnect, participants temporarily disconnect then reconnect.
+      // Skip removal to prevent UI flicker.
+      if (room.state === ConnectionState.Reconnecting) {
+        console.debug('[LiveKit] Skipping participant removal during reconnect');
+        return;
+      }
       if (!currentChannelId) return;
       removeParticipant(currentChannelId, participant.identity);
       if (shouldPlaySound()) {
@@ -708,8 +742,43 @@ export function useLiveKitRoom() {
         setError(err instanceof Error ? err.message : 'Failed to connect to voice server');
       });
 
+    // Periodic health check — sync store with actual room state
+    const healthCheckInterval = setInterval(() => {
+      if (room.state !== ConnectionState.Connected || !currentChannelId) return;
+
+      // Check for stale screen share tracks
+      if (useVoiceStore.getState().screenShareEnabled) {
+        const pub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+        if (!pub) {
+          console.warn('[LiveKit] Health check: screen share track missing, syncing store');
+          useVoiceStore.getState().setScreenShareEnabled(false);
+        }
+      }
+
+      // Reconcile remote participants
+      const storeParticipants = useVoiceStore.getState().participants;
+      for (const [, p] of room.remoteParticipants) {
+        const key = `${currentChannelId}:${p.identity}`;
+        if (!storeParticipants[key]) {
+          console.warn('[LiveKit] Health check: missing participant, re-adding:', p.identity);
+          setParticipant({
+            userId: p.identity,
+            channelId: currentChannelId,
+            selfMute: !p.isMicrophoneEnabled,
+            selfDeaf: false,
+            serverMute: false,
+            serverDeaf: false,
+            speaking: p.isSpeaking,
+            selfVideo: p.isCameraEnabled,
+            screenSharing: p.isScreenShareEnabled,
+          });
+        }
+      }
+    }, 10_000);
+
     return () => {
       console.debug('[LiveKit] Cleaning up room');
+      clearInterval(healthCheckInterval);
       // Dispose audio pipeline first
       if (pipelineRef.current) {
         pipelineRef.current.dispose();
@@ -934,6 +1003,7 @@ export function useLiveKitRoom() {
         // Capture options — don't constrain resolution, let browser capture at native resolution
         contentHint: preset.fps >= 60 ? 'motion' : 'detail',
         audio: wantAudio,
+        suppressLocalAudioPlayback: true,
         selfBrowserSurface: 'exclude',
         surfaceSwitching: 'include',
         // Always exclude system audio — it captures ALL system output including

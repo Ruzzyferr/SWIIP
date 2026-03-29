@@ -22,7 +22,7 @@ The app uses a 5-level surface depth system. No surface is flat black. Depth is 
 
 | Token | Value | Usage |
 |---|---|---|
-| `surface.base` | `#0e0f11` | App root, server rail background |
+| `surface.base` | `#090B0B` | App root, server rail background |
 | `surface.elevated` | `#141518` | Channel sidebar, left panel |
 | `surface.raised` | `#1a1c20` | Content area cards, user panel |
 | `surface.overlay` | `#1f2126` | Modals, drawers |
@@ -34,10 +34,10 @@ Single primary accent. No rainbow theming in the product chrome.
 
 | Token | Value | Usage |
 |---|---|---|
-| `accent.primary` | `#6366f1` (Indigo 500) | Active states, buttons, links, focus rings |
-| `accent.hover` | `#4f52d9` | Hover on accent elements |
-| `accent.muted` | `rgba(99,102,241,0.15)` | Active channel background, reaction selected |
-| `accent.subtle` | `rgba(99,102,241,0.08)` | Hover backgrounds in lists |
+| `accent.primary` | `#10B981` (Emerald 500) | Active states, buttons, links, focus rings |
+| `accent.hover` | `#059669` | Hover on accent elements |
+| `accent.muted` | `rgba(16,185,129,0.15)` | Active channel background, reaction selected |
+| `accent.subtle` | `rgba(16,185,129,0.08)` | Hover backgrounds in lists |
 
 ### Text Hierarchy
 
@@ -62,7 +62,7 @@ Single primary accent. No rainbow theming in the product chrome.
 - **Danger**: `#ef4444` (red) for destructive actions, errors
 - **Success**: `#22c55e` (green) for confirmations
 - **Warning**: `#f59e0b` (amber) for cautions
-- **Mention**: `rgba(99,102,241,0.12)` background, `rgba(99,102,241,0.4)` border
+- **Mention**: `rgba(16,185,129,0.12)` background, `rgba(16,185,129,0.4)` border
 
 ---
 

@@ -101,7 +101,7 @@ export default function VerifyEmailPage() {
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
         <div
           className="absolute -top-20 -right-20 w-[500px] h-[500px] rounded-full"
-          style={{ background: 'radial-gradient(circle, rgba(99,102,241,0.07) 0%, transparent 70%)' }}
+          style={{ background: 'radial-gradient(circle, rgba(16,185,129,0.07) 0%, transparent 70%)' }}
         />
       </div>
 
@@ -114,7 +114,7 @@ export default function VerifyEmailPage() {
         <motion.div variants={itemVariants} className="text-center mb-7">
           <div
             className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5"
-            style={{ background: 'rgba(99,102,241,0.15)' }}
+            style={{ background: 'rgba(16,185,129,0.15)' }}
           >
             <Mail size={28} style={{ color: 'var(--color-accent-primary)' }} />
           </div>
@@ -179,7 +179,7 @@ export default function VerifyEmailPage() {
                 }}
                 onFocus={(e) => {
                   e.currentTarget.style.borderColor = 'var(--color-border-focus)';
-                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.15)';
+                  e.currentTarget.style.boxShadow = '0 0 0 3px rgba(16,185,129,0.15)';
                 }}
                 onBlur={(e) => {
                   e.currentTarget.style.borderColor = 'var(--color-border-default)';

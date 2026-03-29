@@ -180,7 +180,7 @@ export default function RegisterPage() {
       : 'var(--color-border-focus)';
     e.currentTarget.style.boxShadow = hasError
       ? '0 0 0 3px rgba(239,68,68,0.15)'
-      : '0 0 0 3px rgba(99,102,241,0.15)';
+      : '0 0 0 3px rgba(16,185,129,0.15)';
   };
 
   const handleBlur = (e: React.FocusEvent<HTMLInputElement>, hasError: boolean) => {
@@ -196,15 +196,15 @@ export default function RegisterPage() {
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
         <div
           className="absolute -top-20 -right-20 w-[500px] h-[500px] rounded-full opacity-[0.07]"
-          style={{ background: 'radial-gradient(circle, #6c5ce7, transparent 65%)' }}
+          style={{ background: 'radial-gradient(circle, #10B981, transparent 65%)' }}
         />
         <div
           className="absolute -bottom-32 -left-32 w-[600px] h-[600px] rounded-full opacity-[0.05]"
-          style={{ background: 'radial-gradient(circle, #a29bfe, transparent 65%)' }}
+          style={{ background: 'radial-gradient(circle, #34D399, transparent 65%)' }}
         />
         <div
           className="absolute top-[30%] left-[50%] w-[400px] h-[400px] rounded-full opacity-[0.04]"
-          style={{ background: 'radial-gradient(circle, #fd79a8, transparent 65%)' }}
+          style={{ background: 'radial-gradient(circle, #6EE7B7, transparent 65%)' }}
         />
       </div>
 
@@ -499,17 +499,17 @@ export default function RegisterPage() {
                   style={{
                     background: isSubmitting ? 'var(--color-accent-hover)' : 'var(--color-accent-gradient)',
                     opacity: isSubmitting ? 0.8 : 1,
-                    boxShadow: isSubmitting ? 'none' : '0 4px 15px rgba(108,92,231,0.3)',
+                    boxShadow: isSubmitting ? 'none' : '0 4px 15px rgba(16,185,129,0.3)',
                   }}
                   onMouseEnter={(e) => {
                     if (!isSubmitting) {
-                      e.currentTarget.style.boxShadow = '0 6px 20px rgba(108,92,231,0.45)';
+                      e.currentTarget.style.boxShadow = '0 6px 20px rgba(16,185,129,0.45)';
                       e.currentTarget.style.transform = 'translateY(-1px)';
                     }
                   }}
                   onMouseLeave={(e) => {
                     if (!isSubmitting) {
-                      e.currentTarget.style.boxShadow = '0 4px 15px rgba(108,92,231,0.3)';
+                      e.currentTarget.style.boxShadow = '0 4px 15px rgba(16,185,129,0.3)';
                       e.currentTarget.style.transform = 'translateY(0)';
                     }
                   }}
@@ -547,7 +547,7 @@ export default function RegisterPage() {
             <motion.div variants={itemVariants} className="text-center mb-7">
               <div
                 className="w-14 h-14 rounded-2xl flex items-center justify-center mx-auto mb-5"
-                style={{ background: 'var(--color-accent-muted, rgba(99,102,241,0.15))' }}
+                style={{ background: 'var(--color-accent-muted, rgba(16,185,129,0.15))' }}
               >
                 <Mail size={28} style={{ color: 'var(--color-accent-primary)' }} />
               </div>
@@ -618,7 +618,7 @@ export default function RegisterPage() {
                     }}
                     onFocus={(e) => {
                       e.currentTarget.style.borderColor = 'var(--color-border-focus)';
-                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(99,102,241,0.15)';
+                      e.currentTarget.style.boxShadow = '0 0 0 3px rgba(16,185,129,0.15)';
                     }}
                     onBlur={(e) => {
                       e.currentTarget.style.borderColor = 'var(--color-border-default)';

@@ -147,22 +147,34 @@ echo   STEP: Git Push
 echo ============================================================
 echo.
 
-git diff --quiet --exit-code 2>nul
+:: Stage everything first so we catch both modified AND untracked files
+git add -A
+
+:: Check if there is anything staged to commit
+git diff --cached --quiet --exit-code 2>nul
 if errorlevel 1 goto has_changes
+echo [*] No changes to commit — pushing existing commits...
 goto do_push
 
 :has_changes
-echo [!] Uncommitted changes:
-git status --short
+echo [!] Staged changes:
+git --no-pager diff --cached --stat
 echo.
-set /p COMMIT_MSG="  Commit message [Enter to skip push]: "
-if "!COMMIT_MSG!"=="" goto wait_ci
-git add -A
-git commit -m "!COMMIT_MSG!"
+set /p COMMIT_MSG="  Commit message [Enter for auto-message]: "
+if "!COMMIT_MSG!"=="" (
+    set "COMMIT_MSG=deploy: update"
+)
+git --no-pager commit -m "!COMMIT_MSG!"
+if errorlevel 1 (
+    echo [!] Commit failed. Check errors above.
+    pause
+    exit /b 1
+)
+echo [OK] Committed: !COMMIT_MSG!
 
 :do_push
 echo [*] Pushing to origin/master...
-git push origin master
+git --no-pager push origin master
 if errorlevel 1 goto push_fail
 echo [OK] Push successful
 goto wait_ci

@@ -58,10 +58,18 @@ function GuildHeaderDropdown({
         onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
         aria-label={`${guild.name} — ${t('serverOptions')}`}
       >
-        <span className="font-semibold truncate text-sm" style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.01em' }}>
-          {guild.name}
-        </span>
-        <ChevronDown size={14} style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }} />
+        <div className="flex items-center gap-2 min-w-0">
+          <div className="w-6 h-6 rounded-md flex items-center justify-center shrink-0"
+            style={{ background: 'var(--color-accent-muted)' }}>
+            <span className="text-[10px] font-bold" style={{ color: 'var(--color-accent-primary)' }}>
+              {guild?.name?.charAt(0)?.toUpperCase() || 'S'}
+            </span>
+          </div>
+          <span className="font-semibold text-sm truncate" style={{ color: 'var(--color-text-primary)' }}>
+            {guild?.name || 'Server'}
+          </span>
+        </div>
+        <Settings size={16} style={{ color: 'var(--color-text-tertiary)', flexShrink: 0 }} />
       </button>
 
       <AnimatePresence>
@@ -290,16 +298,20 @@ function ChannelItem({
         onDrop={(e) => { setDragOver(false); onDrop?.(e, channel.id); }}
         className="channel-item w-full text-left"
         style={{
+          borderLeft: isActive
+            ? '3px solid var(--color-accent-primary)'
+            : '3px solid transparent',
           background: isActive
             ? 'var(--color-accent-subtle)'
             : dragOver
             ? 'var(--color-accent-muted)'
             : hovered
-            ? 'var(--color-surface-raised)'
+            ? 'rgba(255,255,255,0.04)'
             : 'transparent',
-          color: isActive || hasUnread
+          paddingLeft: isActive ? 'calc(var(--channel-item-pl, 8px) - 3px)' : undefined,
+          color: isActive
             ? 'var(--color-text-primary)'
-            : hovered
+            : hasUnread
             ? 'var(--color-text-primary)'
             : 'var(--color-text-secondary)',
           fontWeight: hasUnread ? 600 : undefined,
@@ -384,6 +396,21 @@ function ChannelItem({
 }
 
 // ---------------------------------------------------------------------------
+// Section label for grouped channel layout
+// ---------------------------------------------------------------------------
+
+function SectionLabel({ label }: { label: string }) {
+  return (
+    <div className="px-3 pt-4 pb-1">
+      <span className="text-[10px] font-semibold uppercase"
+        style={{ color: 'var(--color-text-tertiary)', letterSpacing: '0.1em' }}>
+        {label}
+      </span>
+    </div>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Main ChannelSidebar
 // ---------------------------------------------------------------------------
 
@@ -419,31 +446,29 @@ export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
     openModal('create-channel', { guildId, categoryId });
   };
 
-  // Get channels for this guild, grouped in a single pass
-  const { guildChannels, categories, uncategorized, channelsByCategory } = useMemo(() => {
+  // Get channels for this guild, grouped into sections (SPACES, LIVE ROOMS, THREADS)
+  const { guildChannels, groupedChannels } = useMemo(() => {
     const _guildChannels: ChannelPayload[] = [];
-    const _categories: ChannelPayload[] = [];
-    const _uncategorized: ChannelPayload[] = [];
-    const _channelsByCategory: Record<string, ChannelPayload[]> = {};
+    const spaces: ChannelPayload[] = [];
+    const liveRooms: ChannelPayload[] = [];
+    const threads: ChannelPayload[] = [];
 
     for (const ch of Object.values(channels)) {
       if ((ch as ChannelPayload & { guildId?: string }).guildId !== guildId) continue;
+      if (ch.type === ChannelType.CATEGORY) continue; // Skip category channels
       _guildChannels.push(ch);
 
-      if (ch.type === ChannelType.CATEGORY) {
-        _categories.push(ch);
+      if (ch.type === ChannelType.VOICE || ch.type === ChannelType.STAGE) {
+        liveRooms.push(ch);
+      } else if (ch.type === ChannelType.THREAD) {
+        threads.push(ch);
       } else {
-        const catId = (ch as ChannelPayload & { categoryId?: string }).categoryId;
-        if (catId) {
-          if (!_channelsByCategory[catId]) _channelsByCategory[catId] = [];
-          _channelsByCategory[catId].push(ch);
-        } else {
-          _uncategorized.push(ch);
-        }
+        // TEXT, ANNOUNCEMENT, FORUM go to SPACES
+        spaces.push(ch);
       }
     }
 
-    return { guildChannels: _guildChannels, categories: _categories, uncategorized: _uncategorized, channelsByCategory: _channelsByCategory };
+    return { guildChannels: _guildChannels, groupedChannels: { spaces, liveRooms, threads } };
   }, [channels, guildId]);
 
   // Drag-and-drop channel reorder
@@ -524,13 +549,13 @@ export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
       )}
 
       {/* Channel list — scrollable */}
-      <div className="flex-1 overflow-y-auto scroll-thin py-3 px-2 space-y-1">
+      <div className="flex-1 overflow-y-auto scroll-thin" style={{ paddingBottom: 8 }}>
         {guildId ? (
           <>
-            {/* Uncategorized channels */}
-            {uncategorized.length > 0 && (
-              <div className="space-y-0.5 mb-2">
-                {uncategorized.map((ch) => (
+            {groupedChannels.spaces.length > 0 && (
+              <>
+                <SectionLabel label="SPACES" />
+                {groupedChannels.spaces.map((ch) => (
                   <ChannelItem
                     key={ch.id}
                     channel={ch}
@@ -542,25 +567,58 @@ export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
                     onDrop={handleDrop}
                   />
                 ))}
-              </div>
+              </>
             )}
 
-            {/* Categorized sections */}
-            {categories.map((cat) => (
-                <CategorySection
-                  key={cat.id}
-                  name={cat.name}
-                  categoryId={cat.id}
-                  channels={channelsByCategory[cat.id] ?? []}
-                  activeChannelId={activeChannelId}
-                  onChannelClick={handleChannelClick}
-                  guildId={guildId}
-                  onCreateChannel={handleCreateChannel}
-                  onDragStart={handleDragStart}
-                  onDragOver={handleDragOver}
-                  onDrop={handleDrop}
-                />
-            ))}
+            {groupedChannels.liveRooms.length > 0 && (
+              <>
+                <SectionLabel label="LIVE ROOMS" />
+                {groupedChannels.liveRooms.map((ch) => (
+                  <ChannelItem
+                    key={ch.id}
+                    channel={ch}
+                    isActive={activeChannelId === ch.id}
+                    onClick={() => handleChannelClick(ch.id)}
+                    guildId={guildId}
+                    onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                  />
+                ))}
+              </>
+            )}
+
+            {groupedChannels.threads.length > 0 && (
+              <>
+                <SectionLabel label="THREADS" />
+                {groupedChannels.threads.map((ch) => (
+                  <ChannelItem
+                    key={ch.id}
+                    channel={ch}
+                    isActive={activeChannelId === ch.id}
+                    onClick={() => handleChannelClick(ch.id)}
+                    guildId={guildId}
+                    onDragStart={handleDragStart}
+                    onDragOver={handleDragOver}
+                    onDrop={handleDrop}
+                  />
+                ))}
+              </>
+            )}
+
+            {/* Add a Chat */}
+            <div className="px-3 pt-3">
+              <button
+                className="flex items-center gap-2 w-full px-2 py-1.5 rounded-md text-xs"
+                style={{ color: 'var(--color-text-tertiary)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-secondary)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-tertiary)'; }}
+                onClick={() => handleCreateChannel()}
+              >
+                <Plus size={14} />
+                Add a Chat
+              </button>
+            </div>
 
             {/* Empty state */}
             {guildChannels.length === 0 && (

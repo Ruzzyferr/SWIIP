@@ -58,7 +58,7 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
             boxShadow: focused
               ? hasError
                 ? '0 0 0 3px rgba(239,68,68,0.15)'
-                : '0 0 0 3px rgba(99,102,241,0.15)'
+                : '0 0 0 3px rgba(16,185,129,0.15)'
               : 'none',
             opacity: disabled ? 0.5 : 1,
           }}

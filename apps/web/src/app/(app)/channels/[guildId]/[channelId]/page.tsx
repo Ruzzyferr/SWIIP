@@ -148,7 +148,7 @@ export default function ChannelPage() {
           {isVoiceChannel ? (
             <div className="flex flex-1 min-h-0 overflow-hidden">
               <VoiceRoomView channelId={channelId} guildId={guildId} />
-              {!isMobile && isMemberSidebarOpen && <MemberSidebar guildId={guildId} />}
+              {!isMobile && isMemberSidebarOpen && <MemberSidebar guildId={guildId} channelId={channelId} isVoiceChannel />}
             </div>
           ) : (
             <div className="flex flex-1 min-h-0 overflow-hidden">
