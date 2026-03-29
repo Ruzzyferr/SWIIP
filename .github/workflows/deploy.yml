@@ -150,7 +150,7 @@ jobs:
             docker compose -f infra/docker/docker-compose.deploy.yml --env-file .env.production pull api gateway web workers media-signalling
 
             # Run migrations
-            docker compose -f infra/docker/docker-compose.deploy.yml --env-file .env.production run --rm api npx prisma migrate deploy --schema ./prisma/schema.prisma || true
+            docker compose -f infra/docker/docker-compose.deploy.yml --env-file .env.production run --rm api migrate || true
 
             # Restart services with new images (zero-downtime for stateless services)
             docker compose -f infra/docker/docker-compose.deploy.yml --env-file .env.production --profile voice up -d api gateway web workers media-signalling
