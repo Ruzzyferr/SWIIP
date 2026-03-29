@@ -13,7 +13,7 @@ import type {
   AudioPipelineUIState,
   PipelineState,
 } from './types';
-import { KrispInitError, WorkletInitError, createDefaultPipelineUIState } from './types';
+import { createDefaultPipelineUIState } from './types';
 import { buildCaptureConstraints, requiresRepublish } from './constraints';
 import { audioTelemetry } from './telemetry';
 
@@ -226,17 +226,17 @@ export class AudioPipeline {
     if (result.activeMode === 'enhanced') {
       newState.processorStatus = {
         ...this.uiState.processorStatus,
-        krisp: 'active',
+        rnnoise: 'active',
       };
     } else if (mode === 'enhanced' && result.degraded) {
       newState.processorStatus = {
         ...this.uiState.processorStatus,
-        krisp: 'failed',
+        rnnoise: 'failed',
       };
     } else {
       newState.processorStatus = {
         ...this.uiState.processorStatus,
-        krisp: 'idle',
+        rnnoise: 'idle',
       };
     }
 
@@ -255,11 +255,10 @@ export class AudioPipeline {
 
   private setupReconnectHandler(room: Room): void {
     const handler = () => {
-      // Reset Krisp factory on reconnect to avoid stale WASM state
-      // Access strategy's krispManager if it has one
+      // Reset RNNoise manager on reconnect to avoid stale state
       const strategy = this.strategy as any;
-      if (typeof strategy.getKrispManager === 'function') {
-        strategy.getKrispManager().resetFactory();
+      if (typeof strategy.getRnnoiseManager === 'function') {
+        strategy.getRnnoiseManager().resetState();
       }
       this.handleReconnect().catch((err) => {
         console.error('[AudioPipeline] Reconnect handler failed:', err);

@@ -2,25 +2,25 @@
  * DesktopAudioStrategy — handles audio modes in Electron desktop context.
  *
  * - Standard: browser constraints (EC+NS+AGC) + AudioWorklet DSP (HPF + limiter)
- * - Enhanced: Krisp processor. On fail → Desktop Standard (NOT browser standard).
+ * - Enhanced: RNNoise processor. On fail → republish track with Desktop Standard.
  * - Raw: bypass worklet, all processing off.
  */
 
 import { Track, type Room } from 'livekit-client';
 import type { AudioPipelineStrategy, AudioMode } from '../types';
-import { KrispInitError, WorkletInitError } from '../types';
-import { buildRuntimeConstraints, verifyAppliedConstraints } from '../constraints';
-import { KrispManager } from '../krisp-manager';
+import { NoiseFilterError, WorkletInitError } from '../types';
+import { buildCaptureConstraints, buildRuntimeConstraints, verifyAppliedConstraints } from '../constraints';
+import { RnnoiseManager } from '../rnnoise-manager';
 import { DesktopWorkletManager } from '../desktop-worklet-manager';
 import { audioTelemetry } from '../telemetry';
 
 export class DesktopAudioStrategy implements AudioPipelineStrategy {
   readonly platform = 'desktop' as const;
-  private krispManager: KrispManager;
+  private rnnoiseManager: RnnoiseManager;
   private workletManager: DesktopWorkletManager;
 
   constructor() {
-    this.krispManager = new KrispManager('desktop');
+    this.rnnoiseManager = new RnnoiseManager('desktop');
     this.workletManager = new DesktopWorkletManager('desktop');
   }
 
@@ -31,7 +31,7 @@ export class DesktopAudioStrategy implements AudioPipelineStrategy {
     activeMode: AudioMode;
     degraded: boolean;
     reason: string | null;
-    errorCode: KrispInitError | WorkletInitError | null;
+    errorCode: NoiseFilterError | WorkletInitError | null;
   }> {
     switch (mode) {
       case 'raw':
@@ -44,16 +44,16 @@ export class DesktopAudioStrategy implements AudioPipelineStrategy {
   }
 
   async removeProcessors(room: Room): Promise<void> {
-    await this.krispManager.removeFromTrack(room);
+    await this.rnnoiseManager.removeFromTrack(room);
   }
 
   dispose(): void {
-    this.krispManager.dispose();
+    this.rnnoiseManager.dispose();
     this.workletManager.dispose();
   }
 
-  getKrispManager(): KrispManager {
-    return this.krispManager;
+  getRnnoiseManager(): RnnoiseManager {
+    return this.rnnoiseManager;
   }
 
   getWorkletManager(): DesktopWorkletManager {
@@ -64,9 +64,9 @@ export class DesktopAudioStrategy implements AudioPipelineStrategy {
     activeMode: AudioMode;
     degraded: boolean;
     reason: string | null;
-    errorCode: KrispInitError | WorkletInitError | null;
+    errorCode: NoiseFilterError | WorkletInitError | null;
   }> {
-    await this.krispManager.removeFromTrack(room);
+    await this.rnnoiseManager.removeFromTrack(room);
 
     if (this.workletManager.getState() === 'active') {
       this.workletManager.bypass(true);
@@ -85,9 +85,9 @@ export class DesktopAudioStrategy implements AudioPipelineStrategy {
     activeMode: AudioMode;
     degraded: boolean;
     reason: string | null;
-    errorCode: KrispInitError | WorkletInitError | null;
+    errorCode: NoiseFilterError | WorkletInitError | null;
   }> {
-    await this.krispManager.removeFromTrack(room);
+    await this.rnnoiseManager.removeFromTrack(room);
 
     const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
     if (!micPub?.track) {
@@ -125,21 +125,22 @@ export class DesktopAudioStrategy implements AudioPipelineStrategy {
     activeMode: AudioMode;
     degraded: boolean;
     reason: string | null;
-    errorCode: KrispInitError | WorkletInitError | null;
+    errorCode: NoiseFilterError | WorkletInitError | null;
   }> {
     if (this.workletManager.getState() === 'bypassed') {
       this.workletManager.bypass(false);
     }
 
-    const success = await this.krispManager.applyToTrack(room);
+    const success = await this.rnnoiseManager.applyToTrack(room);
 
     if (success) {
       return { activeMode: 'enhanced', degraded: false, reason: null, errorCode: null };
     }
 
-    const failure = this.krispManager.getLastFailure();
-    const reason = failure?.message ?? 'Krisp unavailable';
-    const errorCode = failure?.code ?? KrispInitError.UNKNOWN;
+    // RNNoise failed — fallback to Desktop Standard with track republish
+    const failure = this.rnnoiseManager.getLastFailure();
+    const reason = failure?.message ?? 'Noise filter unavailable';
+    const errorCode = failure?.code ?? NoiseFilterError.UNKNOWN;
 
     audioTelemetry.log({
       type: 'transition',
@@ -148,6 +149,15 @@ export class DesktopAudioStrategy implements AudioPipelineStrategy {
       to: 'DEGRADED',
       reason: 'Enhanced -> Desktop Standard fallback: ' + reason,
       errorCode,
+    });
+
+    // Republish mic track with Standard constraints (NS=true)
+    const constraints = buildCaptureConstraints('desktop', 'standard');
+    await room.localParticipant.setMicrophoneEnabled(false);
+    await room.localParticipant.setMicrophoneEnabled(true, {
+      echoCancellation: constraints.echoCancellation,
+      noiseSuppression: constraints.noiseSuppression,
+      autoGainControl: constraints.autoGainControl,
     });
 
     await this.applyStandard(room);

@@ -11,9 +11,11 @@ export {
   type AudioPipelineUIState,
   type AudioTelemetryEvent,
   type AudioPipelineStrategy,
-  type KrispErrorDetail,
+  type NoiseFilterErrorDetail,
   AUDIO_MODE_POLICY,
+  NoiseFilterError,
   KrispInitError,
+  NOISE_FILTER_ERROR_MESSAGES,
   KRISP_ERROR_MESSAGES,
   WorkletInitError,
   createDefaultPipelineUIState,
@@ -37,8 +39,11 @@ export { audioTelemetry } from './telemetry';
 // Pipeline
 export { AudioPipeline } from './pipeline';
 
-// Krisp Manager
-export { KrispManager } from './krisp-manager';
+// RNNoise Manager
+export { RnnoiseManager } from './rnnoise-manager';
+
+// RNNoise Processor
+export { RnnoiseProcessor } from './rnnoise-processor';
 
 // Desktop Worklet Manager
 export { DesktopWorkletManager } from './desktop-worklet-manager';

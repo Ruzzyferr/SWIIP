@@ -191,10 +191,10 @@ export function VoiceDebugOverlay({ room }: { room: React.MutableRefObject<any |
           {pipelineUI.degradedErrorCode && (
             <Row label="Error" value={pipelineUI.degradedErrorCode} valueColor="#f04747" />
           )}
-          <Row label="Krisp" value={pipelineUI.processorStatus.krisp} />
+          <Row label="RNNoise" value={pipelineUI.processorStatus.rnnoise} />
           <Row label="Worklet" value={pipelineUI.processorStatus.worklet} />
           <Row label="Platform" value={pipelineUI.supportDetection.platform} />
-          <Row label="Krisp Support" value={pipelineUI.supportDetection.krisp} />
+          <Row label="RNNoise Support" value={pipelineUI.supportDetection.rnnoise} />
           {pipelineUI.latency.workletMs !== null && (
             <Row
               label="Worklet Latency"

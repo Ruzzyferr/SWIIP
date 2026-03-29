@@ -13,7 +13,7 @@
     "@constchat/design-tokens": "workspace:*",
     "@constchat/protocol": "workspace:*",
     "@hookform/resolvers": "^3.6",
-    "@livekit/krisp-noise-filter": "^0.4.1",
+    "@sapphi-red/web-noise-suppressor": "^0.3.5",
     "axios": "^1.7",
     "clsx": "^2.1",
     "date-fns": "^3.6",

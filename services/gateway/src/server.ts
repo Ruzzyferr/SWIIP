@@ -205,6 +205,7 @@ export class GatewayServer {
           remoteAddress,
           voiceGuildId: null,
           voiceChannelId: null,
+          identifyAttempts: 0,
         };
 
         // Perform the WebSocket upgrade, attaching session to the user-data slot

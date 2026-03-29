@@ -2,23 +2,23 @@
  * BrowserAudioStrategy — handles audio modes in browser context.
  *
  * - Standard: browser WebRTC constraints (EC+NS+AGC)
- * - Enhanced: Krisp processor. On fail → Standard fallback.
+ * - Enhanced: RNNoise processor. On fail → republish track with Standard constraints.
  * - Raw: all processing off.
  */
 
 import { Track, type Room } from 'livekit-client';
 import type { AudioPipelineStrategy, AudioMode } from '../types';
-import { KrispInitError, WorkletInitError } from '../types';
-import { buildRuntimeConstraints, verifyAppliedConstraints } from '../constraints';
-import { KrispManager } from '../krisp-manager';
+import { NoiseFilterError, WorkletInitError } from '../types';
+import { buildCaptureConstraints, buildRuntimeConstraints, verifyAppliedConstraints } from '../constraints';
+import { RnnoiseManager } from '../rnnoise-manager';
 import { audioTelemetry } from '../telemetry';
 
 export class BrowserAudioStrategy implements AudioPipelineStrategy {
   readonly platform = 'browser' as const;
-  private krispManager: KrispManager;
+  private rnnoiseManager: RnnoiseManager;
 
   constructor() {
-    this.krispManager = new KrispManager('browser');
+    this.rnnoiseManager = new RnnoiseManager('browser');
   }
 
   async applyMode(
@@ -28,7 +28,7 @@ export class BrowserAudioStrategy implements AudioPipelineStrategy {
     activeMode: AudioMode;
     degraded: boolean;
     reason: string | null;
-    errorCode: KrispInitError | WorkletInitError | null;
+    errorCode: NoiseFilterError | WorkletInitError | null;
   }> {
     switch (mode) {
       case 'raw':
@@ -41,21 +41,21 @@ export class BrowserAudioStrategy implements AudioPipelineStrategy {
   }
 
   async removeProcessors(room: Room): Promise<void> {
-    await this.krispManager.removeFromTrack(room);
+    await this.rnnoiseManager.removeFromTrack(room);
   }
 
   dispose(): void {
-    this.krispManager.dispose();
+    this.rnnoiseManager.dispose();
   }
 
-  // --- Krisp support check (delegated) ---
+  // --- RNNoise support check (delegated) ---
 
-  async checkKrispSupport(): Promise<boolean> {
-    return this.krispManager.checkSupport();
+  async checkRnnoiseSupport(): Promise<boolean> {
+    return this.rnnoiseManager.checkSupport();
   }
 
-  getKrispManager(): KrispManager {
-    return this.krispManager;
+  getRnnoiseManager(): RnnoiseManager {
+    return this.rnnoiseManager;
   }
 
   // --- Private mode implementations ---
@@ -64,10 +64,10 @@ export class BrowserAudioStrategy implements AudioPipelineStrategy {
     activeMode: AudioMode;
     degraded: boolean;
     reason: string | null;
-    errorCode: KrispInitError | WorkletInitError | null;
+    errorCode: NoiseFilterError | WorkletInitError | null;
   }> {
     // Remove any processor
-    await this.krispManager.removeFromTrack(room);
+    await this.rnnoiseManager.removeFromTrack(room);
 
     // Apply raw constraints
     const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
@@ -83,10 +83,10 @@ export class BrowserAudioStrategy implements AudioPipelineStrategy {
     activeMode: AudioMode;
     degraded: boolean;
     reason: string | null;
-    errorCode: KrispInitError | WorkletInitError | null;
+    errorCode: NoiseFilterError | WorkletInitError | null;
   }> {
     // Remove any processor
-    await this.krispManager.removeFromTrack(room);
+    await this.rnnoiseManager.removeFromTrack(room);
 
     // Apply standard constraints
     const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
@@ -113,19 +113,19 @@ export class BrowserAudioStrategy implements AudioPipelineStrategy {
     activeMode: AudioMode;
     degraded: boolean;
     reason: string | null;
-    errorCode: KrispInitError | WorkletInitError | null;
+    errorCode: NoiseFilterError | WorkletInitError | null;
   }> {
-    // Try Krisp
-    const success = await this.krispManager.applyToTrack(room);
+    // Try RNNoise
+    const success = await this.rnnoiseManager.applyToTrack(room);
 
     if (success) {
       return { activeMode: 'enhanced', degraded: false, reason: null, errorCode: null };
     }
 
-    // Krisp failed — fallback to Browser Standard
-    const failure = this.krispManager.getLastFailure();
-    const reason = failure?.message ?? 'Krisp unavailable';
-    const errorCode = failure?.code ?? KrispInitError.UNKNOWN;
+    // RNNoise failed — fallback to Standard with track republish
+    const failure = this.rnnoiseManager.getLastFailure();
+    const reason = failure?.message ?? 'Noise filter unavailable';
+    const errorCode = failure?.code ?? NoiseFilterError.UNKNOWN;
 
     audioTelemetry.log({
       type: 'transition',
@@ -136,8 +136,15 @@ export class BrowserAudioStrategy implements AudioPipelineStrategy {
       errorCode,
     });
 
-    // Apply standard as fallback
-    await this.applyStandard(room);
+    // Republish mic track with Standard constraints (NS=true)
+    // Cannot toggle noiseSuppression via applyConstraints() — must re-capture
+    const constraints = buildCaptureConstraints('browser', 'standard');
+    await room.localParticipant.setMicrophoneEnabled(false);
+    await room.localParticipant.setMicrophoneEnabled(true, {
+      echoCancellation: constraints.echoCancellation,
+      noiseSuppression: constraints.noiseSuppression,
+      autoGainControl: constraints.autoGainControl,
+    });
 
     return {
       activeMode: 'standard',

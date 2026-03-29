@@ -39,6 +39,8 @@ export interface ClientSession {
   voiceGuildId: string | null;
   /** Channel ID the user is currently in voice for (null if not in voice). */
   voiceChannelId: string | null;
+  /** Number of IDENTIFY attempts on this connection (rate limiting). */
+  identifyAttempts: number;
 }
 
 /**

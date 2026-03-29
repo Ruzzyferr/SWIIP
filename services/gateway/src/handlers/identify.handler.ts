@@ -69,6 +69,14 @@ export async function handleIdentify(
     return;
   }
 
+  // Rate limit IDENTIFY attempts: max 3 per connection
+  session.identifyAttempts = (session.identifyAttempts ?? 0) + 1;
+  if (session.identifyAttempts > 3) {
+    log.warn('Too many IDENTIFY attempts, closing connection');
+    ws.end(4029, 'Too many authentication attempts');
+    return;
+  }
+
   // 1. Verify JWT
   let userId: string;
   try {

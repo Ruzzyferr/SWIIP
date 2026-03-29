@@ -66,7 +66,7 @@ export const AUDIO_MODE_POLICY: Record<AudioPlatform, Record<AudioMode, AudioCon
       echoCancellation: true,
       noiseSuppression: false,
       autoGainControl: false,
-      rationale: 'Browser Enhanced: NS off because Krisp assumes raw input — stacking browser NS causes artifacts. AGC off because Krisp manages dynamics internally — stacking AGC causes pumping. EC stays on because Krisp does NOT handle echo cancellation.',
+      rationale: 'Browser Enhanced: NS off because RNNoise handles NS — stacking browser NS causes artifacts. AGC off to preserve dynamics. EC stays on because RNNoise does NOT handle echo cancellation.',
     },
   },
   desktop: {
@@ -86,43 +86,49 @@ export const AUDIO_MODE_POLICY: Record<AudioPlatform, Record<AudioMode, AudioCon
       echoCancellation: true,
       noiseSuppression: false,
       autoGainControl: false,
-      rationale: 'Desktop Enhanced: NS off because Krisp handles NS internally. AGC off because Krisp manages dynamics — stacking causes pumping. EC on because Krisp does NOT handle echo cancellation.',
+      rationale: 'Desktop Enhanced: NS off because RNNoise handles NS. AGC off to preserve dynamics. EC on because RNNoise does NOT handle echo cancellation.',
     },
   },
 };
 
 // ---------------------------------------------------------------------------
-// Krisp Init Error Codes
+// Noise Filter Error Codes (RNNoise-based)
 // ---------------------------------------------------------------------------
 
-export enum KrispInitError {
-  IMPORT_FAILED       = 'KRISP_IMPORT_FAILED',
-  NOT_SUPPORTED       = 'KRISP_NOT_SUPPORTED',
-  WASM_FETCH_FAILED   = 'KRISP_WASM_FETCH_FAILED',
-  WASM_COMPILE_FAILED = 'KRISP_WASM_COMPILE_FAILED',
-  WORKER_INIT_FAILED  = 'KRISP_WORKER_INIT_FAILED',
-  PROCESSOR_TIMEOUT   = 'KRISP_PROCESSOR_TIMEOUT',
-  PROCESSOR_ERROR     = 'KRISP_PROCESSOR_ERROR',
-  TRACK_UNAVAILABLE   = 'KRISP_TRACK_UNAVAILABLE',
-  UNKNOWN             = 'KRISP_UNKNOWN',
+export enum NoiseFilterError {
+  IMPORT_FAILED       = 'NF_IMPORT_FAILED',
+  NOT_SUPPORTED       = 'NF_NOT_SUPPORTED',
+  WASM_FETCH_FAILED   = 'NF_WASM_FETCH_FAILED',
+  WASM_COMPILE_FAILED = 'NF_WASM_COMPILE_FAILED',
+  WORKER_INIT_FAILED  = 'NF_WORKER_INIT_FAILED',
+  PROCESSOR_TIMEOUT   = 'NF_PROCESSOR_TIMEOUT',
+  PROCESSOR_ERROR     = 'NF_PROCESSOR_ERROR',
+  TRACK_UNAVAILABLE   = 'NF_TRACK_UNAVAILABLE',
+  UNKNOWN             = 'NF_UNKNOWN',
 }
 
-export interface KrispErrorDetail {
+/** @deprecated Use NoiseFilterError instead */
+export const KrispInitError = NoiseFilterError;
+
+export interface NoiseFilterErrorDetail {
   user: string;
   debug: string;
 }
 
-export const KRISP_ERROR_MESSAGES: Record<KrispInitError, KrispErrorDetail> = {
-  [KrispInitError.IMPORT_FAILED]:       { user: 'Noise filter module could not be loaded',        debug: 'Dynamic import of @livekit/krisp-noise-filter failed' },
-  [KrispInitError.NOT_SUPPORTED]:       { user: 'Noise filter not supported on this browser',     debug: 'isKrispNoiseFilterSupported() returned false' },
-  [KrispInitError.WASM_FETCH_FAILED]:   { user: 'Noise filter assets not found',                  debug: 'WASM binary fetch returned non-200 or network error' },
-  [KrispInitError.WASM_COMPILE_FAILED]: { user: 'Noise filter failed to initialize',              debug: 'WebAssembly.compile() threw during Krisp init' },
-  [KrispInitError.WORKER_INIT_FAILED]:  { user: 'Noise filter worker failed to start',            debug: 'Worker constructor threw — likely CSP or file:// issue' },
-  [KrispInitError.PROCESSOR_TIMEOUT]:   { user: 'Noise filter took too long to start',            debug: 'Krisp instance creation exceeded 5s timeout' },
-  [KrispInitError.PROCESSOR_ERROR]:     { user: 'Noise filter could not attach to audio',         debug: 'setProcessor() threw on mic track' },
-  [KrispInitError.TRACK_UNAVAILABLE]:   { user: 'No microphone track available',                  debug: 'getTrackPublication(Microphone) returned null' },
-  [KrispInitError.UNKNOWN]:             { user: 'Noise filter encountered an unexpected error',   debug: 'Catch-all with original error attached' },
+export const NOISE_FILTER_ERROR_MESSAGES: Record<NoiseFilterError, NoiseFilterErrorDetail> = {
+  [NoiseFilterError.IMPORT_FAILED]:       { user: 'Noise filter module could not be loaded',        debug: 'Dynamic import of RNNoise WASM failed' },
+  [NoiseFilterError.NOT_SUPPORTED]:       { user: 'Noise filter not supported on this browser',     debug: 'AudioWorklet or WebAssembly not available' },
+  [NoiseFilterError.WASM_FETCH_FAILED]:   { user: 'Noise filter assets not found',                  debug: 'WASM binary fetch returned non-200 or network error' },
+  [NoiseFilterError.WASM_COMPILE_FAILED]: { user: 'Noise filter failed to initialize',              debug: 'WebAssembly.compile() threw during RNNoise init' },
+  [NoiseFilterError.WORKER_INIT_FAILED]:  { user: 'Noise filter worker failed to start',            debug: 'AudioWorklet module load failed — likely CSP issue' },
+  [NoiseFilterError.PROCESSOR_TIMEOUT]:   { user: 'Noise filter took too long to start',            debug: 'RNNoise processor init exceeded 10s timeout' },
+  [NoiseFilterError.PROCESSOR_ERROR]:     { user: 'Noise filter could not attach to audio',         debug: 'setProcessor() threw on mic track' },
+  [NoiseFilterError.TRACK_UNAVAILABLE]:   { user: 'No microphone track available',                  debug: 'getTrackPublication(Microphone) returned null' },
+  [NoiseFilterError.UNKNOWN]:             { user: 'Noise filter encountered an unexpected error',   debug: 'Catch-all with original error attached' },
 };
+
+/** @deprecated Use NOISE_FILTER_ERROR_MESSAGES instead */
+export const KRISP_ERROR_MESSAGES = NOISE_FILTER_ERROR_MESSAGES;
 
 // ---------------------------------------------------------------------------
 // Worklet Init Error Codes
@@ -150,16 +156,16 @@ export interface AudioPipelineUIState {
   /** Human-readable reason for degradation, or null if not degraded */
   degradedReason: string | null;
   /** Structured error code for degradation, or null */
-  degradedErrorCode: KrispInitError | WorkletInitError | null;
+  degradedErrorCode: NoiseFilterError | WorkletInitError | null;
   /** Support detection results */
   supportDetection: {
-    krisp: 'supported' | 'unsupported' | 'unchecked' | 'checking';
+    rnnoise: 'supported' | 'unsupported' | 'unchecked' | 'checking';
     worklet: 'supported' | 'unsupported' | 'unchecked';
     platform: AudioPlatform;
   };
   /** Current processor status */
   processorStatus: {
-    krisp: 'idle' | 'loading' | 'active' | 'failed' | 'removed';
+    rnnoise: 'idle' | 'loading' | 'active' | 'failed' | 'removed';
     worklet: 'idle' | 'loading' | 'active' | 'failed' | 'bypassed';
   };
   /** Latency measurements (desktop worklet only) */
@@ -179,12 +185,12 @@ export function createDefaultPipelineUIState(platform: AudioPlatform, requestedM
     degradedReason: null,
     degradedErrorCode: null,
     supportDetection: {
-      krisp: 'unchecked',
+      rnnoise: 'unchecked',
       worklet: 'unchecked',
       platform,
     },
     processorStatus: {
-      krisp: 'idle',
+      rnnoise: 'idle',
       worklet: 'idle',
     },
     latency: {
@@ -207,7 +213,7 @@ export interface AudioTelemetryEvent {
   to?: PipelineState;
   reason?: string;
   retryCount?: number;
-  errorCode?: KrispInitError | WorkletInitError | string;
+  errorCode?: NoiseFilterError | WorkletInitError | string;
   errorMessage?: string;
   /** Arbitrary data payload for the event */
   data?: Record<string, unknown>;
@@ -231,7 +237,7 @@ export interface AudioPipelineStrategy {
     activeMode: AudioMode;
     degraded: boolean;
     reason: string | null;
-    errorCode: KrispInitError | WorkletInitError | null;
+    errorCode: NoiseFilterError | WorkletInitError | null;
   }>;
 
   /**

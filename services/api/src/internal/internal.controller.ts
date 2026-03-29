@@ -9,22 +9,33 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
+import { timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 
 /**
  * Internal endpoints for service-to-service communication.
- * Protected by X-Internal-Token header (JWT_SECRET).
+ * Protected by X-Internal-Token header (INTERNAL_API_SECRET, falls back to JWT_SECRET).
  */
 @Controller('internal')
 export class InternalController {
+  private readonly internalSecret: string;
+
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
-  ) {}
+  ) {
+    this.internalSecret = this.config.get<string>('INTERNAL_API_SECRET')
+      || this.config.get<string>('JWT_SECRET')
+      || '';
+  }
 
   private validateToken(token: string | undefined) {
-    const secret = this.config.get('JWT_SECRET');
-    if (!token || token !== secret) {
+    if (!token || !this.internalSecret) {
+      throw new ForbiddenException('Invalid internal token');
+    }
+    const a = Buffer.from(token);
+    const b = Buffer.from(this.internalSecret);
+    if (a.length !== b.length || !timingSafeEqual(a, b)) {
       throw new ForbiddenException('Invalid internal token');
     }
   }

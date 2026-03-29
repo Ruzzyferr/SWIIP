@@ -653,11 +653,19 @@ export function useLiveKitRoom() {
     };
   }, [livekitToken, livekitUrl, currentChannelId]);
 
-  // Sync mute state to LiveKit
+  // Sync mute state to LiveKit + apply pending audio mode on unmute
   useEffect(() => {
     const room = roomRef.current;
     if (!room || room.state !== ConnectionState.Connected) return;
     room.localParticipant.setMicrophoneEnabled(!selfMuted).catch(console.error);
+
+    // When unmuting, apply any audio mode change that was deferred while muted
+    if (!selfMuted && pendingModeRef.current && pipelineRef.current) {
+      const mode = pendingModeRef.current;
+      pendingModeRef.current = null;
+      pipelineRef.current.requestMode(mode);
+      console.debug(`[Audio] Applied deferred mode switch to ${mode} on unmute`);
+    }
   }, [selfMuted]);
 
   // Sync deafen state + output volume + per-user volume — adjust all remote audio
@@ -733,6 +741,7 @@ export function useLiveKitRoom() {
   // Switch audio processing mode at runtime via AudioPipeline.
   // The pipeline handles EC boundary detection, constraint changes, and processor swaps.
   const prevAudioModeRef = useRef<AudioMode | null>(null);
+  const pendingModeRef = useRef<AudioMode | null>(null);
   useEffect(() => {
     const room = roomRef.current;
     const pipeline = pipelineRef.current;
@@ -749,8 +758,13 @@ export function useLiveKitRoom() {
       }
     }
 
-    if (useVoiceStore.getState().selfMuted) return;
+    // If muted, defer the mode change until unmute
+    if (useVoiceStore.getState().selfMuted) {
+      pendingModeRef.current = audioMode;
+      return;
+    }
 
+    pendingModeRef.current = null;
     pipeline.requestMode(audioMode);
     console.debug(`[Audio] Requested mode switch to ${audioMode}`);
   }, [audioMode]);

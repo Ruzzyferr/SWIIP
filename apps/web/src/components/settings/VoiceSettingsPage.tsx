@@ -317,7 +317,7 @@ function getAudioModes(): { value: AudioMode; label: string; description: string
     {
       value: 'enhanced',
       label: 'Enhanced',
-      description: 'AI-powered noise filter (Krisp)',
+      description: 'AI-powered noise suppression (RNNoise)',
       icon: Sparkles,
       requiresEnhanced: true,
     },
@@ -335,22 +335,14 @@ function AudioModeSelector({ value, onChange }: { value: AudioMode; onChange: (m
 
   useEffect(() => {
     if (enhancedChecked) return;
-    (async () => {
-      try {
-        const mod = await import('@livekit/krisp-noise-filter');
-        const supported = typeof mod.isKrispNoiseFilterSupported === 'function'
-          && mod.isKrispNoiseFilterSupported();
-        useVoiceStore.getState().setAudioCapabilities({
-          enhancedAvailable: supported,
-          enhancedChecked: true,
-        });
-      } catch {
-        useVoiceStore.getState().setAudioCapabilities({
-          enhancedAvailable: false,
-          enhancedChecked: true,
-        });
-      }
-    })();
+    // RNNoise requires AudioWorklet + WebAssembly — both widely supported
+    const supported =
+      typeof AudioWorkletNode !== 'undefined' &&
+      typeof WebAssembly !== 'undefined';
+    useVoiceStore.getState().setAudioCapabilities({
+      enhancedAvailable: supported,
+      enhancedChecked: true,
+    });
   }, [enhancedChecked]);
 
   return (

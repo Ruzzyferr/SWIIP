@@ -23,7 +23,7 @@ export interface PlatformReconnectConfig {
 export interface PlatformAudioDefaults {
   /** Default audio processing mode */
   defaultMode: 'standard' | 'enhanced';
-  /** Whether enhanced (Krisp) mode is available on this platform */
+  /** Whether enhanced (RNNoise) mode is available on this platform */
   enhancedAvailable: boolean;
 }
 
@@ -99,7 +99,7 @@ function createWebProvider(): PlatformProvider {
 
     audioDefaults: {
       defaultMode: 'standard',
-      // Set to true at runtime after isKrispNoiseFilterSupported() check
+      // Set to true at runtime after AudioWorklet + WASM support check
       enhancedAvailable: false,
     },
 

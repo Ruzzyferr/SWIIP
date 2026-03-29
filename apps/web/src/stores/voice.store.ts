@@ -39,7 +39,7 @@ interface VoiceSettings {
   inputVolume: number;   // 0–100
   outputVolume: number;  // 0–100
   notificationSounds: boolean;
-  /** Audio processing profile: standard (browser NS), enhanced (Krisp), raw (no processing). */
+  /** Audio processing profile: standard (browser NS), enhanced (RNNoise), raw (no processing). */
   audioMode: AudioMode;
   /** Voice activity detection threshold (0=most sensitive, 100=least sensitive). -1 = automatic. */
   voiceActivityThreshold: number;
