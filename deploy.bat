@@ -15,13 +15,14 @@ echo   ========================================
 echo     Swiip Deploy Script
 echo   ========================================
 echo.
-echo   1^) Full deploy - git push + server rebuild
+echo   1^) Full deploy - git push + CI/CD
 echo   2^) Full deploy + Desktop app build
-echo   3^) Server only - skip git push, just rebuild
+echo   3^) Redeploy server (pull latest images)
 echo.
 set /p CHOICE="  Select [1/2/3]: "
 
 if "%CHOICE%"=="2" goto ensure_docker
+if "%CHOICE%"=="3" goto redeploy
 goto git_step
 
 :: ============================================================
@@ -140,8 +141,6 @@ goto git_step
 :git_step
 cd /d "%~dp0"
 
-if "%CHOICE%"=="3" goto deploy
-
 echo.
 echo ============================================================
 echo   STEP: Git Push
@@ -157,7 +156,7 @@ echo [!] Uncommitted changes:
 git status --short
 echo.
 set /p COMMIT_MSG="  Commit message [Enter to skip push]: "
-if "!COMMIT_MSG!"=="" goto deploy
+if "!COMMIT_MSG!"=="" goto wait_ci
 git add -A
 git commit -m "!COMMIT_MSG!"
 
@@ -166,7 +165,7 @@ echo [*] Pushing to origin/master...
 git push origin master
 if errorlevel 1 goto push_fail
 echo [OK] Push successful
-goto deploy
+goto wait_ci
 
 :push_fail
 echo [!] Push failed. Check errors above.
@@ -174,33 +173,80 @@ pause
 exit /b 1
 
 :: ============================================================
-:: Server Deploy
+:: Wait for GitHub Actions CI/CD
 :: ============================================================
-:deploy
+:wait_ci
 echo.
 echo ============================================================
-echo   STEP: Server Deploy
+echo   STEP: CI/CD Pipeline (GitHub Actions)
+echo ============================================================
+echo.
+echo [*] Waiting for GitHub Actions to start...
+timeout /t 5 /nobreak >nul
+
+:: Get the latest workflow run
+for /f "tokens=1" %%i in ('gh run list --workflow "Build & Deploy" --limit 1 --json databaseId --jq ".[0].databaseId" 2^>nul') do set RUN_ID=%%i
+
+if not defined RUN_ID (
+    echo [!] Could not find workflow run. Check manually:
+    echo     https://github.com/Ruzzyferr/ConstChat/actions
+    pause
+    exit /b 1
+)
+
+echo [*] Watching workflow run #!RUN_ID!...
+echo     https://github.com/Ruzzyferr/ConstChat/actions/runs/!RUN_ID!
+echo.
+gh run watch !RUN_ID! --exit-status
+if errorlevel 1 goto ci_fail
+
+echo.
+echo ============================================================
+echo   DEPLOY COMPLETE
+echo ============================================================
+echo.
+echo   Server: 209.38.205.251
+echo   URL:    https://swiip.app
+echo.
+pause
+exit /b 0
+
+:ci_fail
+echo.
+echo [!] CI/CD pipeline failed! Check the logs:
+echo     https://github.com/Ruzzyferr/ConstChat/actions/runs/!RUN_ID!
+pause
+exit /b 1
+
+:: ============================================================
+:: Redeploy (pull latest GHCR images + restart)
+:: ============================================================
+:redeploy
+echo.
+echo ============================================================
+echo   STEP: Redeploy Server
 echo ============================================================
 echo.
 
-echo [*] Pulling latest code on server...
+echo [*] Logging into GHCR on server...
+ssh %SERVER% "echo $GITHUB_TOKEN | docker login ghcr.io -u Ruzzyferr --password-stdin 2>/dev/null || echo 'GHCR login failed — set GITHUB_TOKEN on server'"
+
+echo [*] Pulling latest code...
 ssh %SERVER% "cd %REPO_DIR% && git pull origin master"
+
+echo [*] Pulling latest images from GHCR...
+ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% pull api gateway web workers media-signalling 2>&1"
 if errorlevel 1 goto deploy_fail
 
 echo [*] Running Prisma migrations...
 ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% run --rm api migrate 2>&1 || echo 'Migration skipped'"
 
 echo.
-echo [*] Building and starting services...
-ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% --profile voice up -d --build api gateway web workers media-signalling 2>&1"
+echo [*] Restarting services...
+ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% --profile voice up -d api gateway web workers media-signalling 2>&1"
 if errorlevel 1 goto deploy_fail
 
 echo.
-echo ============================================================
-echo   STEP: Health Checks
-echo ============================================================
-echo.
-
 echo [*] Waiting 30s for services to start...
 timeout /t 30 /nobreak >nul
 
@@ -212,7 +258,7 @@ ssh %SERVER% "docker image prune -f --filter until=24h > /dev/null 2>&1"
 
 echo.
 echo ============================================================
-echo   DEPLOY COMPLETE
+echo   REDEPLOY COMPLETE
 echo ============================================================
 echo.
 echo   Server: 209.38.205.251

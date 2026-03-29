@@ -25,7 +25,7 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
   const [results, setResults] = useState<MessagePayload[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const debounceRef = useRef<ReturnType<typeof setTimeout>>();
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
 
   // Focus input on open
   useEffect(() => {

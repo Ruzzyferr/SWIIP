@@ -10,10 +10,8 @@ const __dirname = dirname(__filename);
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   output: 'standalone',
+  outputFileTracingRoot: resolve(__dirname, '../../'),
   reactStrictMode: true,
-  eslint: {
-    ignoreDuringBuilds: true,
-  },
 
   images: {
     remotePatterns: [
@@ -46,9 +44,16 @@ const nextConfig = {
     ],
   },
 
+  // Rewrite /channels/@me → /channels/me (@ is reserved for parallel routes in Next.js 15+)
+  async rewrites() {
+    return [
+      { source: '/channels/@me', destination: '/channels/me' },
+      { source: '/channels/@me/:path*', destination: '/channels/me/:path*' },
+    ];
+  },
+
   experimental: {
     optimizePackageImports: ['lucide-react', 'framer-motion'],
-    outputFileTracingRoot: resolve(__dirname, '../../'),
   },
 
   webpack(config) {
