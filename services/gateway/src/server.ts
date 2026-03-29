@@ -335,11 +335,12 @@ export class GatewayServer {
   }
 
   /**
-   * Executes one heartbeat cycle:
+   * Executes one heartbeat cycle (Discord pattern — server-driven):
    *  1. Verifies the previous cycle was acknowledged.
    *  2. Marks the session as expecting ACK.
-   *  3. Refreshes presence TTL if authenticated.
-   *  4. Schedules a timeout; if ACK doesn't arrive, closes the connection.
+   *  3. Sends an explicit HEARTBEAT request to the client (op: 1).
+   *  4. Refreshes presence TTL if authenticated.
+   *  5. Schedules a timeout; if ACK doesn't arrive, closes the connection.
    */
   private runHeartbeatCycle(ws: WsHandle): void {
     const session = ws.getUserData();
@@ -355,6 +356,18 @@ export class GatewayServer {
 
     // Mark as waiting for next acknowledgement
     session.heartbeatAcked = false;
+
+    // Send explicit heartbeat request to the client (Discord pattern).
+    // The client responds immediately with OpCode.HEARTBEAT + its sequence,
+    // which sets heartbeatAcked = true via handleHeartbeat().
+    // This eliminates the timing race where the client's independent heartbeat
+    // jitter could fall outside the server's timeout window.
+    try {
+      ws.send(JSON.stringify({ op: OpCode.HEARTBEAT, d: session.sequence }));
+    } catch {
+      // Socket may have closed between check and send — onclose will handle cleanup
+      return;
+    }
 
     // Refresh presence TTL while connection is active
     if (session.userId) {

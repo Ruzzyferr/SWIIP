@@ -42,7 +42,7 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') {
         e.preventDefault();
         if (open) onClose();
-        else if (activeGuildId && activeGuildId !== '@me') {
+        else if (activeGuildId && activeGuildId !== '@me' && activeGuildId !== 'me') {
           // We can't open directly, so this needs external wiring
         }
       }
@@ -53,7 +53,7 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
 
   // Debounced search
   useEffect(() => {
-    if (!query.trim() || !activeGuildId || activeGuildId === '@me') {
+    if (!query.trim() || !activeGuildId || activeGuildId === '@me' || activeGuildId === 'me') {
       setResults([]);
       return;
     }

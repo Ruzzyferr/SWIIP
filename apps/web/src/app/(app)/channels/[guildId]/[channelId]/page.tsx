@@ -23,7 +23,7 @@ export default function ChannelPage() {
   const guildId = params.guildId as string;
   const channelId = params.channelId as string;
 
-  const isDM = guildId === '@me';
+  const isDM = guildId === 'me' || guildId === '@me';
   const channel = useGuildsStore((s) => s.channels[channelId]);
   const setActiveGuild = useUIStore((s) => s.setActiveGuild);
   const setActiveChannel = useUIStore((s) => s.setActiveChannel);
@@ -44,7 +44,7 @@ export default function ChannelPage() {
     setMobileNavOpen(false);
 
     // Lazy load members for this guild if not already loaded
-    if (guildId && guildId !== '@me') {
+    if (guildId && guildId !== '@me' && guildId !== 'me') {
       const members = useGuildsStore.getState().members[guildId];
       if (!members || Object.keys(members).length === 0) {
         import('@/lib/api/guilds.api').then(({ getGuildMembers }) => {

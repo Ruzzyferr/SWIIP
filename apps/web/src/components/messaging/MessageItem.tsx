@@ -781,7 +781,16 @@ export function MessageItem({
                 }}
               >
                 <Reply size={11} />
-                <span className="truncate">{t('replyToMessage')}</span>
+                {typeof replyRef === 'object' && replyRef !== null && 'author' in replyRef ? (
+                  <>
+                    <span className="font-semibold flex-shrink-0" style={{ color: 'var(--color-text-primary)' }}>
+                      {(replyRef as any).author?.globalName ?? (replyRef as any).author?.username ?? 'Unknown'}
+                    </span>
+                    <span className="truncate">{(replyRef as any).content}</span>
+                  </>
+                ) : (
+                  <span className="truncate">{t('replyToMessage')}</span>
+                )}
               </div>
             )}
 

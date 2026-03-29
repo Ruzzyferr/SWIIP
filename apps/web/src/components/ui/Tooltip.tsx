@@ -33,53 +33,39 @@ function getPosition(
   placement: TooltipPlacement,
   gap = 8
 ): TooltipPosition {
-  const scroll = {
-    x: window.scrollX,
-    y: window.scrollY,
-  };
+  let top: number;
+  let left: number;
+  let transformOrigin: string;
 
   switch (placement) {
     case 'top':
-      return {
-        top: triggerRect.top + scroll.y - tooltipRect.height - gap,
-        left:
-          triggerRect.left +
-          scroll.x +
-          triggerRect.width / 2 -
-          tooltipRect.width / 2,
-        transformOrigin: 'bottom center',
-      };
+      top = triggerRect.top - tooltipRect.height - gap;
+      left = triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2;
+      transformOrigin = 'bottom center';
+      break;
     case 'bottom':
-      return {
-        top: triggerRect.bottom + scroll.y + gap,
-        left:
-          triggerRect.left +
-          scroll.x +
-          triggerRect.width / 2 -
-          tooltipRect.width / 2,
-        transformOrigin: 'top center',
-      };
+      top = triggerRect.bottom + gap;
+      left = triggerRect.left + triggerRect.width / 2 - tooltipRect.width / 2;
+      transformOrigin = 'top center';
+      break;
     case 'left':
-      return {
-        top:
-          triggerRect.top +
-          scroll.y +
-          triggerRect.height / 2 -
-          tooltipRect.height / 2,
-        left: triggerRect.left + scroll.x - tooltipRect.width - gap,
-        transformOrigin: 'right center',
-      };
+      top = triggerRect.top + triggerRect.height / 2 - tooltipRect.height / 2;
+      left = triggerRect.left - tooltipRect.width - gap;
+      transformOrigin = 'right center';
+      break;
     case 'right':
-      return {
-        top:
-          triggerRect.top +
-          scroll.y +
-          triggerRect.height / 2 -
-          tooltipRect.height / 2,
-        left: triggerRect.right + scroll.x + gap,
-        transformOrigin: 'left center',
-      };
+      top = triggerRect.top + triggerRect.height / 2 - tooltipRect.height / 2;
+      left = triggerRect.right + gap;
+      transformOrigin = 'left center';
+      break;
   }
+
+  // Clamp to viewport boundaries
+  const pad = 8;
+  left = Math.max(pad, Math.min(left, window.innerWidth - tooltipRect.width - pad));
+  top = Math.max(pad, Math.min(top, window.innerHeight - tooltipRect.height - pad));
+
+  return { top, left, transformOrigin };
 }
 
 const tooltipVariants = {
@@ -172,7 +158,7 @@ export function Tooltip({
                 role="tooltip"
                 style={
                   {
-                    position: 'absolute',
+                    position: 'fixed',
                     top: position.top,
                     left: position.left,
                     transformOrigin: position.transformOrigin,

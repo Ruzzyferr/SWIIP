@@ -20,6 +20,13 @@ export interface PlatformReconnectConfig {
   cap: number;
 }
 
+export interface PlatformAudioDefaults {
+  /** Default audio processing mode */
+  defaultMode: 'standard' | 'enhanced';
+  /** Whether enhanced (Krisp) mode is available on this platform */
+  enhancedAvailable: boolean;
+}
+
 export interface PlatformProvider {
   readonly isDesktop: boolean;
 
@@ -34,6 +41,9 @@ export interface PlatformProvider {
 
   /** Alone-in-channel auto-disconnect timeout (seconds) */
   readonly aloneTimeoutSec: number;
+
+  /** Audio processing defaults per platform */
+  readonly audioDefaults: PlatformAudioDefaults;
 
   /** Register a global keyboard shortcut (works even when app is unfocused on desktop) */
   registerGlobalShortcut(key: string, callback: () => void): void;
@@ -86,6 +96,12 @@ function createWebProvider(): PlatformProvider {
     livekitReconnectDelays: [200, 500, 1000, 2000, 4000, 8000, 10000, 10000, 10000, 10000],
 
     aloneTimeoutSec: 300, // 5 minutes
+
+    audioDefaults: {
+      defaultMode: 'standard',
+      // Set to true at runtime after isKrispNoiseFilterSupported() check
+      enhancedAvailable: false,
+    },
 
     registerGlobalShortcut(_key: string, _callback: () => void) {
       // Web doesn't support global shortcuts — keyboard shortcuts are handled
@@ -152,6 +168,11 @@ function createDesktopProvider(): PlatformProvider {
     livekitReconnectDelays: [100, 300, 500, 1000, 2000, 4000, 8000, 8000, 8000, 8000, 8000, 8000],
 
     aloneTimeoutSec: 1800, // 30 minutes — desktop users stay connected longer
+
+    audioDefaults: {
+      defaultMode: 'enhanced',
+      enhancedAvailable: true,
+    },
 
     registerGlobalShortcut(key: string, callback: () => void) {
       shortcutCallbacks.set(key, callback);

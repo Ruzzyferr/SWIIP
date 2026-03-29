@@ -93,6 +93,20 @@ export class MessagesService {
         userId: true,
       },
     },
+    referencedMessage: {
+      select: {
+        id: true,
+        content: true,
+        author: {
+          select: {
+            id: true,
+            username: true,
+            globalName: true,
+            avatarId: true,
+          },
+        },
+      },
+    },
   };
 
   async create(channelId: string, userId: string, dto: CreateMessageDto) {

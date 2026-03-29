@@ -140,14 +140,20 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
   }
 
   disconnect(): void {
-    // Normal app-level disconnect should be reversible (logout/login, route remounts).
-    // Keep destroyed=false so connect() can be called again.
     this.destroyed = false;
     this._clearHeartbeat();
     this._clearReconnect();
-    this.sendQueue.length = 0; // Clear buffered messages on intentional disconnect
+    this.sendQueue.length = 0;
+    this.sessionId = null;
+    this.sequence = 0;
+    this.resumeUrl = null;
+    this.resumeRetryCount = 0;
+    this.heartbeatAckPending = false;
+    this.missedHeartbeats = 0;
+    this.lastStableAt = 0;
+    this.lastAckAt = 0;
     if (this.ws) {
-      this.ws.onclose = null; // prevent reconnect on intentional close
+      this.ws.onclose = null;
       this.ws.close(1000, 'Client disconnect');
       this.ws = null;
     }
@@ -189,6 +195,9 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
 
   private _openWebSocket(url: string): void {
     if (this.ws) {
+      this.ws.onopen = null;
+      this.ws.onmessage = null;
+      this.ws.onerror = null;
       this.ws.onclose = null;
       this.ws.close();
     }
@@ -367,9 +376,8 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
 
     switch (event.op) {
       case OpCode.HELLO: {
-        const { heartbeatInterval, sessionId } = event.d as {
+        const { heartbeatInterval } = event.d as {
           heartbeatInterval: number;
-          sessionId: string;
         };
         this.resumeRetryCount = 0;
         this._startHeartbeat(heartbeatInterval);
@@ -628,9 +636,16 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
     const expDelay = Math.min(this.reconnectDelay * 2 ** (this.reconnectAttempts - 1), cap);
     const delay = Math.random() * expDelay;
 
-    console.info(
-      `[Gateway] Reconnecting in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts})`
-    );
+    const stableFor = this.lastStableAt ? Math.round((Date.now() - this.lastStableAt) / 1000) : 0;
+    if (this.reconnectAttempts <= 1) {
+      console.info(
+        `[Gateway] Reconnecting in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts}, stable ${stableFor}s)`
+      );
+    } else {
+      console.debug(
+        `[Gateway] Reconnecting in ${Math.round(delay)}ms (attempt ${this.reconnectAttempts})`
+      );
+    }
 
     this.emit('reconnecting', this.reconnectAttempts);
 

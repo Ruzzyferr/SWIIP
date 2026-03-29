@@ -23,6 +23,14 @@ export type VoiceConnectionState =
 
 export type ScreenShareQuality = '720p30' | '1080p30' | '1080p60';
 
+/** Audio processing mode — only one noise processing layer active at a time. */
+export type AudioMode = 'standard' | 'enhanced' | 'raw';
+
+export interface AudioCapabilities {
+  enhancedAvailable: boolean;
+  enhancedChecked: boolean;
+}
+
 interface VoiceSettings {
   inputDeviceId: string;
   outputDeviceId: string;
@@ -30,7 +38,8 @@ interface VoiceSettings {
   inputVolume: number;   // 0–100
   outputVolume: number;  // 0–100
   notificationSounds: boolean;
-  noiseSuppression: boolean;
+  /** Audio processing profile: standard (browser NS), enhanced (Krisp), raw (no processing). */
+  audioMode: AudioMode;
   /** Voice activity detection threshold (0=most sensitive, 100=least sensitive). -1 = automatic. */
   voiceActivityThreshold: number;
   /** Push-to-talk mode enabled */
@@ -78,6 +87,11 @@ interface VoiceState {
   // Per-user volume overrides (persisted, 0-100, default 100)
   userVolumes: Record<string, number>;
 
+  // Audio pipeline state (non-persisted)
+  audioCapabilities: AudioCapabilities;
+  effectiveAudioMode: AudioMode;
+  audioReconfigureRequired: boolean;
+
   // Actions
   setConnectionState: (state: VoiceConnectionState) => void;
   setCurrentChannel: (channelId: string | null, guildId: string | null) => void;
@@ -95,6 +109,9 @@ interface VoiceState {
   setError: (error: string | null) => void;
   updateSettings: (patch: Partial<VoiceSettings>) => void;
   setUserVolume: (userId: string, volume: number) => void;
+  setAudioCapabilities: (patch: Partial<AudioCapabilities>) => void;
+  setEffectiveAudioMode: (mode: AudioMode) => void;
+  setAudioReconfigureRequired: (required: boolean) => void;
 
   // Participant management
   setParticipant: (participant: VoiceParticipant) => void;
@@ -118,7 +135,7 @@ const DEFAULT_SETTINGS: VoiceSettings = {
   inputVolume: 100,
   outputVolume: 100,
   notificationSounds: true,
-  noiseSuppression: true,
+  audioMode: 'standard',
   voiceActivityThreshold: -1, // -1 = automatic
   pushToTalk: false,
   pttKey: 'Space',
@@ -150,6 +167,9 @@ export const useVoiceStore = create<VoiceState>()(
     error: null,
     settings: { ...DEFAULT_SETTINGS },
     userVolumes: {},
+    audioCapabilities: { enhancedAvailable: false, enhancedChecked: false },
+    effectiveAudioMode: 'standard',
+    audioReconfigureRequired: false,
 
     setConnectionState: (connectionState) =>
       set((state) => {
@@ -225,6 +245,21 @@ export const useVoiceStore = create<VoiceState>()(
     setUserVolume: (userId, volume) =>
       set((state) => {
         state.userVolumes[userId] = Math.max(0, Math.min(100, volume));
+      }),
+
+    setAudioCapabilities: (patch) =>
+      set((state) => {
+        Object.assign(state.audioCapabilities, patch);
+      }),
+
+    setEffectiveAudioMode: (mode) =>
+      set((state) => {
+        state.effectiveAudioMode = mode;
+      }),
+
+    setAudioReconfigureRequired: (required) =>
+      set((state) => {
+        state.audioReconfigureRequired = required;
       }),
 
     setConnectionQuality: (quality) =>
@@ -327,6 +362,8 @@ export const useVoiceStore = create<VoiceState>()(
         state.screenShareEnabled = false;
         state.pinnedParticipantId = null;
         state.error = null;
+        state.effectiveAudioMode = state.settings.audioMode;
+        state.audioReconfigureRequired = false;
       }),
   })),
   {

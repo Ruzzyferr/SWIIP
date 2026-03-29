@@ -21,7 +21,7 @@ import {
 import { OpCode, ClientEventType } from '@constchat/protocol';
 import { getGatewayClient } from '@/lib/gateway/GatewayClient';
 import { getPlatformProvider } from '@/lib/platform';
-import { useVoiceStore } from '@/stores/voice.store';
+import { useVoiceStore, type AudioMode } from '@/stores/voice.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { playJoinSound, playLeaveSound } from '@/lib/sounds';
 
@@ -41,9 +41,9 @@ async function loadKrispFactory(): Promise<(() => any) | null> {
 
   krispLoadPromise = (async () => {
     try {
-      const { KrispNoiseFilter } = await import('@livekit/krisp-noise-filter');
-      krispFactory = KrispNoiseFilter;
-      console.debug('[Krisp] Noise filter factory loaded successfully');
+      const mod = await import('@livekit/krisp-noise-filter');
+      krispFactory = mod.KrispNoiseFilter;
+      console.debug('[Krisp] Noise filter factory loaded');
       return krispFactory;
     } catch (err) {
       console.warn('[Krisp] Failed to load noise filter, falling back to browser NS:', err);
@@ -66,6 +66,77 @@ async function createKrispProcessor(): Promise<any> {
   } catch (err) {
     console.warn('[Krisp] Failed to create processor instance:', err);
     return null;
+  }
+}
+
+function needsEchoCancellation(mode: AudioMode): boolean {
+  return mode !== 'raw';
+}
+
+/** Initial mic capture options — includes echoCancellation (set once at publish time). */
+function getInitialAudioCaptureForMode(mode: AudioMode) {
+  switch (mode) {
+    case 'standard':
+      return { echoCancellation: true, noiseSuppression: true, autoGainControl: false };
+    case 'enhanced':
+      return { echoCancellation: true, noiseSuppression: false, autoGainControl: false };
+    case 'raw':
+      return { echoCancellation: false, noiseSuppression: false, autoGainControl: false };
+  }
+}
+
+/** Runtime-safe constraints — NO echoCancellation (cannot toggle mid-track). */
+function getRuntimeAudioConstraintsForMode(mode: AudioMode) {
+  switch (mode) {
+    case 'standard':
+      return { noiseSuppression: true, autoGainControl: false };
+    case 'enhanced':
+      return { noiseSuppression: false, autoGainControl: false };
+    case 'raw':
+      return { noiseSuppression: false, autoGainControl: false };
+  }
+}
+
+/** Applies Krisp processor to the mic track. Updates effectiveAudioMode in store. */
+async function applyEnhancedProcessor(room: Room): Promise<boolean> {
+  const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+  if (!micPub?.track) {
+    console.warn('[Audio] No mic track available for enhanced processing');
+    return false;
+  }
+
+  const store = useVoiceStore.getState();
+
+  const krisp = await createKrispProcessor();
+  if (!krisp) {
+    console.warn('[Audio] Enhanced requested but unavailable, using Standard');
+    try {
+      await micPub.track.mediaStreamTrack.applyConstraints({
+        noiseSuppression: true, autoGainControl: false,
+      });
+    } catch { /* ignore */ }
+    store.setEffectiveAudioMode('standard');
+    return false;
+  }
+
+  try {
+    await micPub.track.stopProcessor().catch(() => {});
+    await micPub.track.setProcessor(krisp);
+    await micPub.track.mediaStreamTrack.applyConstraints({
+      noiseSuppression: false, autoGainControl: false,
+    }).catch(() => {});
+    console.debug('[Audio] Krisp processor applied successfully');
+    store.setEffectiveAudioMode('enhanced');
+    return true;
+  } catch (err) {
+    console.warn('[Audio] Enhanced requested but unavailable, using Standard:', err);
+    try {
+      await micPub.track.mediaStreamTrack.applyConstraints({
+        noiseSuppression: true, autoGainControl: false,
+      });
+    } catch { /* ignore */ }
+    store.setEffectiveAudioMode('standard');
+    return false;
   }
 }
 
@@ -105,7 +176,7 @@ export function useLiveKitRoom() {
   const outputDeviceId = useVoiceStore((s) => s.settings.outputDeviceId);
   const videoDeviceId = useVoiceStore((s) => s.settings.videoDeviceId);
   const outputVolume = useVoiceStore((s) => s.settings.outputVolume);
-  const noiseSuppression = useVoiceStore((s) => s.settings.noiseSuppression);
+  const audioMode = useVoiceStore((s) => s.settings.audioMode);
   const setConnectionState = useVoiceStore((s) => s.setConnectionState);
   const setSpeaking = useVoiceStore((s) => s.setSpeaking);
   const setParticipant = useVoiceStore((s) => s.setParticipant);
@@ -172,10 +243,10 @@ export function useLiveKitRoom() {
 
     console.debug('[LiveKit] Credentials received, connecting to', livekitUrl);
 
-    const nsEnabled = useVoiceStore.getState().settings.noiseSuppression;
+    const currentAudioMode = useVoiceStore.getState().settings.audioMode;
     const platform = getPlatformProvider();
-    // When Krisp is available, disable browser NS (Krisp handles it).
-    // Browser NS is the fallback if Krisp fails to load.
+    // Audio capture defaults — AGC always off (pumps floor noise).
+    // Noise suppression is mode-controlled: standard=browser NS, enhanced=Krisp, raw=off.
     const room = new Room({
       adaptiveStream: true,
       dynacast: true,
@@ -191,13 +262,7 @@ export function useLiveKitRoom() {
           maxFramerate: 30,
         },
       },
-      audioCaptureDefaults: {
-        echoCancellation: true,
-        // Disable browser NS initially — Krisp will be applied after mic publish.
-        // If Krisp fails, we re-enable browser NS as fallback.
-        noiseSuppression: false,
-        autoGainControl: true,
-      },
+      audioCaptureDefaults: getInitialAudioCaptureForMode(currentAudioMode),
     });
 
     roomRef.current = room;
@@ -344,6 +409,22 @@ export function useLiveKitRoom() {
       for (const sid of audioElementsRef.current.keys()) {
         detachAudio(sid);
       }
+    });
+
+    room.on(RoomEvent.Reconnected, async () => {
+      console.debug('[LiveKit] Reconnected — resetting audio processor state');
+      krispFactory = null;
+      krispLoadPromise = null;
+
+      await new Promise((r) => setTimeout(r, 500));
+
+      const mode = useVoiceStore.getState().settings.audioMode;
+      if (mode === 'enhanced') {
+        await applyEnhancedProcessor(room);
+      } else {
+        useVoiceStore.getState().setEffectiveAudioMode(mode);
+      }
+      useVoiceStore.getState().setAudioReconfigureRequired(false);
     });
 
     // Connection quality monitoring + adaptive video quality
@@ -594,43 +675,16 @@ export function useLiveKitRoom() {
         // Resume AudioContext if browser suspended it (autoplay policy)
         await room.startAudio().catch(() => {});
 
-        // Try to publish microphone — handle permission denial gracefully
         try {
-          await room.localParticipant.setMicrophoneEnabled(true, {
-            noiseSuppression: false, // Krisp handles NS
-            echoCancellation: true,
-            autoGainControl: true,
-          });
+          const micCaptureOpts = getInitialAudioCaptureForMode(currentAudioMode);
+          await room.localParticipant.setMicrophoneEnabled(true, micCaptureOpts);
 
-          // Apply Krisp noise filter to the mic track after publish
-          if (nsEnabled) {
-            const krisp = await createKrispProcessor();
-            if (krisp) {
-              try {
-                const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
-                if (micPub?.track) {
-                  // Clean any stale processor before applying fresh one
-                  try { await micPub.track.stopProcessor(); } catch {}
-                  await micPub.track.setProcessor(krisp);
-                  console.debug('[Krisp] Applied fresh instance to microphone track');
-                }
-              } catch (krispErr) {
-                console.warn('[Krisp] Failed to apply processor, enabling browser NS fallback:', krispErr);
-                await room.localParticipant.setMicrophoneEnabled(true, {
-                  noiseSuppression: true,
-                  echoCancellation: true,
-                  autoGainControl: true,
-                });
-              }
-            } else {
-              console.debug('[LiveKit] Krisp unavailable, using browser noise suppression');
-              await room.localParticipant.setMicrophoneEnabled(true, {
-                noiseSuppression: true,
-                echoCancellation: true,
-                autoGainControl: true,
-              });
-            }
+          if (currentAudioMode === 'enhanced') {
+            await applyEnhancedProcessor(room);
+          } else {
+            useVoiceStore.getState().setEffectiveAudioMode(currentAudioMode);
           }
+          useVoiceStore.getState().setAudioReconfigureRequired(false);
         } catch (micErr) {
           console.warn('[LiveKit] Microphone access denied or failed — joining muted', micErr);
           // Still connected, just muted
@@ -770,68 +824,49 @@ export function useLiveKitRoom() {
     }
   }, [outputDeviceId]);
 
-  // Toggle Krisp noise suppression at runtime WITHOUT restarting the mic track.
-  // Discord's approach: apply/remove the audio processor on the existing track,
-  // never call setMicrophoneEnabled again — avoids the brief audio dropout.
+  // Switch audio processing mode at runtime WITHOUT restarting the mic track.
+  // echoCancellation is NOT changed at runtime — only at initial publish.
+  const prevAudioModeRef = useRef<AudioMode | null>(null);
   useEffect(() => {
     const room = roomRef.current;
     if (!room || room.state !== ConnectionState.Connected) return;
 
-    const isMuted = useVoiceStore.getState().selfMuted;
-    if (isMuted) return;
+    const store = useVoiceStore.getState();
+    const prevMode = prevAudioModeRef.current;
+    prevAudioModeRef.current = audioMode;
+
+    // Detect EC boundary cross: raw needs EC off, standard/enhanced need EC on.
+    // Only set true — never auto-clear. Flag clears only on successful re-publish.
+    if (prevMode !== null) {
+      const prevNeedsEC = needsEchoCancellation(prevMode);
+      const nextNeedsEC = needsEchoCancellation(audioMode);
+      if (prevNeedsEC !== nextNeedsEC) {
+        store.setAudioReconfigureRequired(true);
+      }
+    }
+
+    if (store.selfMuted) return;
 
     (async () => {
       const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
       if (!micPub?.track) return;
 
-      if (noiseSuppression) {
-        // Try to apply fresh Krisp instance directly — no track restart
-        const krisp = await createKrispProcessor();
-        if (krisp) {
-          try {
-            // Stop any existing processor first to avoid stacking
-            try { await micPub.track.stopProcessor(); } catch {}
-            await micPub.track.setProcessor(krisp);
-            console.debug('[Krisp] Enabled noise filter (no track restart)');
-            return;
-          } catch (err) {
-            console.warn('[Krisp] Failed to enable, falling back to browser NS:', err);
-          }
-        }
-        // Fallback: use browser NS via MediaTrackConstraints (no track restart)
-        try {
-          const mediaTrack = micPub.track.mediaStreamTrack;
-          await mediaTrack.applyConstraints({
-            noiseSuppression: true,
-            echoCancellation: true,
-            autoGainControl: true,
-          });
-          console.debug('[LiveKit] Browser NS enabled via applyConstraints');
-        } catch (err) {
-          console.warn('[LiveKit] applyConstraints failed:', err);
-        }
+      await micPub.track.stopProcessor().catch(() => {});
+
+      const constraints = getRuntimeAudioConstraintsForMode(audioMode);
+      try {
+        await micPub.track.mediaStreamTrack.applyConstraints(constraints);
+      } catch { /* ignore */ }
+
+      if (audioMode === 'enhanced') {
+        await applyEnhancedProcessor(room);
       } else {
-        // Disable Krisp processor if active — no track restart
-        try {
-          await micPub.track.stopProcessor();
-          console.debug('[Krisp] Disabled noise filter');
-        } catch {
-          // No processor was active, that's fine
-        }
-        // Disable browser NS via applyConstraints — no track restart
-        try {
-          const mediaTrack = micPub.track.mediaStreamTrack;
-          await mediaTrack.applyConstraints({
-            noiseSuppression: false,
-            echoCancellation: true,
-            autoGainControl: true,
-          });
-        } catch {
-          // Constraints not supported — ignore
-        }
+        useVoiceStore.getState().setEffectiveAudioMode(audioMode);
       }
+
+      console.debug(`[Audio] Switched to ${audioMode} mode`);
     })();
-  }, [noiseSuppression]);
+  }, [audioMode]);
 
   // Sync camera enabled state to LiveKit
   useEffect(() => {

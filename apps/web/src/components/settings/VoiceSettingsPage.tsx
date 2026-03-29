@@ -1,8 +1,8 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, Volume2, MicOff } from 'lucide-react';
-import { useVoiceStore } from '@/stores/voice.store';
+import { Mic, Volume2, MicOff, Shield, Sparkles, Music, AlertTriangle } from 'lucide-react';
+import { useVoiceStore, type AudioMode } from '@/stores/voice.store';
 
 interface DeviceInfo {
   deviceId: string;
@@ -44,6 +44,12 @@ function useMediaDevices() {
   return { inputs, outputs };
 }
 
+const EFFECTIVE_MODE_LABELS: Record<AudioMode, string> = {
+  standard: 'Standard',
+  enhanced: 'Enhanced',
+  raw: 'Music / Studio',
+};
+
 function MicTest() {
   const [testing, setTesting] = useState(false);
   const [level, setLevel] = useState(0);
@@ -52,6 +58,12 @@ function MicTest() {
   const animRef = useRef<number>(0);
   const inputDeviceId = useVoiceStore((s) => s.settings.inputDeviceId);
   const inputVolume = useVoiceStore((s) => s.settings.inputVolume);
+  const selectedAudioMode = useVoiceStore((s) => s.settings.audioMode);
+  const effectiveAudioMode = useVoiceStore((s) => s.effectiveAudioMode);
+  const audioReconfigureRequired = useVoiceStore((s) => s.audioReconfigureRequired);
+  const connectionState = useVoiceStore((s) => s.connectionState);
+  const isConnected = connectionState === 'connected';
+  const modesDiffer = isConnected && selectedAudioMode !== effectiveAudioMode;
 
   const startTest = useCallback(async () => {
     try {
@@ -99,30 +111,70 @@ function MicTest() {
   }, []);
 
   return (
-    <div className="flex items-center gap-3">
-      <button
-        onClick={testing ? stopTest : startTest}
-        className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
-        style={{
-          background: testing ? 'var(--color-danger-default)' : 'var(--color-accent-primary)',
-          color: '#fff',
-        }}
-      >
-        {testing ? <MicOff size={16} /> : <Mic size={16} />}
-        {testing ? 'Stop Test' : 'Test Mic'}
-      </button>
-      <div
-        className="flex-1 h-2 rounded-full overflow-hidden"
-        style={{ background: 'var(--color-surface-base)' }}
-      >
-        <div
-          className="h-full rounded-full transition-all duration-75"
+    <div className="space-y-2">
+      <div className="flex items-center gap-3">
+        <button
+          onClick={testing ? stopTest : startTest}
+          className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-colors"
           style={{
-            width: `${level}%`,
-            background: level > 80 ? 'var(--color-danger-default)' : 'var(--color-success-default)',
+            background: testing ? 'var(--color-danger-default)' : 'var(--color-accent-primary)',
+            color: '#fff',
           }}
-        />
+        >
+          {testing ? <MicOff size={16} /> : <Mic size={16} />}
+          {testing ? 'Stop Test' : 'Test Mic'}
+        </button>
+        <div
+          className="flex-1 h-2 rounded-full overflow-hidden"
+          style={{ background: 'var(--color-surface-base)' }}
+        >
+          <div
+            className="h-full rounded-full transition-all duration-75"
+            style={{
+              width: `${level}%`,
+              background: level > 80 ? 'var(--color-danger-default)' : 'var(--color-success-default)',
+            }}
+          />
+        </div>
+        <span
+          className="text-[10px] font-medium px-1.5 py-0.5 rounded flex-shrink-0"
+          style={{ background: 'var(--color-surface-overlay)', color: 'var(--color-text-disabled)' }}
+        >
+          Local preview
+        </span>
       </div>
+      {isConnected ? (
+        modesDiffer ? (
+          <div className="text-xs space-y-0.5" style={{ color: 'var(--color-text-disabled)' }}>
+            <p>Requested: {EFFECTIVE_MODE_LABELS[selectedAudioMode]}</p>
+            <p>Active: {EFFECTIVE_MODE_LABELS[effectiveAudioMode]}</p>
+          </div>
+        ) : (
+          <p className="text-xs" style={{ color: 'var(--color-text-disabled)' }}>
+            Processing: {EFFECTIVE_MODE_LABELS[effectiveAudioMode]}
+          </p>
+        )
+      ) : (
+        <p className="text-xs" style={{ color: 'var(--color-text-disabled)' }}>
+          This meter shows your local microphone input level.
+        </p>
+      )}
+      {isConnected && (
+        <p className="text-xs" style={{ color: 'var(--color-text-disabled)' }}>
+          Active voice processing may still differ slightly from this preview.
+        </p>
+      )}
+      {audioReconfigureRequired && (
+        <div className="text-xs space-y-0.5" style={{ color: 'var(--color-warning-default, #faa61a)' }}>
+          <p className="flex items-center gap-1">
+            <AlertTriangle size={12} />
+            Reconnect voice chat to fully apply echo cancellation changes
+          </p>
+          <p className="pl-4" style={{ color: 'var(--color-text-disabled)' }}>
+            Your current microphone track is still using the previous echo cancellation state.
+          </p>
+        </div>
+      )}
     </div>
   );
 }
@@ -246,6 +298,138 @@ function PushToTalkKeybind({ currentKey, onChange }: { currentKey: string; onCha
       >
         {recording ? 'Press a key...' : currentKey}
       </button>
+    </div>
+  );
+}
+
+const AUDIO_MODES: { value: AudioMode; label: string; description: string; icon: typeof Mic; requiresEnhanced?: boolean }[] = [
+  {
+    value: 'standard',
+    label: 'Standard',
+    description: 'Browser noise suppression — works everywhere',
+    icon: Shield,
+  },
+  {
+    value: 'enhanced',
+    label: 'Enhanced',
+    description: 'AI-powered noise filter (Krisp)',
+    icon: Sparkles,
+    requiresEnhanced: true,
+  },
+  {
+    value: 'raw',
+    label: 'Music / Studio',
+    description: 'No processing — for instruments and studio mics',
+    icon: Music,
+  },
+];
+
+function AudioModeSelector({ value, onChange }: { value: AudioMode; onChange: (mode: AudioMode) => void }) {
+  const { enhancedAvailable, enhancedChecked } = useVoiceStore((s) => s.audioCapabilities);
+
+  useEffect(() => {
+    if (enhancedChecked) return;
+    (async () => {
+      try {
+        const mod = await import('@livekit/krisp-noise-filter');
+        const supported = typeof mod.isKrispNoiseFilterSupported === 'function'
+          && mod.isKrispNoiseFilterSupported();
+        useVoiceStore.getState().setAudioCapabilities({
+          enhancedAvailable: supported,
+          enhancedChecked: true,
+        });
+      } catch {
+        useVoiceStore.getState().setAudioCapabilities({
+          enhancedAvailable: false,
+          enhancedChecked: true,
+        });
+      }
+    })();
+  }, [enhancedChecked]);
+
+  return (
+    <div className="space-y-2">
+      {AUDIO_MODES.map((mode) => {
+        const isEnhancedUnchecked = mode.requiresEnhanced && !enhancedChecked;
+        const isDisabled = mode.requiresEnhanced && (isEnhancedUnchecked || !enhancedAvailable);
+        const isSelected = value === mode.value;
+        const Icon = mode.icon;
+
+        let description = mode.description;
+        if (mode.requiresEnhanced) {
+          if (!enhancedChecked) description = 'Checking availability...';
+          else if (!enhancedAvailable) description = 'Not available in this browser';
+        }
+
+        return (
+          <button
+            key={mode.value}
+            onClick={() => !isDisabled && onChange(mode.value)}
+            disabled={isDisabled}
+            className="w-full flex items-center gap-3 p-3 rounded-lg text-left transition-all"
+            style={{
+              background: isSelected ? 'var(--color-accent-primary-muted, rgba(88, 101, 242, 0.15))' : 'var(--color-surface-raised)',
+              border: isSelected ? '1px solid var(--color-accent-primary)' : '1px solid var(--color-border-subtle)',
+              opacity: isDisabled ? 0.5 : 1,
+              cursor: isDisabled ? 'not-allowed' : 'pointer',
+            }}
+          >
+            <div
+              className="flex items-center justify-center w-8 h-8 rounded-lg flex-shrink-0"
+              style={{
+                background: isSelected ? 'var(--color-accent-primary)' : 'var(--color-surface-overlay)',
+              }}
+            >
+              <Icon size={16} style={{ color: isSelected ? '#fff' : 'var(--color-text-secondary)' }} />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-medium" style={{ color: isSelected ? 'var(--color-text-primary)' : 'var(--color-text-secondary)' }}>
+                {mode.label}
+              </p>
+              <p className="text-xs" style={{ color: 'var(--color-text-disabled)' }}>
+                {description}
+              </p>
+            </div>
+            <div
+              className="w-4 h-4 rounded-full border-2 flex items-center justify-center flex-shrink-0"
+              style={{
+                borderColor: isSelected ? 'var(--color-accent-primary)' : 'var(--color-border-default)',
+              }}
+            >
+              {isSelected && (
+                <div className="w-2 h-2 rounded-full" style={{ background: 'var(--color-accent-primary)' }} />
+              )}
+            </div>
+          </button>
+        );
+      })}
+    </div>
+  );
+}
+
+function AudioModeMismatchBanner() {
+  const selectedMode = useVoiceStore((s) => s.settings.audioMode);
+  const effectiveMode = useVoiceStore((s) => s.effectiveAudioMode);
+  const connectionState = useVoiceStore((s) => s.connectionState);
+
+  if (connectionState !== 'connected' || selectedMode === effectiveMode) return null;
+
+  const isEnhancedFallback = selectedMode === 'enhanced' && effectiveMode === 'standard';
+
+  return (
+    <div className="text-xs px-3 py-2 rounded-lg space-y-0.5"
+      style={{
+        background: 'var(--color-warning-muted, rgba(250, 166, 26, 0.1))',
+        color: 'var(--color-warning-default, #faa61a)',
+      }}
+    >
+      <p className="flex items-center gap-1.5">
+        <AlertTriangle size={13} />
+        Requested: {EFFECTIVE_MODE_LABELS[selectedMode]} &middot; Active: {EFFECTIVE_MODE_LABELS[effectiveMode]}
+      </p>
+      {isEnhancedFallback && (
+        <p className="pl-5">Enhanced unavailable right now — using Standard processing</p>
+      )}
     </div>
   );
 }
@@ -383,32 +567,16 @@ export function VoiceSettingsPage() {
 
       <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />
 
-      {/* Noise suppression */}
-      <section className="flex items-center justify-between">
-        <div>
-          <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-            Noise Suppression
-          </p>
-          <p className="text-xs" style={{ color: 'var(--color-text-disabled)' }}>
-            Krisp AI-powered noise filter for your microphone
-          </p>
-        </div>
-        <button
-          onClick={() => updateSettings({ noiseSuppression: !settings.noiseSuppression })}
-          className="relative w-11 h-6 rounded-full transition-colors duration-200"
-          style={{
-            background: settings.noiseSuppression
-              ? 'var(--color-success-default)'
-              : 'var(--color-surface-base)',
-          }}
-        >
-          <div
-            className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200"
-            style={{
-              transform: settings.noiseSuppression ? 'translateX(22px)' : 'translateX(2px)',
-            }}
-          />
-        </button>
+      {/* Audio Processing Mode */}
+      <section className="space-y-3">
+        <p className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-disabled)' }}>
+          Audio Processing
+        </p>
+        <AudioModeSelector
+          value={settings.audioMode}
+          onChange={(mode) => updateSettings({ audioMode: mode })}
+        />
+        <AudioModeMismatchBanner />
       </section>
 
       <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />

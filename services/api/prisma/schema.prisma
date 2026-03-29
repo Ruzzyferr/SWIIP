@@ -398,6 +398,8 @@ model Message {
   editedAt            DateTime?
   deletedAt           DateTime?
   referencedMessageId String?
+  referencedMessage   Message?    @relation("MessageReply", fields: [referencedMessageId], references: [id], onDelete: SetNull)
+  replies             Message[]   @relation("MessageReply")
   webhookId           String?
   applicationId       String?
   nonce               String?

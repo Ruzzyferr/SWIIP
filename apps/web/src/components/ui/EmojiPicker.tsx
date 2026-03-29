@@ -849,7 +849,7 @@ export function EmojiPicker({ onSelect, onClose, triggerRef, placement = 'top', 
   // Custom guild emojis
   const activeGuildId = guildId ?? useUIStore.getState().activeGuildId;
   const customEmojis = useGuildsStore(
-    (s) => (activeGuildId && activeGuildId !== '@me') ? s.customEmojis[activeGuildId] ?? [] : []
+    (s) => (activeGuildId && activeGuildId !== '@me' && activeGuildId !== 'me') ? s.customEmojis[activeGuildId] ?? [] : []
   );
 
   const handleSelect = useCallback(
