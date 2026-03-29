@@ -246,10 +246,11 @@ export function ServerRail() {
             width: 48,
             height: 48,
             borderRadius: !activeGuildId || dmHovered ? 16 : 24,
+            overflow: 'hidden',
             background: !activeGuildId
-              ? 'var(--color-accent-primary)'
+              ? '#e8e4ef'
               : dmHovered
-              ? 'var(--color-accent-primary)'
+              ? '#e8e4ef'
               : 'var(--color-surface-raised)',
             transition: 'all 300ms cubic-bezier(0.45,0,0.15,1)',
             boxShadow: !activeGuildId
@@ -264,9 +265,9 @@ export function ServerRail() {
           <Image
             src="/logo.png"
             alt="Swiip"
-            width={40}
-            height={40}
-            className="rounded-sm"
+            width={48}
+            height={48}
+            className="w-full h-full object-contain"
           />
         </button>
       </Tooltip>

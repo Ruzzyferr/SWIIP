@@ -96,6 +96,7 @@ let WEB_URL = isDev
   : (store.get('serverUrl') || process.env.SWIIP_WEB_URL || DEFAULT_PROD_URL);
 
 let mainWindow = null;
+let splashWindow = null;
 let tray = null;
 let isQuitting = false;
 
@@ -275,18 +276,226 @@ function setupAppMenu() {
   }
 }
 
-// ── Auto-updater (Discord-style: silent download + in-app notification) ───
-function setupAutoUpdater() {
-  autoUpdater.autoDownload = true;
-  autoUpdater.autoInstallOnAppQuit = true;
+// ── Splash Screen (Discord-style update check on startup) ────────────────
+function createSplashWindow() {
+  splashWindow = new BrowserWindow({
+    width: 300,
+    height: 350,
+    frame: false,
+    resizable: false,
+    alwaysOnTop: true,
+    center: true,
+    transparent: true,
+    skipTaskbar: true,
+    backgroundColor: '#00000000',
+    webPreferences: {
+      contextIsolation: true,
+      nodeIntegration: false,
+    },
+  });
+
+  const splashHTML = `<!DOCTYPE html>
+<html><head><meta charset="utf-8"><style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: #111119;
+    color: #e0e0e8;
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    border-radius: 12px;
+    overflow: hidden;
+    -webkit-app-region: drag;
+    user-select: none;
+  }
+  .logo {
+    width: 80px; height: 80px;
+    margin-bottom: 24px;
+    border-radius: 20px;
+    background: linear-gradient(135deg, #6c5ce7, #a855f7);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 36px; font-weight: 700; color: #fff;
+    box-shadow: 0 8px 32px rgba(108, 92, 231, 0.3);
+  }
+  .app-name {
+    font-size: 22px; font-weight: 700;
+    margin-bottom: 32px;
+    background: linear-gradient(135deg, #c4b5fd, #a855f7);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+  }
+  .status {
+    font-size: 12px;
+    color: #8b8b9e;
+    margin-bottom: 16px;
+    min-height: 16px;
+    transition: opacity 0.3s;
+  }
+  .progress-container {
+    width: 200px; height: 4px;
+    background: #1e1e2e;
+    border-radius: 2px;
+    overflow: hidden;
+  }
+  .progress-bar {
+    height: 100%;
+    background: linear-gradient(90deg, #6c5ce7, #a855f7);
+    border-radius: 2px;
+    width: 0%;
+    transition: width 0.3s ease;
+  }
+  .progress-bar.indeterminate {
+    width: 40%;
+    animation: indeterminate 1.5s ease-in-out infinite;
+  }
+  @keyframes indeterminate {
+    0% { transform: translateX(-100%); }
+    100% { transform: translateX(500%); }
+  }
+  .spinner {
+    width: 24px; height: 24px;
+    border: 2.5px solid #1e1e2e;
+    border-top: 2.5px solid #a855f7;
+    border-radius: 50%;
+    animation: spin 0.8s linear infinite;
+    margin-bottom: 16px;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+</style></head>
+<body>
+  <div class="logo">S</div>
+  <div class="app-name">Swiip</div>
+  <div class="spinner" id="spinner"></div>
+  <div class="status" id="status">Checking for updates...</div>
+  <div class="progress-container">
+    <div class="progress-bar indeterminate" id="progress"></div>
+  </div>
+  <script>
+    window.updateSplash = function(data) {
+      const status = document.getElementById('status');
+      const progress = document.getElementById('progress');
+      const spinner = document.getElementById('spinner');
+      if (data.status) status.textContent = data.status;
+      if (data.percent !== undefined) {
+        progress.classList.remove('indeterminate');
+        progress.style.width = data.percent + '%';
+      }
+      if (data.hideSpinner) spinner.style.display = 'none';
+    };
+  </script>
+</body></html>`;
+
+  splashWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(splashHTML));
+
+  splashWindow.on('closed', () => {
+    splashWindow = null;
+  });
+
+  return splashWindow;
+}
+
+function sendToSplash(data) {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.webContents.executeJavaScript(
+      `if(window.updateSplash) window.updateSplash(${JSON.stringify(data)})`
+    ).catch(() => {});
+  }
+}
+
+function closeSplash() {
+  if (splashWindow && !splashWindow.isDestroyed()) {
+    splashWindow.close();
+    splashWindow = null;
+  }
+}
+
+// Run update check on startup with splash screen. Returns a promise that resolves
+// when the app should continue loading (either no update or timeout).
+function checkForUpdatesOnStartup() {
+  return new Promise((resolve) => {
+    const STARTUP_UPDATE_TIMEOUT_MS = 15000;
+    let resolved = false;
+    let updateFound = false;
+
+    const finish = () => {
+      if (resolved) return;
+      resolved = true;
+      resolve();
+    };
+
+    // Timeout: if update check takes too long, proceed normally
+    const timeout = setTimeout(() => {
+      console.log('[AutoUpdater] Startup check timed out, proceeding...');
+      sendToSplash({ status: 'Starting...', hideSpinner: true });
+      finish();
+    }, STARTUP_UPDATE_TIMEOUT_MS);
+
+    autoUpdater.autoDownload = true;
+    autoUpdater.autoInstallOnAppQuit = true;
+
+    autoUpdater.on('update-available', (info) => {
+      updateFound = true;
+      console.log('[AutoUpdater] Startup: update available:', info.version);
+      sendToSplash({ status: `Downloading v${info.version}...` });
+    });
+
+    autoUpdater.on('download-progress', (progress) => {
+      const pct = Math.round(progress.percent);
+      sendToSplash({ status: `Downloading update... ${pct}%`, percent: pct });
+    });
+
+    autoUpdater.on('update-downloaded', (info) => {
+      clearTimeout(timeout);
+      console.log('[AutoUpdater] Startup: update downloaded, installing...');
+      sendToSplash({ status: 'Installing update...', percent: 100, hideSpinner: true });
+      // Brief delay so user sees "Installing..." before restart
+      setTimeout(() => {
+        isQuitting = true;
+        autoUpdater.quitAndInstall(true, true);
+      }, 1500);
+    });
+
+    autoUpdater.on('update-not-available', () => {
+      clearTimeout(timeout);
+      console.log('[AutoUpdater] Startup: no update available');
+      sendToSplash({ status: 'Up to date!', hideSpinner: true });
+      // Brief pause so user sees the status
+      setTimeout(finish, 800);
+    });
+
+    autoUpdater.on('error', (err) => {
+      clearTimeout(timeout);
+      console.error('[AutoUpdater] Startup error:', err.message);
+      sendToSplash({ status: 'Starting...', hideSpinner: true });
+      setTimeout(finish, 500);
+    });
+
+    autoUpdater.checkForUpdates().catch((err) => {
+      clearTimeout(timeout);
+      console.error('[AutoUpdater] Startup check failed:', err.message);
+      finish();
+    });
+  });
+}
+
+// ── Auto-updater (background: in-app notification while running) ─────────
+function setupBackgroundAutoUpdater() {
+  // Remove startup-only listeners and set up background listeners
+  autoUpdater.removeAllListeners('update-available');
+  autoUpdater.removeAllListeners('download-progress');
+  autoUpdater.removeAllListeners('update-downloaded');
+  autoUpdater.removeAllListeners('update-not-available');
+  autoUpdater.removeAllListeners('error');
 
   autoUpdater.on('checking-for-update', () => {
-    console.log('[AutoUpdater] Checking for updates...');
+    console.log('[AutoUpdater] Background: checking for updates...');
   });
 
   autoUpdater.on('update-available', (info) => {
-    console.log('[AutoUpdater] Update available:', info.version);
-    // Notify renderer — it will show a small banner
+    console.log('[AutoUpdater] Background: update available:', info.version);
     if (mainWindow) {
       mainWindow.webContents.send('update-available', {
         version: info.version,
@@ -307,7 +516,7 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on('update-downloaded', (info) => {
-    console.log('[AutoUpdater] Update downloaded:', info.version);
+    console.log('[AutoUpdater] Background: update downloaded:', info.version);
     if (mainWindow) {
       mainWindow.webContents.send('update-downloaded', {
         version: info.version,
@@ -316,15 +525,14 @@ function setupAutoUpdater() {
   });
 
   autoUpdater.on('update-not-available', () => {
-    console.log('[AutoUpdater] No update available');
+    console.log('[AutoUpdater] Background: no update available');
   });
 
   autoUpdater.on('error', (err) => {
-    console.error('[AutoUpdater] Error:', err.message);
+    console.error('[AutoUpdater] Background error:', err.message);
   });
 
-  // Check for updates on launch and every 30 minutes
-  autoUpdater.checkForUpdates().catch(() => {});
+  // Check every 30 minutes
   setInterval(() => {
     autoUpdater.checkForUpdates().catch(() => {});
   }, 30 * 60 * 1000);
@@ -346,11 +554,26 @@ if (!gotLock) {
 
 // App lifecycle
 app.on('ready', async () => {
-  // Start local web server (production) or use localhost:3000 (dev)
-  try {
-    WEB_URL = await startLocalWebServer();
-  } catch (err) {
-    console.error('[Desktop] Failed to start local server, using remote URL:', err);
+  // In production, show splash screen and check for updates before main window
+  if (!isDev) {
+    createSplashWindow();
+    // Run update check and web server startup in parallel
+    const [/* updateResult */] = await Promise.all([
+      checkForUpdatesOnStartup(),
+      startLocalWebServer().then((url) => { WEB_URL = url; }).catch((err) => {
+        console.error('[Desktop] Failed to start local server, using remote URL:', err);
+      }),
+    ]);
+    closeSplash();
+    // Switch to background updater for periodic checks while app is running
+    setupBackgroundAutoUpdater();
+  } else {
+    // Dev mode: no splash, just start the web server
+    try {
+      WEB_URL = await startLocalWebServer();
+    } catch (err) {
+      console.error('[Desktop] Failed to start local server, using remote URL:', err);
+    }
   }
 
   // Set custom user agent to identify desktop app
@@ -386,27 +609,20 @@ app.on('ready', async () => {
   createTray();
 
   // Set up screen capture handler for LiveKit screen sharing
-  // NOTE: Audio loopback captures ALL system audio including voice chat playback,
-  // which creates feedback. For window captures, audio is not supported via loopback.
-  // For screen captures, audio is disabled by default — the user gets a warning in the UI.
   appSession.setDisplayMediaRequestHandler(async (_request, callback) => {
     try {
-      // If a specific source was selected via our custom picker, use it
       if (selectedSourceId) {
         const sources = await desktopCapturer.getSources({ types: ['screen', 'window'] });
         const chosen = sources.find((s) => s.id === selectedSourceId);
         const sourceId = selectedSourceId;
-        selectedSourceId = null; // Reset after use
+        selectedSourceId = null;
         if (chosen) {
-          // Window captures: NEVER include loopback audio — it captures voice chat
-          // Screen captures: only include loopback if explicitly enabled (user warned in UI)
           const isWindowCapture = sourceId.startsWith('window:');
           const includeAudio = !isWindowCapture && screenShareAudioEnabled;
           callback({ video: chosen, audio: includeAudio ? 'loopback' : undefined });
           return;
         }
       }
-      // Fallback: auto-select primary screen (no audio — safer default)
       const sources = await desktopCapturer.getSources({ types: ['screen'] });
       if (sources.length > 0) {
         callback({ video: sources[0], audio: undefined });
@@ -418,10 +634,6 @@ app.on('ready', async () => {
       callback({});
     }
   });
-
-  if (!isDev) {
-    setupAutoUpdater();
-  }
 });
 
 app.on('window-all-closed', () => {
