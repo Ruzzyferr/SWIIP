@@ -250,8 +250,18 @@ export class UsersService {
     });
 
     return [
-      ...sent.map((r: any) => ({ ...r.target, type: r.type, direction: 'outgoing' })),
-      ...received.map((r: any) => ({ ...r.requester, type: r.type, direction: 'incoming' })),
+      ...sent.map((r: any) => ({
+        id: r.id,
+        type: r.type,
+        user: r.target,
+        since: new Date().toISOString(),
+      })),
+      ...received.map((r: any) => ({
+        id: r.id,
+        type: r.type,
+        user: r.requester,
+        since: new Date().toISOString(),
+      })),
     ];
   }
 

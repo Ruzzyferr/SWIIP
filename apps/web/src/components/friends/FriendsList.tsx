@@ -142,11 +142,13 @@ function FriendRow({
 }) {
   const [hovered, setHovered] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
-  const presence = usePresenceStore((s) => s.users[relationship.user.id]);
+  const presence = usePresenceStore((s) => relationship.user ? s.users[relationship.user.id] : undefined);
   const status = (presence?.status ?? 'offline') as PresenceStatus;
 
   const isPending = relationship.type === 'PENDING_INCOMING' || relationship.type === 'PENDING_OUTGOING';
   const isBlocked = relationship.type === 'BLOCKED';
+
+  if (!relationship.user) return null;
 
   return (
     <div
@@ -311,6 +313,7 @@ export function FriendsList() {
 
   // Filter relationships by tab
   const filtered = useMemo(() => relationships.filter((r) => {
+    if (!r.user) return false;
     if (activeTab === 'online') {
       return r.type === 'FRIEND' && (presences[r.user.id]?.status ?? 'offline') !== 'offline';
     }
@@ -323,7 +326,7 @@ export function FriendsList() {
   // Search filter
   const displayed = useMemo(() => searchQuery
     ? filtered.filter((r) => {
-        const name = (r.user.globalName ?? r.user.username).toLowerCase();
+        const name = (r.user?.globalName ?? r.user?.username ?? '').toLowerCase();
         return name.includes(searchQuery.toLowerCase());
       })
     : filtered, [filtered, searchQuery]);

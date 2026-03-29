@@ -91,7 +91,7 @@ export function Tooltip({
 }: TooltipProps) {
   const [visible, setVisible] = useState(false);
   const [position, setPosition] = useState<TooltipPosition | null>(null);
-  const triggerRef = useRef<HTMLDivElement>(null);
+  const triggerRef = useRef<HTMLSpanElement>(null);
   const tooltipRef = useRef<HTMLDivElement>(null);
   const showTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
   const [mounted, setMounted] = useState(false);
@@ -134,16 +134,16 @@ export function Tooltip({
 
   return (
     <>
-      <div
+      <span
         ref={triggerRef}
         onMouseEnter={show}
         onMouseLeave={hide}
         onFocus={show}
         onBlur={hide}
-        style={{ display: 'contents' }}
+        style={{ display: 'inline-flex' }}
       >
         {children}
-      </div>
+      </span>
 
       {mounted &&
         createPortal(
