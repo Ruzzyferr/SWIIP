@@ -69,16 +69,23 @@ function getPosition(
 }
 
 const tooltipVariants = {
-  hidden: { opacity: 0, scale: 0.92 },
+  hidden: { opacity: 0, scale: 0.85, filter: 'blur(4px)' },
   visible: {
     opacity: 1,
     scale: 1,
-    transition: { duration: 0.1, ease: [0.4, 0, 0.2, 1] as number[] },
+    filter: 'blur(0px)',
+    transition: {
+      type: 'spring',
+      stiffness: 500,
+      damping: 25,
+      mass: 0.5,
+    },
   },
   exit: {
     opacity: 0,
-    scale: 0.92,
-    transition: { duration: 0.08, ease: [0.4, 0, 1, 1] as number[] },
+    scale: 0.9,
+    filter: 'blur(2px)',
+    transition: { duration: 0.1, ease: [0.4, 0, 1, 1] as number[] },
   },
 };
 

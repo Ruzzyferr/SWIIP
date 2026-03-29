@@ -35,24 +35,39 @@ const sizeClasses = {
 };
 
 const backdropVariants = {
-  hidden: { opacity: 0 },
-  visible: { opacity: 1, transition: { duration: 0.2 } },
-  exit: { opacity: 0, transition: { duration: 0.15 } },
+  hidden: { opacity: 0, backdropFilter: 'blur(0px)' },
+  visible: {
+    opacity: 1,
+    backdropFilter: 'blur(12px)',
+    transition: { duration: 0.3, ease: [0, 0, 0.2, 1] },
+  },
+  exit: {
+    opacity: 0,
+    backdropFilter: 'blur(0px)',
+    transition: { duration: 0.2, ease: [0.4, 0, 1, 1] },
+  },
 };
 
 const panelVariants = {
-  hidden: { opacity: 0, scale: 0.94, y: 12 },
+  hidden: { opacity: 0, scale: 0.92, y: 20, filter: 'blur(4px)' },
   visible: {
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { duration: 0.22, ease: [0, 0, 0.2, 1] },
+    filter: 'blur(0px)',
+    transition: {
+      type: 'spring',
+      stiffness: 400,
+      damping: 30,
+      mass: 0.8,
+    },
   },
   exit: {
     opacity: 0,
     scale: 0.95,
-    y: 8,
-    transition: { duration: 0.16, ease: [0.4, 0, 1, 1] },
+    y: 10,
+    filter: 'blur(2px)',
+    transition: { duration: 0.18, ease: [0.4, 0, 1, 1] },
   },
 };
 
@@ -161,13 +176,13 @@ export function Modal({
             aria-labelledby={title ? 'modal-title' : undefined}
             aria-describedby={description ? 'modal-description' : undefined}
             tabIndex={-1}
-            className={cn('relative w-full rounded-2xl outline-none', sizeClasses[size])}
+            className={cn('relative w-full rounded-2xl outline-none noise-texture overflow-hidden', sizeClasses[size])}
             style={{
               background: 'var(--glass-bg)',
-              backdropFilter: 'blur(24px)',
-              WebkitBackdropFilter: 'blur(24px)',
+              backdropFilter: 'blur(30px)',
+              WebkitBackdropFilter: 'blur(30px)',
               border: '1px solid var(--color-border-subtle)',
-              boxShadow: 'var(--shadow-float)',
+              boxShadow: '0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03), var(--ambient-glow)',
             }}
             onClick={(e) => e.stopPropagation()}
           >
@@ -195,10 +210,10 @@ export function Modal({
                   )}
                 </div>
                 {showClose && (
-                  <button
+                  <motion.button
                     onClick={onClose}
-                    className="ml-4 p-1.5 rounded-lg transition-all duration-fast flex-shrink-0"
-                    style={{ color: 'var(--color-text-tertiary)' }}
+                    className="ml-4 p-1.5 rounded-lg transition-all flex-shrink-0"
+                    style={{ color: 'var(--color-text-tertiary)', transitionDuration: 'var(--duration-fast)' }}
                     onMouseEnter={(e) => {
                       e.currentTarget.style.background = 'var(--color-surface-floating)';
                       e.currentTarget.style.color = 'var(--color-text-primary)';
@@ -207,10 +222,13 @@ export function Modal({
                       e.currentTarget.style.background = 'transparent';
                       e.currentTarget.style.color = 'var(--color-text-tertiary)';
                     }}
+                    whileHover={{ scale: 1.1, rotate: 90 }}
+                    whileTap={{ scale: 0.9 }}
+                    transition={{ type: 'spring', stiffness: 400, damping: 20 }}
                     aria-label="Close modal"
                   >
                     <X size={16} />
-                  </button>
+                  </motion.button>
                 )}
               </div>
             )}

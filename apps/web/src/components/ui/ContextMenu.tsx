@@ -35,17 +35,25 @@ interface MenuPosition {
 }
 
 const menuVariants = {
-  hidden: { opacity: 0, scale: 0.96, y: -4 },
+  hidden: { opacity: 0, scale: 0.92, y: -6, filter: 'blur(4px)' },
   visible: {
     opacity: 1,
     scale: 1,
     y: 0,
-    transition: { duration: 0.1, ease: [0, 0, 0.2, 1] },
+    filter: 'blur(0px)',
+    transition: {
+      type: 'spring',
+      stiffness: 500,
+      damping: 30,
+      mass: 0.5,
+      staggerChildren: 0.02,
+    },
   },
   exit: {
     opacity: 0,
-    scale: 0.96,
-    transition: { duration: 0.07 },
+    scale: 0.95,
+    filter: 'blur(2px)',
+    transition: { duration: 0.1 },
   },
 };
 
@@ -116,12 +124,12 @@ function ContextMenuContent({
         zIndex: 'var(--z-popover)',
         minWidth: '180px',
         maxWidth: '260px',
-        background: 'var(--glass-bg)',
-        backdropFilter: 'blur(20px)',
-        WebkitBackdropFilter: 'blur(20px)',
+        background: 'rgba(18, 22, 22, 0.85)',
+        backdropFilter: 'blur(30px)',
+        WebkitBackdropFilter: 'blur(30px)',
         border: '1px solid var(--color-border-subtle)',
         borderRadius: 'var(--radius-xl)',
-        boxShadow: 'var(--shadow-float)',
+        boxShadow: '0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03)',
         padding: '4px',
         outline: 'none',
       }}

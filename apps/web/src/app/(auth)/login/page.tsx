@@ -6,13 +6,15 @@ import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
-import { Eye, EyeOff, Loader2, Github, Chrome } from 'lucide-react';
+import { Eye, EyeOff, Loader2, Github, Chrome, Check } from 'lucide-react';
 import { login } from '@/lib/api/auth.api';
 import { useAuthStore } from '@/stores/auth.store';
 import { setAccessToken } from '@/lib/api/client';
 import { useTranslations } from 'next-intl';
+import { MeshGradient } from '@/components/ui/MeshGradient';
+import { NoiseTexture } from '@/components/ui/NoiseTexture';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -22,20 +24,23 @@ const loginSchema = z.object({
 
 type LoginFormData = z.infer<typeof loginSchema>;
 
+const spring = { type: 'spring' as const, stiffness: 400, damping: 30, mass: 0.8 };
+
 const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.07, delayChildren: 0.1 },
+    transition: { staggerChildren: 0.06, delayChildren: 0.15 },
   },
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 16 },
+  hidden: { opacity: 0, y: 20, filter: 'blur(4px)' },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.4, ease: [0.4, 0, 0.2, 1] },
+    filter: 'blur(0px)',
+    transition: spring,
   },
 };
 
@@ -58,6 +63,7 @@ function LoginContent() {
   const setTokens = useAuthStore((s) => s.setTokens);
   const [showPassword, setShowPassword] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
+  const [submitState, setSubmitState] = useState<'idle' | 'loading' | 'success'>('idle');
 
   const {
     register,
@@ -69,19 +75,23 @@ function LoginContent() {
 
   const onSubmit = async (data: LoginFormData) => {
     setServerError(null);
+    setSubmitState('loading');
     try {
       const res = await login({ email: data.email, password: data.password });
       setUser(res.user);
       setTokens(res.tokens.accessToken, res.sessionId);
       setAccessToken(res.tokens.accessToken);
 
-      // Redirect unverified users to verification page
+      setSubmitState('success');
+      await new Promise((r) => setTimeout(r, 600));
+
       if (!res.user.verified) {
         router.push('/verify-email');
       } else {
         router.push(redirectTo || '/channels/@me');
       }
     } catch (err: unknown) {
+      setSubmitState('idle');
       const message =
         err instanceof Error ? err.message : 'Invalid email or password';
       setServerError(message);
@@ -90,24 +100,8 @@ function LoginContent() {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden" style={{ background: 'var(--color-surface-base)' }}>
-      {/* Atmospheric background */}
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 overflow-hidden"
-      >
-        <div
-          className="absolute -top-32 -left-32 w-[600px] h-[600px] rounded-full opacity-[0.07]"
-          style={{ background: 'radial-gradient(circle, #10B981, transparent 65%)' }}
-        />
-        <div
-          className="absolute -bottom-48 -right-48 w-[700px] h-[700px] rounded-full opacity-[0.05]"
-          style={{ background: 'radial-gradient(circle, #34D399, transparent 65%)' }}
-        />
-        <div
-          className="absolute top-[40%] right-[20%] w-[400px] h-[400px] rounded-full opacity-[0.04]"
-          style={{ background: 'radial-gradient(circle, #6EE7B7, transparent 65%)' }}
-        />
-      </div>
+      {/* Animated mesh gradient background */}
+      <MeshGradient intensity="medium" />
 
       {/* Auth card */}
       <motion.div
@@ -122,13 +116,18 @@ function LoginContent() {
             href="/"
             className="inline-flex items-center gap-2.5 mb-6 transition-opacity hover:opacity-80"
           >
-            <Image
-              src="/logo.png"
-              alt="Swiip"
-              width={72}
-              height={72}
-              className="rounded-xl"
-            />
+            <motion.div
+              whileHover={{ rotate: [0, -5, 5, 0], scale: 1.05 }}
+              transition={spring}
+            >
+              <Image
+                src="/logo.png"
+                alt="Swiip"
+                width={72}
+                height={72}
+                className="rounded-xl"
+              />
+            </motion.div>
             <span
               className="text-xl font-bold tracking-tight"
               style={{ color: 'var(--color-text-primary)' }}
@@ -150,228 +149,266 @@ function LoginContent() {
           </p>
         </motion.div>
 
-        {/* Form card */}
+        {/* Form card with glass + noise */}
         <motion.div
           variants={itemVariants}
-          className="rounded-2xl p-6"
+          className="rounded-2xl p-6 relative overflow-hidden gradient-border"
           style={{
             background: 'var(--glass-bg)',
-            backdropFilter: 'blur(var(--glass-blur))',
-            WebkitBackdropFilter: 'blur(var(--glass-blur))',
+            backdropFilter: 'blur(30px)',
+            WebkitBackdropFilter: 'blur(30px)',
             border: '1px solid var(--color-border-subtle)',
-            boxShadow: 'var(--shadow-float)',
+            boxShadow: '0 20px 60px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03)',
           }}
         >
-          {/* Server error */}
-          {serverError && (
-            <motion.div
-              initial={{ opacity: 0, height: 0 }}
-              animate={{ opacity: 1, height: 'auto' }}
-              className="mb-4 px-3 py-2.5 rounded-lg text-sm"
-              style={{
-                background: 'var(--color-danger-muted)',
-                border: '1px solid rgba(239, 68, 68, 0.25)',
-                color: '#fca5a5',
-              }}
-            >
-              {serverError}
-            </motion.div>
-          )}
+          <NoiseTexture opacity={0.025} />
 
-          <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
-            {/* Email */}
-            <div>
-              <label
-                htmlFor="email"
-                className="block text-xs font-semibold uppercase tracking-wider mb-1.5"
-                style={{ color: 'var(--color-text-secondary)' }}
-              >
-                {t('email')}
-              </label>
-              <input
-                id="email"
-                type="email"
-                autoComplete="email"
-                autoFocus
-                {...register('email')}
-                className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all duration-fast"
-                style={{
-                  background: 'var(--color-surface-raised)',
-                  border: errors.email
-                    ? '1px solid var(--color-danger-default)'
-                    : '1px solid var(--color-border-default)',
-                  color: 'var(--color-text-primary)',
-                }}
-                onFocus={(e) => {
-                  e.currentTarget.style.borderColor = errors.email
-                    ? 'var(--color-danger-default)'
-                    : 'var(--color-border-focus)';
-                  e.currentTarget.style.boxShadow = errors.email
-                    ? '0 0 0 3px rgba(239,68,68,0.15)'
-                    : '0 0 0 3px rgba(16,185,129,0.15)';
-                }}
-                onBlur={(e) => {
-                  e.currentTarget.style.borderColor = errors.email
-                    ? 'var(--color-danger-default)'
-                    : 'var(--color-border-default)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
-                placeholder="you@example.com"
-              />
-              {errors.email && (
-                <p className="mt-1 text-xs" style={{ color: 'var(--color-danger-default)' }}>
-                  {errors.email.message}
-                </p>
+          <div className="relative z-10">
+            {/* Server error */}
+            <AnimatePresence>
+              {serverError && (
+                <motion.div
+                  initial={{ opacity: 0, height: 0, marginBottom: 0 }}
+                  animate={{ opacity: 1, height: 'auto', marginBottom: 16 }}
+                  exit={{ opacity: 0, height: 0, marginBottom: 0 }}
+                  transition={spring}
+                  className="px-3 py-2.5 rounded-lg text-sm overflow-hidden"
+                  style={{
+                    background: 'var(--color-danger-muted)',
+                    border: '1px solid rgba(239, 68, 68, 0.25)',
+                    color: '#fca5a5',
+                  }}
+                >
+                  {serverError}
+                </motion.div>
               )}
-            </div>
+            </AnimatePresence>
 
-            {/* Password */}
-            <div>
-              <div className="flex items-center justify-between mb-1.5">
+            <form onSubmit={handleSubmit(onSubmit)} noValidate className="space-y-4">
+              {/* Email */}
+              <motion.div variants={itemVariants}>
                 <label
-                  htmlFor="password"
-                  className="block text-xs font-semibold uppercase tracking-wider"
+                  htmlFor="email"
+                  className="block text-xs font-semibold uppercase tracking-wider mb-1.5"
                   style={{ color: 'var(--color-text-secondary)' }}
                 >
-                  {t('password')}
+                  {t('email')}
                 </label>
-                <Link
-                  href="/forgot-password"
-                  className="text-xs transition-colors duration-fast"
-                  style={{ color: 'var(--color-text-accent)' }}
-                >
-                  {t('forgotPassword')}
-                </Link>
-              </div>
-              <div className="relative">
-                <input
-                  id="password"
-                  type={showPassword ? 'text' : 'password'}
-                  autoComplete="current-password"
-                  {...register('password')}
-                  className="w-full px-3 py-2.5 pr-10 rounded-lg text-sm outline-none transition-all duration-fast"
-                  style={{
-                    background: 'var(--color-surface-raised)',
-                    border: errors.password
-                      ? '1px solid var(--color-danger-default)'
-                      : '1px solid var(--color-border-default)',
-                    color: 'var(--color-text-primary)',
-                  }}
-                  onFocus={(e) => {
-                    e.currentTarget.style.borderColor = errors.password
-                      ? 'var(--color-danger-default)'
-                      : 'var(--color-border-focus)';
-                    e.currentTarget.style.boxShadow = errors.password
-                      ? '0 0 0 3px rgba(239,68,68,0.15)'
-                      : '0 0 0 3px rgba(16,185,129,0.15)';
-                  }}
-                  onBlur={(e) => {
-                    e.currentTarget.style.borderColor = errors.password
-                      ? 'var(--color-danger-default)'
-                      : 'var(--color-border-default)';
-                    e.currentTarget.style.boxShadow = 'none';
-                  }}
-                  placeholder="••••••••"
-                />
-                <button
-                  type="button"
-                  onClick={() => setShowPassword((v) => !v)}
-                  className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded transition-colors duration-fast"
-                  style={{ color: 'var(--color-text-tertiary)' }}
-                  tabIndex={-1}
-                  aria-label={showPassword ? t('hidePassword') : t('showPassword')}
-                >
-                  {showPassword ? (
-                    <EyeOff size={15} />
-                  ) : (
-                    <Eye size={15} />
+                <div className="relative group">
+                  <input
+                    id="email"
+                    type="email"
+                    autoComplete="email"
+                    autoFocus
+                    {...register('email')}
+                    className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all"
+                    style={{
+                      background: 'var(--color-surface-raised)',
+                      border: errors.email
+                        ? '1px solid var(--color-danger-default)'
+                        : '1px solid var(--color-border-default)',
+                      color: 'var(--color-text-primary)',
+                      transitionDuration: 'var(--duration-fast)',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = errors.email
+                        ? 'var(--color-danger-default)'
+                        : 'var(--color-border-focus)';
+                      e.currentTarget.style.boxShadow = errors.email
+                        ? '0 0 0 3px rgba(239,68,68,0.15), 0 0 20px rgba(239,68,68,0.05)'
+                        : '0 0 0 3px rgba(16,185,129,0.15), 0 0 20px rgba(16,185,129,0.05)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = errors.email
+                        ? 'var(--color-danger-default)'
+                        : 'var(--color-border-default)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                    placeholder="you@example.com"
+                  />
+                </div>
+                <AnimatePresence>
+                  {errors.email && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -5 }}
+                      className="mt-1 text-xs"
+                      style={{ color: 'var(--color-danger-default)' }}
+                    >
+                      {errors.email.message}
+                    </motion.p>
                   )}
-                </button>
-              </div>
-              {errors.password && (
-                <p className="mt-1 text-xs" style={{ color: 'var(--color-danger-default)' }}>
-                  {errors.password.message}
-                </p>
-              )}
+                </AnimatePresence>
+              </motion.div>
+
+              {/* Password */}
+              <motion.div variants={itemVariants}>
+                <div className="flex items-center justify-between mb-1.5">
+                  <label
+                    htmlFor="password"
+                    className="block text-xs font-semibold uppercase tracking-wider"
+                    style={{ color: 'var(--color-text-secondary)' }}
+                  >
+                    {t('password')}
+                  </label>
+                  <Link
+                    href="/forgot-password"
+                    className="text-xs transition-colors"
+                    style={{ color: 'var(--color-text-accent)', transitionDuration: 'var(--duration-fast)' }}
+                  >
+                    {t('forgotPassword')}
+                  </Link>
+                </div>
+                <div className="relative">
+                  <input
+                    id="password"
+                    type={showPassword ? 'text' : 'password'}
+                    autoComplete="current-password"
+                    {...register('password')}
+                    className="w-full px-3 py-2.5 pr-10 rounded-lg text-sm outline-none transition-all"
+                    style={{
+                      background: 'var(--color-surface-raised)',
+                      border: errors.password
+                        ? '1px solid var(--color-danger-default)'
+                        : '1px solid var(--color-border-default)',
+                      color: 'var(--color-text-primary)',
+                      transitionDuration: 'var(--duration-fast)',
+                    }}
+                    onFocus={(e) => {
+                      e.currentTarget.style.borderColor = errors.password
+                        ? 'var(--color-danger-default)'
+                        : 'var(--color-border-focus)';
+                      e.currentTarget.style.boxShadow = errors.password
+                        ? '0 0 0 3px rgba(239,68,68,0.15), 0 0 20px rgba(239,68,68,0.05)'
+                        : '0 0 0 3px rgba(16,185,129,0.15), 0 0 20px rgba(16,185,129,0.05)';
+                    }}
+                    onBlur={(e) => {
+                      e.currentTarget.style.borderColor = errors.password
+                        ? 'var(--color-danger-default)'
+                        : 'var(--color-border-default)';
+                      e.currentTarget.style.boxShadow = 'none';
+                    }}
+                    placeholder="••••••••"
+                  />
+                  <motion.button
+                    type="button"
+                    onClick={() => setShowPassword((v) => !v)}
+                    className="absolute right-2.5 top-1/2 -translate-y-1/2 p-1 rounded transition-colors"
+                    style={{ color: 'var(--color-text-tertiary)', transitionDuration: 'var(--duration-fast)' }}
+                    tabIndex={-1}
+                    aria-label={showPassword ? t('hidePassword') : t('showPassword')}
+                    whileHover={{ scale: 1.1 }}
+                    whileTap={{ scale: 0.9 }}
+                  >
+                    {showPassword ? <EyeOff size={15} /> : <Eye size={15} />}
+                  </motion.button>
+                </div>
+                <AnimatePresence>
+                  {errors.password && (
+                    <motion.p
+                      initial={{ opacity: 0, y: -5 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -5 }}
+                      className="mt-1 text-xs"
+                      style={{ color: 'var(--color-danger-default)' }}
+                    >
+                      {errors.password.message}
+                    </motion.p>
+                  )}
+                </AnimatePresence>
+              </motion.div>
+
+              {/* Submit — morphing button */}
+              <motion.div variants={itemVariants}>
+                <motion.button
+                  type="submit"
+                  disabled={isSubmitting}
+                  className="w-full py-2.5 rounded-xl text-sm font-semibold text-white flex items-center justify-center gap-2 mt-2 relative overflow-hidden"
+                  style={{
+                    background: submitState === 'success'
+                      ? 'var(--color-success-default)'
+                      : 'var(--color-accent-gradient)',
+                    opacity: isSubmitting ? 0.9 : 1,
+                  }}
+                  whileHover={submitState === 'idle' ? { scale: 1.02, boxShadow: '0 6px 25px rgba(16,185,129,0.4)' } : {}}
+                  whileTap={submitState === 'idle' ? { scale: 0.98 } : {}}
+                  transition={spring}
+                  layout
+                >
+                  <AnimatePresence mode="wait">
+                    {submitState === 'loading' && (
+                      <motion.span
+                        key="loading"
+                        initial={{ opacity: 0, scale: 0.5 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.5 }}
+                        className="flex items-center gap-2"
+                      >
+                        <Loader2 size={15} className="animate-spin" />
+                        {t('submitting')}
+                      </motion.span>
+                    )}
+                    {submitState === 'success' && (
+                      <motion.span
+                        key="success"
+                        initial={{ opacity: 0, scale: 0 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                      >
+                        <Check size={20} strokeWidth={3} />
+                      </motion.span>
+                    )}
+                    {submitState === 'idle' && (
+                      <motion.span
+                        key="idle"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                      >
+                        {t('submit')}
+                      </motion.span>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
+              </motion.div>
+            </form>
+
+            {/* Divider */}
+            <div className="flex items-center gap-3 my-5">
+              <div className="flex-1 h-px" style={{ background: 'var(--color-border-subtle)' }} />
+              <span className="text-xs" style={{ color: 'var(--color-text-disabled)' }}>
+                {t('continueWith')}
+              </span>
+              <div className="flex-1 h-px" style={{ background: 'var(--color-border-subtle)' }} />
             </div>
 
-            {/* Submit */}
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="w-full py-2.5 rounded-xl text-sm font-semibold text-white transition-all mt-2 flex items-center justify-center gap-2"
-              style={{
-                background: isSubmitting
-                  ? 'var(--color-accent-hover)'
-                  : 'var(--color-accent-gradient)',
-                opacity: isSubmitting ? 0.8 : 1,
-                boxShadow: isSubmitting ? 'none' : '0 4px 15px rgba(16,185,129,0.3)',
-              }}
-              onMouseEnter={(e) => {
-                if (!isSubmitting) {
-                  e.currentTarget.style.boxShadow = '0 6px 20px rgba(16,185,129,0.45)';
-                  e.currentTarget.style.transform = 'translateY(-1px)';
-                }
-              }}
-              onMouseLeave={(e) => {
-                if (!isSubmitting) {
-                  e.currentTarget.style.boxShadow = '0 4px 15px rgba(16,185,129,0.3)';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                }
-              }}
-            >
-              {isSubmitting ? (
-                <>
-                  <Loader2 size={15} className="animate-spin" />
-                  {t('submitting')}
-                </>
-              ) : (
-                t('submit')
-              )}
-            </button>
-          </form>
-
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-5">
-            <div className="flex-1 h-px" style={{ background: 'var(--color-border-subtle)' }} />
-            <span className="text-xs" style={{ color: 'var(--color-text-disabled)' }}>
-              {t('continueWith')}
-            </span>
-            <div className="flex-1 h-px" style={{ background: 'var(--color-border-subtle)' }} />
-          </div>
-
-          {/* Social buttons */}
-          <div className="grid grid-cols-2 gap-2.5">
-            <button
-              type="button"
-              disabled
-              className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-medium opacity-50 cursor-not-allowed"
-              style={{
-                background: 'var(--color-surface-raised)',
-                border: '1px solid var(--color-border-default)',
-                color: 'var(--color-text-secondary)',
-              }}
-              title="Coming soon"
-            >
-              <Github size={15} />
-              GitHub
-              <span className="text-xs">({tCommon('comingSoon')})</span>
-            </button>
-            <button
-              type="button"
-              disabled
-              className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-medium opacity-50 cursor-not-allowed"
-              style={{
-                background: 'var(--color-surface-raised)',
-                border: '1px solid var(--color-border-default)',
-                color: 'var(--color-text-secondary)',
-              }}
-              title="Coming soon"
-            >
-              <Chrome size={15} />
-              Google
-              <span className="text-xs">({tCommon('comingSoon')})</span>
-            </button>
+            {/* Social buttons */}
+            <div className="grid grid-cols-2 gap-2.5">
+              {[
+                { icon: <Github size={15} />, label: 'GitHub' },
+                { icon: <Chrome size={15} />, label: 'Google' },
+              ].map((social) => (
+                <motion.button
+                  key={social.label}
+                  type="button"
+                  disabled
+                  className="flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg text-sm font-medium opacity-50 cursor-not-allowed"
+                  style={{
+                    background: 'var(--color-surface-raised)',
+                    border: '1px solid var(--color-border-default)',
+                    color: 'var(--color-text-secondary)',
+                  }}
+                  title="Coming soon"
+                  whileHover={{ scale: 1.02 }}
+                  transition={spring}
+                >
+                  {social.icon}
+                  {social.label}
+                  <span className="text-xs">({tCommon('comingSoon')})</span>
+                </motion.button>
+              ))}
+            </div>
           </div>
         </motion.div>
 
@@ -384,8 +421,8 @@ function LoginContent() {
           {t('noAccount')}{' '}
           <Link
             href="/register"
-            className="font-medium transition-colors duration-fast"
-            style={{ color: 'var(--color-text-accent)' }}
+            className="font-medium transition-colors"
+            style={{ color: 'var(--color-text-accent)', transitionDuration: 'var(--duration-fast)' }}
           >
             {t('signUp')}
           </Link>

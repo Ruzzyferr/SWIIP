@@ -4,10 +4,13 @@ import { useRef, useState, useEffect } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Plus, Compass, Link2, Download } from 'lucide-react';
 import Image from 'next/image';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { useUIStore } from '@/stores/ui.store';
 import { useTranslations } from 'next-intl';
+
+const spring = { type: 'spring' as const, stiffness: 400, damping: 25, mass: 0.6 };
 
 interface ServerIconProps {
   id: string;
@@ -40,7 +43,23 @@ function ServerIcon({
   return (
     <Tooltip content={name} placement="right">
       <div className="relative flex items-center justify-center" style={{ height: 48, width: '100%' }}>
-        <button
+        {/* Active pill indicator */}
+        <motion.div
+          className="absolute left-0 w-[3px] rounded-r-full"
+          style={{
+            background: 'var(--color-accent-gradient)',
+            top: '50%',
+          }}
+          initial={false}
+          animate={{
+            height: isActive ? 24 : hovered ? 10 : 0,
+            y: '-50%',
+            opacity: isActive || hovered ? 1 : 0,
+          }}
+          transition={spring}
+        />
+
+        <motion.button
           onClick={onClick}
           onMouseEnter={() => setHovered(true)}
           onMouseLeave={() => setHovered(false)}
@@ -48,7 +67,10 @@ function ServerIcon({
           style={{
             width: 40,
             height: 40,
-            borderRadius: isActive ? 12 : hovered ? 14 : 16,
+            perspective: '600px',
+          }}
+          animate={{
+            borderRadius: isActive ? 12 : hovered ? 14 : 20,
             background: iconUrl
               ? 'transparent'
               : isActive
@@ -56,12 +78,16 @@ function ServerIcon({
               : hovered
               ? 'var(--color-surface-overlay)'
               : 'var(--color-surface-raised)',
-            transition: 'border-radius 300ms cubic-bezier(0.45,0,0.15,1), background 200ms, box-shadow 300ms, transform 200ms',
+            scale: isActive ? 1.05 : hovered ? 1.03 : 1,
             boxShadow: isActive
-              ? '0 0 16px rgba(16,185,129,0.20)'
+              ? '0 0 20px rgba(var(--ambient-rgb, 16, 185, 129), 0.25)'
+              : hovered
+              ? '0 0 12px rgba(var(--ambient-rgb, 16, 185, 129), 0.1)'
               : 'inset 0 0 0 1px rgba(255,255,255,0.04)',
-            transform: isActive ? 'scale(1.05)' : hovered ? 'scale(1.03)' : 'scale(1)',
           }}
+          whileHover={{ rotateY: 8 }}
+          whileTap={{ scale: 0.92 }}
+          transition={spring}
           aria-label={name}
           aria-pressed={isActive}
         >
@@ -85,41 +111,50 @@ function ServerIcon({
               {abbr}
             </span>
           )}
-        </button>
+        </motion.button>
 
-        {/* Notification badge */}
-        {mentionCount && mentionCount > 0 ? (
-          <div
-            className="absolute flex items-center justify-center text-white font-bold"
-            style={{
-              fontSize: 10,
-              minWidth: 18,
-              height: 18,
-              padding: '0 4px',
-              borderRadius: 10,
-              background: 'var(--color-danger-default)',
-              border: '2.5px solid var(--color-surface-base)',
-              right: 8,
-              bottom: -1,
-              boxShadow: '0 0 8px rgba(255,84,112,0.35)',
-            }}
-          >
-            {mentionCount > 99 ? '99+' : mentionCount}
-          </div>
-        ) : hasUnread ? (
-          <div
-            className="absolute"
-            style={{
-              width: 8,
-              height: 8,
-              borderRadius: '50%',
-              background: 'var(--color-text-primary)',
-              border: '2px solid var(--color-surface-base)',
-              right: 10,
-              bottom: 0,
-            }}
-          />
-        ) : null}
+        {/* Notification badge with bounce */}
+        <AnimatePresence>
+          {mentionCount && mentionCount > 0 ? (
+            <motion.div
+              className="absolute flex items-center justify-center text-white font-bold"
+              style={{
+                fontSize: 10,
+                minWidth: 18,
+                height: 18,
+                padding: '0 4px',
+                borderRadius: 10,
+                background: 'var(--color-danger-default)',
+                border: '2.5px solid var(--color-surface-base)',
+                right: 8,
+                bottom: -1,
+                boxShadow: '0 0 8px rgba(255,84,112,0.35)',
+              }}
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              exit={{ scale: 0 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+            >
+              {mentionCount > 99 ? '99+' : mentionCount}
+            </motion.div>
+          ) : hasUnread ? (
+            <motion.div
+              className="absolute"
+              style={{
+                width: 8,
+                height: 8,
+                borderRadius: '50%',
+                background: 'var(--color-text-primary)',
+                border: '2px solid var(--color-surface-base)',
+                right: 10,
+                bottom: 0,
+              }}
+              initial={{ scale: 0 }}
+              animate={{ scale: 1 }}
+              transition={{ type: 'spring', stiffness: 600, damping: 15 }}
+            />
+          ) : null}
+        </AnimatePresence>
       </div>
     </Tooltip>
   );
@@ -132,7 +167,7 @@ function RailDivider() {
         width: 32,
         height: 2,
         borderRadius: 1,
-        background: 'linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.3), transparent)',
+        background: 'linear-gradient(90deg, transparent, rgba(var(--ambient-rgb, 16, 185, 129), 0.3), transparent)',
         margin: '4px 0',
       }}
     />
@@ -152,31 +187,33 @@ function RailActionButton({
   onClick?: () => void;
   href?: string;
 }) {
-  const [hovered, setHovered] = useState(false);
   const Tag = href ? 'a' : 'button';
 
   return (
     <Tooltip content={label} placement="right">
-      <Tag
-        onClick={onClick}
-        href={href}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
-        className="flex items-center justify-center flex-shrink-0"
-        style={{
-          width: 40,
-          height: 40,
-          borderRadius: 14,
-          background: hovered ? 'var(--color-accent-muted)' : 'transparent',
-          color: 'var(--color-accent-primary)',
-          border: '1.5px solid var(--color-accent-primary)',
-          transition: 'all 300ms cubic-bezier(0.45,0,0.15,1)',
-          boxShadow: 'none',
-        }}
-        aria-label={label}
+      <motion.div
+        whileHover={{ scale: 1.08, rotate: 5 }}
+        whileTap={{ scale: 0.92 }}
+        transition={spring}
       >
-        {icon}
-      </Tag>
+        <Tag
+          onClick={onClick}
+          href={href}
+          className="flex items-center justify-center flex-shrink-0"
+          style={{
+            width: 40,
+            height: 40,
+            borderRadius: 14,
+            background: 'transparent',
+            color: 'var(--color-accent-primary)',
+            border: '1.5px solid var(--color-accent-primary)',
+            transition: 'all 300ms cubic-bezier(0.45,0,0.15,1)',
+          }}
+          aria-label={label}
+        >
+          {icon}
+        </Tag>
+      </motion.div>
     </Tooltip>
   );
 }
@@ -205,11 +242,9 @@ export function ServerRail() {
     router.push(`/channels/${guildId}`);
   };
 
-  const [dmHovered, setDmHovered] = useState(false);
-
   return (
-    <nav
-      className="flex flex-col items-center scroll-hidden overflow-y-auto"
+    <motion.nav
+      className="flex flex-col items-center scroll-hidden overflow-y-auto noise-texture"
       style={{
         width: 64,
         margin: '8px',
@@ -228,30 +263,33 @@ export function ServerRail() {
         zIndex: 10,
         flexShrink: 0,
       }}
+      initial={{ x: -80, opacity: 0 }}
+      animate={{ x: 0, opacity: 1 }}
+      transition={{ ...spring, delay: 0.1 }}
       aria-label="Server list"
       role="navigation"
     >
       {/* Home / DM button */}
       <Tooltip content={t('directMessages')} placement="right">
-        <button
+        <motion.button
           onClick={handleDMClick}
-          onMouseEnter={() => setDmHovered(true)}
-          onMouseLeave={() => setDmHovered(false)}
           className="relative flex items-center justify-center flex-shrink-0"
+          animate={{
+            borderRadius: !activeGuildId ? 12 : 14,
+            background: !activeGuildId
+              ? 'var(--color-accent-muted)'
+              : 'var(--color-surface-raised)',
+            boxShadow: !activeGuildId
+              ? '0 0 20px rgba(var(--ambient-rgb, 16, 185, 129), 0.25)'
+              : 'inset 0 0 0 1px rgba(255,255,255,0.04)',
+          }}
+          whileHover={{ scale: 1.05 }}
+          whileTap={{ scale: 0.92 }}
+          transition={spring}
           style={{
             width: 40,
             height: 40,
-            borderRadius: !activeGuildId ? 12 : 14,
             overflow: 'hidden',
-            background: !activeGuildId
-              ? 'var(--color-accent-muted)'
-              : dmHovered
-              ? 'var(--color-surface-overlay)'
-              : 'var(--color-surface-raised)',
-            transition: 'all 300ms cubic-bezier(0.45,0,0.15,1)',
-            boxShadow: !activeGuildId
-              ? '0 0 16px rgba(16,185,129,0.20)'
-              : 'inset 0 0 0 1px rgba(255,255,255,0.04)',
           }}
           aria-label={t('directMessages')}
           aria-current={!activeGuildId ? 'page' : undefined}
@@ -268,7 +306,7 @@ export function ServerRail() {
                 : 'grayscale(0.5) opacity(0.7)',
             }}
           />
-        </button>
+        </motion.button>
       </Tooltip>
 
       <RailDivider />
@@ -327,6 +365,6 @@ export function ServerRail() {
           />
         </>
       )}
-    </nav>
+    </motion.nav>
   );
 }

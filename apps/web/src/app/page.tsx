@@ -1,12 +1,38 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { motion, useScroll, useTransform, useInView } from 'framer-motion';
 import { useAuthStore } from '@/stores/auth.store';
-import { ArrowRight, Download, Globe, MessageCircle, Shield, Users, Mic, Zap } from 'lucide-react';
+import { ArrowRight, Download, Globe } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Image from 'next/image';
+import { ParticleBackground } from '@/components/ui/ParticleBackground';
+import { TextReveal, WordStagger } from '@/components/ui/TextReveal';
+import { MagneticButton } from '@/components/ui/MagneticButton';
+import { FeatureShowcase } from '@/components/landing/FeatureShowcase';
+import { NoiseTexture } from '@/components/ui/NoiseTexture';
+
+// Spring config for landing page animations
+const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 0.8 };
+
+function AnimatedSection({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  const ref = useRef(null);
+  const isInView = useInView(ref, { once: true, margin: '-80px' });
+
+  return (
+    <motion.section
+      ref={ref}
+      className={className}
+      initial={{ opacity: 0, y: 50, filter: 'blur(6px)' }}
+      animate={isInView ? { opacity: 1, y: 0, filter: 'blur(0px)' } : {}}
+      transition={{ ...spring, duration: 0.8 }}
+    >
+      {children}
+    </motion.section>
+  );
+}
 
 export default function LandingPage() {
   const t = useTranslations('landing');
@@ -14,6 +40,12 @@ export default function LandingPage() {
   const router = useRouter();
   const token = useAuthStore((s) => s.accessToken);
   const [mounted, setMounted] = useState(false);
+  const heroRef = useRef(null);
+
+  const { scrollYProgress } = useScroll();
+  const heroOpacity = useTransform(scrollYProgress, [0, 0.15], [1, 0]);
+  const heroScale = useTransform(scrollYProgress, [0, 0.15], [1, 0.95]);
+  const heroY = useTransform(scrollYProgress, [0, 0.15], [0, -40]);
 
   useEffect(() => {
     setMounted(true);
@@ -28,173 +60,215 @@ export default function LandingPage() {
 
   if (!mounted) return null;
 
+  const features = [
+    { title: t('features.messaging.title'), description: t('features.messaging.description') },
+    { title: t('features.voice.title'), description: t('features.voice.description') },
+    { title: t('features.community.title'), description: t('features.community.description') },
+    { title: t('features.security.title'), description: t('features.security.description') },
+    { title: t('features.fast.title'), description: t('features.fast.description') },
+    { title: t('features.native.title'), description: t('features.native.description') },
+  ];
+
   return (
     <div className="min-h-screen overflow-y-auto" style={{ background: 'var(--color-surface-base)' }}>
-      {/* ---- Atmospheric Background ---- */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden" style={{ zIndex: 0 }}>
-        <div className="absolute top-[-20%] left-[30%] w-[700px] h-[700px] rounded-full opacity-[0.07]"
-          style={{ background: 'radial-gradient(circle, #10B981, transparent 65%)' }} />
-        <div className="absolute top-[30%] right-[10%] w-[500px] h-[500px] rounded-full opacity-[0.05]"
-          style={{ background: 'radial-gradient(circle, #34D399, transparent 65%)' }} />
-        <div className="absolute bottom-[-10%] left-[10%] w-[600px] h-[600px] rounded-full opacity-[0.04]"
-          style={{ background: 'radial-gradient(circle, #6EE7B7, transparent 65%)' }} />
-      </div>
+      {/* ---- Particle Constellation Background ---- */}
+      <ParticleBackground />
 
       {/* ---- Navigation ---- */}
-      <nav className="fixed top-0 left-0 right-0 z-50 glass-panel" style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}>
+      <motion.nav
+        className="fixed top-0 left-0 right-0 z-50 glass-heavy"
+        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+        initial={{ y: -80 }}
+        animate={{ y: 0 }}
+        transition={{ ...spring, delay: 0.1 }}
+      >
         <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
-          <div className="flex items-center gap-3">
+          <motion.div
+            className="flex items-center gap-3"
+            whileHover={{ scale: 1.02 }}
+            transition={spring}
+          >
             <Image src="/logo.png" alt="Swiip" width={72} height={72} className="rounded-xl" />
             <span className="text-lg font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
               Swiip
             </span>
-          </div>
-          <div className="flex items-center gap-2">
-            <Link href="/login"
-              className="px-4 py-2 text-sm font-medium rounded-lg transition-all"
-              style={{ color: 'var(--color-text-secondary)' }}
-              onMouseEnter={(e) => { e.currentTarget.style.color = 'var(--color-text-primary)'; e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.color = 'var(--color-text-secondary)'; e.currentTarget.style.background = 'transparent'; }}>
+          </motion.div>
+          <div className="flex items-center gap-3">
+            <MagneticButton
+              as="a"
+              href="/login"
+              className="px-4 py-2 text-sm font-medium rounded-lg"
+              style={{ color: 'var(--color-text-secondary)', background: 'transparent' }}
+              strength={0.2}
+            >
               {tAuth('submit')}
-            </Link>
-            <Link href="/register" className="btn-premium">
+            </MagneticButton>
+            <MagneticButton
+              as="a"
+              href="/register"
+              className="btn-premium gradient-border"
+              strength={0.25}
+            >
               {t('cta.button')}
               <ArrowRight size={14} />
-            </Link>
+            </MagneticButton>
           </div>
         </div>
-      </nav>
+      </motion.nav>
 
       {/* ---- Hero ---- */}
-      <section className="relative pt-36 pb-28 px-6 overflow-hidden" style={{ zIndex: 1 }}>
+      <motion.section
+        ref={heroRef}
+        className="relative pt-36 pb-28 px-6 overflow-hidden"
+        style={{ zIndex: 1, opacity: heroOpacity, scale: heroScale, y: heroY }}
+      >
         <div className="relative max-w-4xl mx-auto text-center">
-          {/* Beta tag */}
-          <div className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium mb-10 animate-fade-in-up"
+          {/* Beta badge */}
+          <motion.div
+            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium mb-10"
             style={{
               background: 'rgba(16,185,129,0.08)',
               color: 'var(--color-text-accent)',
               border: '1px solid rgba(16,185,129,0.15)',
-              animationDelay: '0.1s',
-            }}>
-            <span className="w-1.5 h-1.5 rounded-full animate-pulse" style={{ background: 'var(--color-status-online)' }} />
+            }}
+            initial={{ opacity: 0, scale: 0.8, y: 20 }}
+            animate={{ opacity: 1, scale: 1, y: 0 }}
+            transition={{ ...spring, delay: 0.2 }}
+          >
+            <span className="w-1.5 h-1.5 rounded-full glow-pulse" style={{ background: 'var(--color-status-online)' }} />
             Beta
-          </div>
+          </motion.div>
 
-          <h1
-            className="font-extrabold leading-none mb-7 animate-fade-in-up"
+          {/* Headline with text decode effect */}
+          <div
+            className="font-extrabold leading-none mb-7"
             style={{
               fontSize: 'clamp(40px, 7vw, 72px)',
               letterSpacing: '-0.04em',
               color: 'var(--color-text-primary)',
-              animationDelay: '0.2s',
             }}
           >
-            {t('hero.title')}
-          </h1>
+            <TextReveal text={t('hero.title')} delay={400} duration={1800} />
+          </div>
 
-          <p
-            className="text-lg md:text-xl max-w-xl mx-auto mb-12 leading-relaxed animate-fade-in-up"
-            style={{ color: 'var(--color-text-secondary)', animationDelay: '0.3s' }}
+          {/* Subtitle with word stagger */}
+          <div className="text-lg md:text-xl max-w-xl mx-auto mb-12 leading-relaxed">
+            <WordStagger
+              text={t('hero.subtitle')}
+              delay={1.0}
+              className="block"
+            />
+          </div>
+
+          {/* CTA Buttons — Magnetic */}
+          <motion.div
+            className="flex flex-col sm:flex-row items-center justify-center gap-4"
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ ...spring, delay: 1.5 }}
           >
-            {t('hero.subtitle')}
-          </p>
-
-          {/* CTA */}
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-4 animate-fade-in-up" style={{ animationDelay: '0.4s' }}>
-            <a
+            <MagneticButton
+              as="a"
               href="/downloads/Swiip-Setup-latest.exe"
-              className="btn-premium"
+              className="btn-premium gradient-border"
               style={{ padding: '14px 32px', fontSize: '15px' }}
+              strength={0.3}
             >
               <Download size={18} />
               {t('hero.downloadDesktop')}
-            </a>
-            <Link href="/register" className="btn-secondary" style={{ padding: '14px 32px', fontSize: '15px' }}>
+            </MagneticButton>
+            <MagneticButton
+              as="a"
+              href="/register"
+              className="btn-secondary"
+              style={{ padding: '14px 32px', fontSize: '15px' }}
+              strength={0.3}
+            >
               <Globe size={18} />
               {t('hero.cta')}
-            </Link>
-          </div>
+            </MagneticButton>
+          </motion.div>
 
-          <p className="mt-5 text-xs animate-fade-in-up" style={{ color: 'var(--color-text-disabled)', animationDelay: '0.5s' }}>
+          <motion.p
+            className="mt-5 text-xs"
+            style={{ color: 'var(--color-text-disabled)' }}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 2.0 }}
+          >
             Windows 10/11 &middot; macOS &middot; Web
-          </p>
+          </motion.p>
         </div>
-      </section>
+      </motion.section>
 
-      {/* ---- Features Grid ---- */}
-      <section className="relative py-24 px-6" style={{ zIndex: 1 }}>
-        <div className="max-w-5xl mx-auto">
-          <div className="text-center mb-16">
-            <h2
-              className="text-3xl md:text-4xl font-bold mb-4"
-              style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.03em' }}
-            >
-              {t('cta.title')}
-            </h2>
-            <p className="max-w-md mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
-              {t('cta.subtitle')}
-            </p>
-          </div>
+      {/* ---- Feature Showcase (Interactive) ---- */}
+      <AnimatedSection className="relative py-24 px-6" >
+        <div style={{ zIndex: 1, position: 'relative' }}>
+          <FeatureShowcase
+            features={features}
+            sectionTitle={t('cta.title')}
+            sectionSubtitle={t('cta.subtitle')}
+          />
+        </div>
+      </AnimatedSection>
 
-          <div className="grid md:grid-cols-3 gap-5">
+      {/* ---- Stats / Social Proof ---- */}
+      <AnimatedSection className="relative py-20 px-6">
+        <div className="max-w-4xl mx-auto">
+          <div className="grid grid-cols-3 gap-8">
             {[
-              { icon: <MessageCircle size={22} />, title: t('features.messaging.title'), desc: t('features.messaging.description') },
-              { icon: <Mic size={22} />, title: t('features.voice.title'), desc: t('features.voice.description') },
-              { icon: <Users size={22} />, title: t('features.community.title'), desc: t('features.community.description') },
-              { icon: <Shield size={22} />, title: t('features.security.title'), desc: t('features.security.description') },
-              { icon: <Zap size={22} />, title: t('features.fast.title'), desc: t('features.fast.description') },
-              { icon: <Download size={22} />, title: t('features.native.title'), desc: t('features.native.description') },
-            ].map((f, i) => (
-              <div
+              { value: '50ms', label: 'Latency' },
+              { value: 'E2E', label: 'Encryption' },
+              { value: '∞', label: 'Channels' },
+            ].map((stat, i) => (
+              <motion.div
                 key={i}
-                className="group p-6 rounded-2xl transition-all duration-300"
+                className="text-center p-6 rounded-2xl noise-texture relative overflow-hidden"
                 style={{
                   background: 'rgba(255,255,255,0.02)',
                   border: '1px solid rgba(255,255,255,0.04)',
                 }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-                  e.currentTarget.style.borderColor = 'rgba(16,185,129,0.15)';
-                  e.currentTarget.style.transform = 'translateY(-2px)';
-                  e.currentTarget.style.boxShadow = '0 8px 30px rgba(0,0,0,0.3)';
+                whileHover={{
+                  scale: 1.05,
+                  borderColor: 'rgba(var(--ambient-rgb, 16, 185, 129), 0.2)',
+                  boxShadow: '0 8px 40px rgba(0,0,0,0.3)',
                 }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.background = 'rgba(255,255,255,0.02)';
-                  e.currentTarget.style.borderColor = 'rgba(255,255,255,0.04)';
-                  e.currentTarget.style.transform = 'translateY(0)';
-                  e.currentTarget.style.boxShadow = 'none';
-                }}
+                transition={spring}
               >
                 <div
-                  className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
-                  style={{ background: 'var(--color-accent-muted)', color: 'var(--color-text-accent)' }}
+                  className="text-3xl md:text-4xl font-bold mb-2"
+                  style={{
+                    background: 'var(--color-accent-gradient-vibrant)',
+                    WebkitBackgroundClip: 'text',
+                    WebkitTextFillColor: 'transparent',
+                  }}
                 >
-                  {f.icon}
+                  {stat.value}
                 </div>
-                <h3 className="text-sm font-semibold mb-2" style={{ color: 'var(--color-text-primary)' }}>
-                  {f.title}
-                </h3>
-                <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-tertiary)' }}>
-                  {f.desc}
-                </p>
-              </div>
+                <div className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
+                  {stat.label}
+                </div>
+              </motion.div>
             ))}
           </div>
         </div>
-      </section>
+      </AnimatedSection>
 
       {/* ---- CTA Banner ---- */}
-      <section className="relative py-24 px-6" style={{ zIndex: 1 }}>
-        <div
-          className="max-w-3xl mx-auto text-center p-12 rounded-3xl relative overflow-hidden"
+      <AnimatedSection className="relative py-24 px-6">
+        <motion.div
+          className="max-w-3xl mx-auto text-center p-12 rounded-3xl relative overflow-hidden noise-texture"
           style={{
             background: 'rgba(16,185,129,0.06)',
             border: '1px solid rgba(16,185,129,0.12)',
           }}
+          whileHover={{ scale: 1.01, boxShadow: '0 0 60px rgba(16,185,129,0.1)' }}
+          transition={spring}
         >
           <div className="absolute inset-0 pointer-events-none"
             style={{ background: 'radial-gradient(ellipse at center top, rgba(16,185,129,0.12), transparent 70%)' }} />
-          <div className="relative">
+          <NoiseTexture opacity={0.04} />
+          <div className="relative z-10">
             <h2
               className="text-3xl font-bold mb-4"
               style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.02em' }}
@@ -204,23 +278,37 @@ export default function LandingPage() {
             <p className="mb-8 max-w-sm mx-auto" style={{ color: 'var(--color-text-secondary)' }}>
               {t('hero.subtitle')}
             </p>
-            <Link href="/register" className="btn-premium" style={{ padding: '14px 36px', fontSize: '15px' }}>
+            <MagneticButton
+              as="a"
+              href="/register"
+              className="btn-premium gradient-border"
+              style={{ padding: '14px 36px', fontSize: '15px' }}
+              strength={0.3}
+            >
               {t('cta.button')}
               <ArrowRight size={16} />
-            </Link>
+            </MagneticButton>
           </div>
-        </div>
-      </section>
+        </motion.div>
+      </AnimatedSection>
 
       {/* ---- Footer ---- */}
-      <footer className="py-8 px-6" style={{ borderTop: '1px solid var(--color-border-subtle)', zIndex: 1, position: 'relative' }}>
+      <footer className="relative py-8 px-6" style={{ zIndex: 1 }}>
+        {/* Animated gradient line */}
+        <div className="h-px w-full mb-8" style={{
+          background: 'linear-gradient(90deg, transparent, rgba(16,185,129,0.3), transparent)',
+        }} />
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-2">
+          <motion.div
+            className="flex items-center gap-2"
+            whileHover={{ scale: 1.03 }}
+            transition={spring}
+          >
             <Image src="/logo.png" alt="Swiip" width={48} height={48} className="rounded-md" />
             <span className="text-sm font-medium" style={{ color: 'var(--color-text-tertiary)' }}>
               Swiip
             </span>
-          </div>
+          </motion.div>
           <p className="text-xs" style={{ color: 'var(--color-text-disabled)' }}>
             &copy; {new Date().getFullYear()} Swiip. {t('footer.copyright')}
           </p>

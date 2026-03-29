@@ -51,30 +51,31 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         <ConnectionBanner />
 
         <div className="flex flex-1 overflow-hidden relative" style={{ minHeight: 0 }}>
-          {/* Atmospheric emerald nebula — bottom left */}
+          {/* Ambient adaptive nebula — uses ambient theme colors */}
           <div
-            className="absolute pointer-events-none"
+            className="absolute pointer-events-none transition-all"
             style={{
               bottom: '-20%',
               left: '-10%',
               width: '60%',
               height: '60%',
               borderRadius: '50%',
-              background: 'radial-gradient(ellipse, rgba(16, 185, 129, 0.06) 0%, transparent 70%)',
+              background: 'radial-gradient(ellipse, var(--ambient-primary-subtle, rgba(16, 185, 129, 0.06)) 0%, transparent 70%)',
               filter: 'blur(80px)',
+              transitionDuration: '800ms',
             }}
           />
-          {/* Atmospheric emerald nebula — top right */}
           <div
-            className="absolute pointer-events-none"
+            className="absolute pointer-events-none transition-all"
             style={{
               top: '-15%',
               right: '-10%',
               width: '50%',
               height: '50%',
               borderRadius: '50%',
-              background: 'radial-gradient(ellipse, rgba(52, 211, 153, 0.03) 0%, transparent 70%)',
+              background: 'radial-gradient(ellipse, var(--ambient-primary-subtle, rgba(52, 211, 153, 0.03)) 0%, transparent 70%)',
               filter: 'blur(80px)',
+              transitionDuration: '800ms',
             }}
           />
 
@@ -107,13 +108,14 @@ export default function AppLayout({ children }: { children: ReactNode }) {
         position="bottom-right"
         toastOptions={{
           style: {
-            background: 'var(--color-surface-floating)',
+            background: 'rgba(18, 22, 22, 0.85)',
             color: 'var(--color-text-primary)',
             border: '1px solid var(--color-border-default)',
             borderRadius: 'var(--radius-xl)',
             fontSize: '13px',
-            backdropFilter: 'blur(20px)',
-            boxShadow: 'var(--shadow-float)',
+            backdropFilter: 'blur(30px)',
+            WebkitBackdropFilter: 'blur(30px)',
+            boxShadow: '0 20px 50px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.03)',
           },
         }}
       />

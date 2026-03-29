@@ -6,9 +6,10 @@ import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import Image from 'next/image';
 import { Eye, EyeOff, Loader2, AtSign, Check, Mail, ArrowLeft } from 'lucide-react';
+import { MeshGradient } from '@/components/ui/MeshGradient';
 import { register as registerUser, verifyEmailCode, resendVerificationCode } from '@/lib/api/auth.api';
 import { useAuthStore } from '@/stores/auth.store';
 import { setAccessToken } from '@/lib/api/client';
@@ -66,16 +67,17 @@ const containerVariants = {
   hidden: { opacity: 0 },
   visible: {
     opacity: 1,
-    transition: { staggerChildren: 0.06, delayChildren: 0.08 },
+    transition: { staggerChildren: 0.06, delayChildren: 0.15 },
   },
 };
 
 const itemVariants = {
-  hidden: { opacity: 0, y: 14 },
+  hidden: { opacity: 0, y: 20, filter: 'blur(4px)' },
   visible: {
     opacity: 1,
     y: 0,
-    transition: { duration: 0.38, ease: [0.4, 0, 0.2, 1] },
+    filter: 'blur(0px)',
+    transition: { type: 'spring', stiffness: 400, damping: 30, mass: 0.8 },
   },
 };
 
@@ -192,8 +194,11 @@ export default function RegisterPage() {
 
   return (
     <div className="relative min-h-screen flex items-center justify-center overflow-hidden py-8" style={{ background: 'var(--color-surface-base)' }}>
-      {/* Atmospheric background */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
+      {/* Animated mesh gradient background */}
+      <MeshGradient intensity="medium" />
+
+      {/* Legacy atmospheric background (kept as fallback) */}
+      <div aria-hidden="true" className="pointer-events-none absolute inset-0" style={{ display: 'none' }}>
         <div
           className="absolute -top-20 -right-20 w-[500px] h-[500px] rounded-full opacity-[0.07]"
           style={{ background: 'radial-gradient(circle, #10B981, transparent 65%)' }}

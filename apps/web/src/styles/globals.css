@@ -548,6 +548,283 @@
 }
 
 /* ============================================================
+   Premium Animation System — Liquid Emerald
+   ============================================================ */
+
+/* ---- Noise Texture Overlay ---- */
+.noise-texture {
+  position: relative;
+}
+
+.noise-texture::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.03;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  background-repeat: repeat;
+  background-size: 256px 256px;
+  border-radius: inherit;
+  z-index: 1;
+  mix-blend-mode: overlay;
+}
+
+/* ---- Animated Gradient Border ---- */
+@property --gradient-angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.gradient-border {
+  position: relative;
+  border: 1px solid transparent;
+  background-clip: padding-box;
+}
+
+.gradient-border::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  background: conic-gradient(
+    from var(--gradient-angle),
+    transparent 40%,
+    var(--ambient-primary, #10B981) 50%,
+    transparent 60%
+  );
+  z-index: -1;
+  animation: gradient-rotate 3s linear infinite;
+  opacity: 0;
+  transition: opacity var(--duration-normal) var(--easing-standard);
+}
+
+.gradient-border:hover::before {
+  opacity: 1;
+}
+
+@keyframes gradient-rotate {
+  to { --gradient-angle: 360deg; }
+}
+
+/* ---- Glass Morphism Variants ---- */
+.glass-light {
+  background: rgba(18, 22, 22, 0.4);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.04);
+}
+
+.glass-medium {
+  background: rgba(18, 22, 22, 0.65);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.glass-heavy {
+  background: rgba(18, 22, 22, 0.85);
+  backdrop-filter: blur(40px);
+  -webkit-backdrop-filter: blur(40px);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+/* ---- Glow Utilities ---- */
+.glow-sm {
+  box-shadow: 0 0 10px rgba(var(--ambient-rgb, 16, 185, 129), 0.15);
+}
+
+.glow-md {
+  box-shadow: 0 0 20px rgba(var(--ambient-rgb, 16, 185, 129), 0.2), 0 0 40px rgba(var(--ambient-rgb, 16, 185, 129), 0.08);
+}
+
+.glow-lg {
+  box-shadow: 0 0 30px rgba(var(--ambient-rgb, 16, 185, 129), 0.3), 0 0 80px rgba(var(--ambient-rgb, 16, 185, 129), 0.12);
+}
+
+.glow-pulse {
+  animation: glow-pulse-anim 2s ease-in-out infinite;
+}
+
+@keyframes glow-pulse-anim {
+  0%, 100% {
+    box-shadow: 0 0 15px rgba(var(--ambient-rgb, 16, 185, 129), 0.15);
+  }
+  50% {
+    box-shadow: 0 0 30px rgba(var(--ambient-rgb, 16, 185, 129), 0.3), 0 0 60px rgba(var(--ambient-rgb, 16, 185, 129), 0.1);
+  }
+}
+
+/* ---- Sound Wave Bars ---- */
+@keyframes sound-wave {
+  0%, 100% { transform: scaleY(0.3); }
+  25% { transform: scaleY(1); }
+  50% { transform: scaleY(0.5); }
+  75% { transform: scaleY(0.8); }
+}
+
+.sound-wave-bar {
+  display: inline-block;
+  width: 3px;
+  height: 16px;
+  border-radius: var(--radius-full);
+  background: var(--color-accent-gradient);
+  transform-origin: bottom;
+  animation: sound-wave 1.2s ease-in-out infinite;
+}
+
+.sound-wave-bar:nth-child(1) { animation-delay: 0s; }
+.sound-wave-bar:nth-child(2) { animation-delay: 0.15s; }
+.sound-wave-bar:nth-child(3) { animation-delay: 0.3s; }
+.sound-wave-bar:nth-child(4) { animation-delay: 0.45s; }
+.sound-wave-bar:nth-child(5) { animation-delay: 0.6s; }
+
+/* ---- Scroll-Driven Reveal ---- */
+@keyframes scroll-reveal {
+  from {
+    opacity: 0;
+    transform: translateY(40px) scale(0.96);
+    filter: blur(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+.scroll-reveal {
+  animation: scroll-reveal linear both;
+  animation-timeline: view();
+  animation-range: entry 0% entry 40%;
+}
+
+/* ---- Text Decode/Scramble ---- */
+@keyframes text-glow {
+  0%, 100% { text-shadow: 0 0 4px rgba(16, 185, 129, 0); }
+  50% { text-shadow: 0 0 12px rgba(16, 185, 129, 0.4); }
+}
+
+.text-decode-char {
+  display: inline-block;
+  animation: text-glow 0.3s ease-out;
+}
+
+/* ---- Ambient Theme Variables (defaults — overridden by useAmbientTheme) ---- */
+:root {
+  --ambient-primary: #10B981;
+  --ambient-rgb: 16, 185, 129;
+  --ambient-primary-muted: rgba(16, 185, 129, 0.15);
+  --ambient-primary-subtle: rgba(16, 185, 129, 0.08);
+  --ambient-glow: 0 0 30px rgba(16, 185, 129, 0.2);
+}
+
+/* ---- Magnetic Button ---- */
+.btn-magnetic {
+  position: relative;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ---- Animated Status Ring ---- */
+@keyframes status-ring-pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.15); opacity: 0.7; }
+}
+
+@keyframes status-ring-breathe {
+  0%, 100% { transform: scale(1); opacity: 0.8; }
+  50% { transform: scale(1.08); opacity: 0.5; }
+}
+
+@keyframes status-ring-rotate {
+  to { transform: rotate(360deg); }
+}
+
+.status-ring-online {
+  animation: status-ring-pulse 2s ease-in-out infinite;
+}
+
+.status-ring-idle {
+  animation: status-ring-breathe 3s ease-in-out infinite;
+}
+
+.status-ring-dnd {
+  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+}
+
+/* ---- 3D Tilt Perspective Container ---- */
+.tilt-3d {
+  perspective: 800px;
+  transform-style: preserve-3d;
+}
+
+.tilt-3d-inner {
+  transition: transform 0.2s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform-style: preserve-3d;
+}
+
+/* ---- Slide-in Highlight Bar ---- */
+@keyframes slide-highlight {
+  from { transform: scaleX(0); }
+  to { transform: scaleX(1); }
+}
+
+.slide-highlight {
+  position: relative;
+}
+
+.slide-highlight::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, var(--ambient-primary-subtle), transparent);
+  transform: scaleX(0);
+  transform-origin: left;
+  transition: transform var(--duration-fast) var(--easing-standard);
+}
+
+.slide-highlight:hover::before {
+  transform: scaleX(1);
+}
+
+/* ---- Number Flip Animation ---- */
+@keyframes number-flip {
+  0% { transform: translateY(100%); opacity: 0; }
+  60% { transform: translateY(-10%); opacity: 1; }
+  100% { transform: translateY(0); opacity: 1; }
+}
+
+.number-flip {
+  display: inline-block;
+  animation: number-flip 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ---- Mesh Gradient (Auth pages) ---- */
+@keyframes mesh-shift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  25% {
+    background-position: 100% 0%;
+  }
+  50% {
+    background-position: 100% 100%;
+  }
+  75% {
+    background-position: 0% 100%;
+  }
+}
+
+/* ---- Spring Easing CSS Fallbacks ---- */
+:root {
+  --spring-soft: cubic-bezier(0.34, 1.56, 0.64, 1);
+  --spring-bouncy: cubic-bezier(0.68, -0.55, 0.265, 1.55);
+  --spring-stiff: cubic-bezier(0.25, 0.46, 0.45, 0.94);
+}
+
+/* ============================================================
    ARIA Live Regions
    ============================================================ */
 
