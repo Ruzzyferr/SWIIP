@@ -1,33 +1,20 @@
-# ── Stage 1: deps ────────────────────────────────────────────────────────────
-FROM node:22-alpine AS deps
-WORKDIR /app
-RUN npm install -g pnpm
-
-COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
-COPY packages/design-tokens/package.json ./packages/design-tokens/
-COPY packages/protocol/package.json ./packages/protocol/
-COPY packages/config/package.json ./packages/config/
-COPY packages/ui-primitives/package.json ./packages/ui-primitives/
-COPY apps/web/package.json ./apps/web/
-COPY apps/desktop/package.json ./apps/desktop/
-COPY services/api/package.json ./services/api/
-COPY services/gateway/package.json ./services/gateway/
-COPY services/media-signalling/package.json ./services/media-signalling/
-COPY services/workers/package.json ./services/workers/
-
-RUN pnpm install --frozen-lockfile
-
-# ── Stage 2: builder ─────────────────────────────────────────────────────────
+# ── Stage 1: builder ─────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
 WORKDIR /app
 RUN npm install -g pnpm
 
-COPY --from=deps /app ./
-
-COPY tsconfig.base.json ./
-COPY packages/design-tokens ./packages/design-tokens
-COPY packages/protocol ./packages/protocol
+# Copy all source first, then install — avoids pnpm symlink breakage
+COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./
+COPY packages ./packages
 COPY apps/web ./apps/web
+# Other workspace package.json's needed for lockfile resolution
+COPY apps/desktop/package.json ./apps/desktop/package.json
+COPY services/api/package.json ./services/api/package.json
+COPY services/gateway/package.json ./services/gateway/package.json
+COPY services/media-signalling/package.json ./services/media-signalling/package.json
+COPY services/workers/package.json ./services/workers/package.json
+
+RUN pnpm install --frozen-lockfile
 
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_GATEWAY_URL
@@ -40,10 +27,9 @@ ENV NEXT_TELEMETRY_DISABLED=1
 
 RUN pnpm --filter @constchat/design-tokens build
 RUN pnpm --filter @constchat/web build
-# Ensure public dir exists for COPY
 RUN mkdir -p /app/apps/web/public
 
-# ── Stage 3: runner ──────────────────────────────────────────────────────────
+# ── Stage 2: runner ──────────────────────────────────────────────────────────
 FROM node:22-alpine AS runner
 WORKDIR /app
 ENV NODE_ENV=production
