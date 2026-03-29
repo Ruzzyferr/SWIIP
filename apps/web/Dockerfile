@@ -6,9 +6,16 @@ RUN npm install -g pnpm
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages/design-tokens/package.json ./packages/design-tokens/
 COPY packages/protocol/package.json ./packages/protocol/
+COPY packages/config/package.json ./packages/config/
+COPY packages/ui-primitives/package.json ./packages/ui-primitives/
 COPY apps/web/package.json ./apps/web/
+COPY apps/desktop/package.json ./apps/desktop/
+COPY services/api/package.json ./services/api/
+COPY services/gateway/package.json ./services/gateway/
+COPY services/media-signalling/package.json ./services/media-signalling/
+COPY services/workers/package.json ./services/workers/
 
-RUN pnpm install --frozen-lockfile --filter @constchat/web... --filter @constchat/design-tokens...
+RUN pnpm install --frozen-lockfile
 
 # ── Stage 2: builder ─────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
