@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback } from 'react';
 import { Virtuoso } from 'react-virtuoso';
+import { motion } from 'framer-motion';
 import { Avatar } from '@/components/ui/Avatar';
 import { MemberContextMenu } from '@/components/menus/MemberContextMenu';
 import { useGuildsStore } from '@/stores/guilds.store';
@@ -38,27 +39,36 @@ function MemberItem({
   const displayName = member.nick ?? member.user?.globalName ?? member.user?.username ?? member.userId;
 
   return (
-    <button
-      className="flex items-center gap-3 w-full px-2 py-1.5 rounded-lg transition-colors duration-fast"
+    <motion.button
+      className="flex items-center gap-3 w-full px-2 py-1.5 rounded-lg"
+      whileHover={{ x: 2, backgroundColor: 'rgba(255,255,255,0.05)' }}
+      transition={{ type: 'spring', stiffness: 500, damping: 30 }}
       style={{
         opacity: status === 'offline' ? 0.4 : 1,
-      }}
-      onMouseEnter={(e) => {
-        e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
-      }}
-      onMouseLeave={(e) => {
-        e.currentTarget.style.background = 'transparent';
+        background: 'transparent',
       }}
       onContextMenu={(e) => onContextMenu(e, member)}
       aria-label={displayName}
     >
-      <Avatar
-        userId={member.userId}
-        src={member.avatar ?? member.user?.avatar ?? (member.user as { avatarId?: string } | undefined)?.avatarId}
-        displayName={displayName}
-        size="sm"
-        status={status}
-      />
+      <div className="relative">
+        <Avatar
+          userId={member.userId}
+          src={member.avatar ?? member.user?.avatar ?? (member.user as { avatarId?: string } | undefined)?.avatarId}
+          displayName={displayName}
+          size="sm"
+          status={status}
+        />
+        {/* Animated online status ring */}
+        {status === 'online' && (
+          <div
+            className="absolute -inset-[2px] rounded-full status-ring-pulse"
+            style={{
+              border: '1.5px solid var(--color-status-online)',
+              opacity: 0.4,
+            }}
+          />
+        )}
+      </div>
       <div className="flex-1 min-w-0 text-left">
         <span
           className="text-sm truncate block"
@@ -75,7 +85,7 @@ function MemberItem({
           </span>
         )}
       </div>
-    </button>
+    </motion.button>
   );
 }
 
@@ -308,9 +318,9 @@ export function MemberSidebar({ guildId, channelId, isVoiceChannel }: MemberSide
       className="flex flex-col h-full"
       style={{
         width: 'var(--layout-member-sidebar-width)',
-        background: 'var(--glass-bg)',
-        backdropFilter: 'blur(var(--glass-blur))',
-        WebkitBackdropFilter: 'blur(var(--glass-blur))',
+        background: 'rgba(18, 22, 22, 0.5)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
         borderLeft: '1px solid var(--color-border-subtle)',
         flexShrink: 0,
       }}

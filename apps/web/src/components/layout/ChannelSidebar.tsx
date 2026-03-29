@@ -77,10 +77,10 @@ function GuildHeaderDropdown({
           <>
             <div className="fixed inset-0 z-10" onClick={() => setOpen(false)} />
             <motion.div
-              initial={{ opacity: 0, y: -4, scale: 0.97 }}
-              animate={{ opacity: 1, y: 0, scale: 1 }}
-              exit={{ opacity: 0, y: -4, scale: 0.97 }}
-              transition={{ duration: 0.12 }}
+              initial={{ opacity: 0, y: -6, scale: 0.95, filter: 'blur(4px)' }}
+              animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
+              exit={{ opacity: 0, y: -4, scale: 0.97, filter: 'blur(2px)' }}
+              transition={{ type: 'spring', stiffness: 500, damping: 30, mass: 0.5 }}
               className="absolute left-2 right-2 top-12 z-20 rounded-lg py-1.5 shadow-lg"
               style={{
                 background: 'var(--color-surface-overlay)',
@@ -211,7 +211,7 @@ function CategorySection({
             initial={{ height: 0, opacity: 0 }}
             animate={{ height: 'auto', opacity: 1 }}
             exit={{ height: 0, opacity: 0 }}
-            transition={{ duration: 0.15, ease: [0.4, 0, 0.2, 1] }}
+            transition={{ type: 'spring', stiffness: 500, damping: 35, mass: 0.5 }}
             style={{ overflow: 'hidden' }}
           >
             <div className="mt-0.5 space-y-0.5">
@@ -525,9 +525,9 @@ export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
         ...(isMobile
           ? { flex: 1, minWidth: 0 }
           : { width: 'var(--layout-channel-sidebar-width)', flexShrink: 0 }),
-        background: 'var(--glass-bg)',
-        backdropFilter: 'blur(var(--glass-blur))',
-        WebkitBackdropFilter: 'blur(var(--glass-blur))',
+        background: 'rgba(18, 22, 22, 0.6)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
         borderRight: isMobile ? 'none' : '1px solid var(--color-border-subtle)',
         position: 'relative' as const,
       }}

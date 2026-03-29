@@ -22,6 +22,8 @@ import {
   Bold,
   Italic,
   Code,
+  Check,
+  Loader2,
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -190,6 +192,8 @@ export function MessageComposer({
   const [content, setContent] = useState('');
   const [files, setFiles] = useState<File[]>([]);
   const [sending, setSending] = useState(false);
+  const [sendState, setSendState] = useState<'idle' | 'sending' | 'sent'>('idle');
+  const [isFocused, setIsFocused] = useState(false);
   const [slowmodeCooldown, setSlowmodeCooldown] = useState(0);
 
   // Slowmode countdown timer
@@ -578,17 +582,26 @@ export function MessageComposer({
     >
       <input {...getInputProps()} />
 
-      <div
+      <motion.div
         className="rounded-2xl overflow-hidden"
+        animate={{
+          boxShadow: isDragActive
+            ? 'var(--shadow-glow)'
+            : isFocused
+            ? '0 0 0 2px var(--ambient-primary-muted, rgba(16,185,129,0.15)), 0 4px 20px rgba(0,0,0,0.3)'
+            : '0 2px 10px rgba(0,0,0,0.2)',
+        }}
+        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
         style={{
-          background: 'var(--glass-bg)',
-          backdropFilter: 'blur(12px)',
-          WebkitBackdropFilter: 'blur(12px)',
+          background: 'rgba(18, 22, 22, 0.75)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
           border: isDragActive || isDragOver
             ? '2px solid var(--color-accent-primary)'
+            : isFocused
+            ? '1px solid var(--ambient-primary, var(--color-accent-primary))'
             : '1px solid var(--color-border-subtle)',
-          transition: 'border-color 200ms ease, box-shadow 200ms ease',
-          boxShadow: isDragActive ? 'var(--shadow-glow)' : '0 2px 10px rgba(0,0,0,0.2)',
+          transition: 'border-color 300ms ease',
         }}
       >
         {/* Reply / Edit header */}
@@ -598,7 +611,7 @@ export function MessageComposer({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.15 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 35 }}
             >
               <ComposerHeader
                 type="reply"
@@ -612,7 +625,7 @@ export function MessageComposer({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.15 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 35 }}
             >
               <ComposerHeader
                 type="edit"
@@ -633,7 +646,7 @@ export function MessageComposer({
               initial={{ height: 0, opacity: 0 }}
               animate={{ height: 'auto', opacity: 1 }}
               exit={{ height: 0, opacity: 0 }}
-              transition={{ duration: 0.15 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 35 }}
               className="flex flex-wrap gap-2 p-3 pb-0"
             >
               {files.map((file, i) => (
@@ -709,6 +722,8 @@ export function MessageComposer({
               onChange={handleContentChange}
               onKeyDown={handleKeyDown}
               onPaste={handlePaste}
+              onFocus={() => setIsFocused(true)}
+              onBlur={() => setIsFocused(false)}
               placeholder={t('placeholder', { channel: channelName })}
               rows={1}
               className="w-full bg-transparent resize-none outline-none text-sm py-2 px-1"
@@ -780,28 +795,67 @@ export function MessageComposer({
               />
             )}
 
-            {/* Send button */}
+            {/* Send button — morphing animation */}
             <Tooltip content={editingMessage ? t('saveEdit') : t('sendMessage')} placement="top">
-              <button
-                onClick={handleSend}
+              <motion.button
+                onClick={() => {
+                  if (!canSend) return;
+                  setSendState('sending');
+                  handleSend().finally(() => {
+                    setSendState('sent');
+                    setTimeout(() => setSendState('idle'), 1200);
+                  });
+                }}
                 disabled={!canSend}
-                className="w-9 h-9 rounded-lg flex items-center justify-center transition-all duration-fast"
+                whileHover={canSend ? { scale: 1.08 } : undefined}
+                whileTap={canSend ? { scale: 0.92 } : undefined}
+                transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                className="w-9 h-9 rounded-lg flex items-center justify-center"
                 style={{
-                  background: canSend
+                  background: sendState === 'sent'
+                    ? 'var(--color-success-default)'
+                    : canSend
                     ? 'var(--color-accent-primary)'
                     : 'transparent',
-                  color: canSend ? '#ffffff' : 'var(--color-text-disabled)',
-                }}
-                onMouseEnter={(e) => {
-                  if (canSend) e.currentTarget.style.background = 'var(--color-accent-hover)';
-                }}
-                onMouseLeave={(e) => {
-                  if (canSend) e.currentTarget.style.background = 'var(--color-accent-primary)';
+                  color: canSend || sendState === 'sent' ? '#ffffff' : 'var(--color-text-disabled)',
+                  transition: 'background 300ms ease, color 300ms ease',
                 }}
                 aria-label={editingMessage ? t('saveEdit') : t('sendMessage')}
               >
-                {sending ? <Spinner size={15} /> : <Send size={15} />}
-              </button>
+                <AnimatePresence mode="wait">
+                  {sendState === 'sending' ? (
+                    <motion.div
+                      key="spinner"
+                      initial={{ scale: 0, rotate: -90 }}
+                      animate={{ scale: 1, rotate: 0 }}
+                      exit={{ scale: 0, rotate: 90 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                    >
+                      <Loader2 size={15} className="animate-spin" />
+                    </motion.div>
+                  ) : sendState === 'sent' ? (
+                    <motion.div
+                      key="check"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 20 }}
+                    >
+                      <Check size={15} />
+                    </motion.div>
+                  ) : (
+                    <motion.div
+                      key="send"
+                      initial={{ scale: 0 }}
+                      animate={{ scale: 1 }}
+                      exit={{ scale: 0 }}
+                      transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+                    >
+                      <Send size={15} />
+                    </motion.div>
+                  )}
+                </AnimatePresence>
+              </motion.button>
             </Tooltip>
           </div>
         </div>
@@ -914,7 +968,7 @@ export function MessageComposer({
             </Tooltip>
           </div>
         </div>
-      </div>
+      </motion.div>
     </div>
   );
 }

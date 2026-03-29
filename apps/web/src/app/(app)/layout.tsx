@@ -13,6 +13,8 @@ import { ConnectionBanner } from '@/components/layout/ConnectionBanner';
 import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 const KeyboardShortcutsModal = dynamic(() => import('@/components/modals/KeyboardShortcutsModal').then(m => ({ default: m.KeyboardShortcutsModal })), { ssr: false });
 import { useUIStore } from '@/stores/ui.store';
+import { useGuildsStore } from '@/stores/guilds.store';
+import { useAmbientTheme } from '@/hooks/useAmbientTheme';
 import { Toaster } from 'sonner';
 
 export default function AppLayout({ children }: { children: ReactNode }) {
@@ -20,6 +22,12 @@ export default function AppLayout({ children }: { children: ReactNode }) {
   const [isMobile, setIsMobile] = useState(false);
   const [isDesktop, setIsDesktop] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+
+  // Ambient Adaptive Theming — extract dominant color from active guild icon
+  const activeGuildId = useUIStore((s) => s.activeGuildId);
+  const activeGuild = useGuildsStore((s) => activeGuildId ? s.guilds[activeGuildId] : null);
+  const guildIconUrl = activeGuild?.icon ?? null;
+  useAmbientTheme(guildIconUrl);
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {

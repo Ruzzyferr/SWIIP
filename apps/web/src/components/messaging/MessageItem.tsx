@@ -7,6 +7,7 @@ import {
   type KeyboardEvent,
 } from 'react';
 import { formatDistanceToNow } from 'date-fns';
+import { motion } from 'framer-motion';
 import {
   SmilePlus,
   Reply,
@@ -327,9 +328,12 @@ function ReactionPill({
   };
 
   return (
-    <button
+    <motion.button
       onClick={handleClick}
       className="reaction-pill"
+      whileHover={{ scale: 1.1 }}
+      whileTap={{ scale: 0.9 }}
+      transition={{ type: 'spring', stiffness: 500, damping: 25 }}
       style={{
         background: hasReacted
           ? 'var(--color-accent-muted)'
@@ -342,15 +346,19 @@ function ReactionPill({
       aria-pressed={hasReacted}
     >
       <span>{reaction.emoji.id ? '' : reaction.emoji.name}</span>
-      <span
+      <motion.span
+        key={reaction.count}
+        initial={{ y: -8, opacity: 0 }}
+        animate={{ y: 0, opacity: 1 }}
+        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
         className="text-xs font-medium"
         style={{
           color: hasReacted ? 'var(--color-text-accent)' : 'var(--color-text-secondary)',
         }}
       >
         {reaction.count}
-      </span>
-    </button>
+      </motion.span>
+    </motion.button>
   );
 }
 
@@ -642,7 +650,10 @@ export function MessageItem({
 
       {/* Message row */}
       <ContextMenu items={contextMenuItems}>
-      <div
+      <motion.div
+        initial={{ opacity: 0, y: 8, filter: 'blur(2px)' }}
+        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
+        transition={{ type: 'spring', stiffness: 500, damping: 35, mass: 0.5 }}
         className="message-row relative group px-4 py-0.5"
         style={{
           paddingTop: isGrouped ? '1px' : '8px',
@@ -993,7 +1004,7 @@ export function MessageItem({
             )}
           </div>
         </div>
-      </div>
+      </motion.div>
       </ContextMenu>
 
       {/* Image lightbox */}

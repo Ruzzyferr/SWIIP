@@ -14,7 +14,7 @@ import {
   HelpCircle,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
-import { AnimatePresence } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { PinnedMessagesPanel } from '@/components/messaging/PinnedMessagesPanel';
 const SearchModal = dynamic(() => import('@/components/search/SearchModal').then(m => ({ default: m.SearchModal })), { ssr: false });
@@ -72,12 +72,21 @@ export function ChannelHeader({
     <header
       className="relative flex items-center gap-2 px-4 h-12 flex-shrink-0"
       style={{
-        borderBottom: '1px solid var(--color-border-subtle)',
-        background: 'var(--glass-bg)',
-        backdropFilter: 'blur(var(--glass-blur))',
-        WebkitBackdropFilter: 'blur(var(--glass-blur))',
+        borderBottom: 'none',
+        background: 'rgba(18, 22, 22, 0.6)',
+        backdropFilter: 'blur(20px)',
+        WebkitBackdropFilter: 'blur(20px)',
       }}
     >
+      {/* Ambient gradient line under header */}
+      <div
+        className="absolute bottom-0 left-0 right-0 h-px"
+        style={{
+          background: 'linear-gradient(90deg, transparent, var(--ambient-primary-muted, rgba(16,185,129,0.15)) 30%, var(--ambient-primary, #10B981) 50%, var(--ambient-primary-muted, rgba(16,185,129,0.15)) 70%, transparent)',
+          opacity: 0.6,
+          transition: 'background 600ms ease',
+        }}
+      />
       {showMobileNavToggle && (
         <button
           onClick={onToggleMobileNav}
@@ -146,14 +155,16 @@ export function ChannelHeader({
             label: t('inbox'),
             icon: <Inbox size={16} />,
             onClick: () => {
-              // Navigate to mentions/inbox — uses the DM route as inbox
               window.location.href = '/channels/@me';
             },
           },
         ].map(({ label, icon, onClick, active }) => (
           <Tooltip key={label} content={label} placement="bottom">
-            <button
+            <motion.button
               onClick={onClick}
+              whileHover={{ scale: 1.1 }}
+              whileTap={{ scale: 0.9 }}
+              transition={{ type: 'spring', stiffness: 500, damping: 25 }}
               className={iconButtonClass}
               style={{
                 color: active
@@ -182,7 +193,7 @@ export function ChannelHeader({
               aria-pressed={active}
             >
               {icon}
-            </button>
+            </motion.button>
           </Tooltip>
         ))}
       </div>
