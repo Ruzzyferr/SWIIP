@@ -64,7 +64,7 @@ export function DMChatView({ conversationId }: DMChatViewProps) {
 
   const isGroup = dm?.type === ChannelType.GROUP_DM;
   const displayName = isGroup
-    ? (dm?.name ?? dm?.recipients.map((r) => r.globalName ?? r.username).join(', '))
+    ? (dm?.name ?? dm?.recipients?.map((r) => r.globalName ?? r.username).join(', ') ?? 'Group')
     : (otherUser?.globalName ?? otherUser?.username ?? 'Unknown');
 
   const status = otherUser && !isGroup
