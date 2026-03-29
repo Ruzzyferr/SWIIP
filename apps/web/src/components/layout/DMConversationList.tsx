@@ -31,11 +31,11 @@ function DMItem({
   onClose: () => void;
 }) {
   const [hovered, setHovered] = useState(false);
-  const otherUser = dm.recipients.find((r) => r.id !== currentUserId) ?? dm.recipients[0];
+  const otherUser = dm.recipients?.find((r) => r.id !== currentUserId) ?? dm.recipients?.[0];
   const isGroup = dm.type === ChannelType.GROUP_DM;
 
   const displayName = isGroup
-    ? (dm.name ?? dm.recipients.map((r) => r.globalName ?? r.username).join(', '))
+    ? (dm.name ?? dm.recipients?.map((r) => r.globalName ?? r.username).join(', ') ?? 'Group')
     : (otherUser?.globalName ?? otherUser?.username ?? 'Unknown');
 
   const otherUserId = otherUser?.id;

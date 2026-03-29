@@ -59,7 +59,7 @@ export function DMChatView({ conversationId }: DMChatViewProps) {
 
   const otherUser = useMemo(() => {
     if (!dm) return null;
-    return dm.recipients.find((r) => r.id !== currentUser?.id) ?? dm.recipients[0] ?? null;
+    return dm.recipients?.find((r) => r.id !== currentUser?.id) ?? dm.recipients?.[0] ?? null;
   }, [dm, currentUser?.id]);
 
   const isGroup = dm?.type === ChannelType.GROUP_DM;
