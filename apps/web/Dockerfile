@@ -43,12 +43,22 @@ COPY --from=builder --chown=constchat:constchat /app/apps/web/.next/standalone .
 COPY --from=builder --chown=constchat:constchat /app/apps/web/.next/static ./apps/web/.next/static
 
 # pnpm standalone output only copies .pnpm store — recreate top-level symlinks
-RUN find node_modules/.pnpm -path '*/node_modules/*' -maxdepth 3 -mindepth 3 -type d | while read pkg; do \
-      name=$(echo "$pkg" | sed 's|.*/node_modules/||'); \
-      if [ ! -e "node_modules/$name" ]; then \
-        mkdir -p "node_modules/$(dirname "$name")"; \
-        ln -s "$(pwd)/$pkg" "node_modules/$name"; \
-      fi; \
+# Handles both regular packages (next) and scoped packages (@prisma/client)
+RUN cd /app/node_modules && \
+    for pkg in .pnpm/*/node_modules/[!@]*; do \
+      [ -d "$pkg" ] || continue; \
+      name="$(basename "$pkg")"; \
+      [ -e "$name" ] || ln -s "/app/node_modules/$pkg" "$name"; \
+    done && \
+    for scope in .pnpm/*/node_modules/@*; do \
+      [ -d "$scope" ] || continue; \
+      scope_name="$(basename "$scope")"; \
+      for pkg in "$scope"/*; do \
+        [ -d "$pkg" ] || continue; \
+        mkdir -p "$scope_name"; \
+        link="$scope_name/$(basename "$pkg")"; \
+        [ -e "$link" ] || ln -s "/app/node_modules/$pkg" "$link"; \
+      done; \
     done
 
 USER constchat
