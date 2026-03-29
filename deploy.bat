@@ -21,8 +21,26 @@ echo   3^) Server only - skip git push, just rebuild
 echo.
 set /p CHOICE="  Select [1/2/3]: "
 
-if "%CHOICE%"=="2" goto desktop_build
+if "%CHOICE%"=="2" goto ensure_docker
 goto git_step
+
+:: ============================================================
+:: Ensure Docker Desktop is running
+:: ============================================================
+:ensure_docker
+docker info >nul 2>&1
+if not errorlevel 1 goto desktop_build
+
+echo.
+echo [*] Docker Desktop is not running, starting it...
+start "" "C:\Program Files\Docker\Docker\Docker Desktop.exe"
+echo [*] Waiting for Docker to be ready...
+:docker_wait
+timeout /t 3 /nobreak >nul
+docker info >nul 2>&1
+if errorlevel 1 goto docker_wait
+echo [OK] Docker Desktop is ready
+
 
 :: ============================================================
 :: Desktop Build
