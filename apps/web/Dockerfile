@@ -8,7 +8,7 @@ COPY packages/design-tokens/package.json ./packages/design-tokens/
 COPY packages/protocol/package.json ./packages/protocol/
 COPY apps/web/package.json ./apps/web/
 
-RUN pnpm install --frozen-lockfile --filter @constchat/web...
+RUN pnpm install --frozen-lockfile --filter @constchat/web... --filter @constchat/design-tokens...
 
 # ── Stage 2: builder ─────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
