@@ -24,7 +24,7 @@ export interface CaptureConstraints {
  * Includes echoCancellation — can only be set at publish time.
  */
 export function buildCaptureConstraints(platform: AudioPlatform, mode: AudioMode): CaptureConstraints {
-  const policy = AUDIO_MODE_POLICY[platform][mode];
+  const policy = AUDIO_MODE_POLICY[platform]?.[mode] ?? AUDIO_MODE_POLICY.browser.standard;
   return {
     echoCancellation: policy.echoCancellation,
     noiseSuppression: policy.noiseSuppression,
@@ -46,7 +46,7 @@ export interface RuntimeConstraints {
  * Excludes echoCancellation — cannot be toggled after getUserMedia.
  */
 export function buildRuntimeConstraints(platform: AudioPlatform, mode: AudioMode): RuntimeConstraints {
-  const policy = AUDIO_MODE_POLICY[platform][mode];
+  const policy = AUDIO_MODE_POLICY[platform]?.[mode] ?? AUDIO_MODE_POLICY.browser.standard;
   return {
     noiseSuppression: policy.noiseSuppression,
     autoGainControl: policy.autoGainControl,
@@ -111,7 +111,8 @@ export function requiresRepublish(
   fromMode: AudioMode,
   toMode: AudioMode,
 ): boolean {
-  const fromEC = AUDIO_MODE_POLICY[platform][fromMode].echoCancellation;
-  const toEC = AUDIO_MODE_POLICY[platform][toMode].echoCancellation;
+  const fallback = AUDIO_MODE_POLICY.browser.standard;
+  const fromEC = (AUDIO_MODE_POLICY[platform]?.[fromMode] ?? fallback).echoCancellation;
+  const toEC = (AUDIO_MODE_POLICY[platform]?.[toMode] ?? fallback).echoCancellation;
   return fromEC !== toEC;
 }

@@ -395,5 +395,13 @@ export const useVoiceStore = create<VoiceState>()(
       selfMuted: state.selfMuted,
       selfDeafened: state.selfDeafened,
     }),
+    merge: (persisted, current) => {
+      const p = persisted as Record<string, any> | undefined;
+      return {
+        ...current,
+        ...p,
+        settings: { ...DEFAULT_SETTINGS, ...p?.settings },
+      } as VoiceState;
+    },
   })
 );
