@@ -5,29 +5,27 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { motion, useScroll, useTransform, useInView } from 'framer-motion';
 import { useAuthStore } from '@/stores/auth.store';
-import { ArrowRight, Download, Globe } from 'lucide-react';
+import { ArrowRight, Download, Globe, MessageCircle, Mic, Users, Shield, Zap, Monitor } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import Image from 'next/image';
 import { ParticleBackground } from '@/components/ui/ParticleBackground';
 import { TextReveal, WordStagger } from '@/components/ui/TextReveal';
 import { MagneticButton } from '@/components/ui/MagneticButton';
-import { FeatureShowcase } from '@/components/landing/FeatureShowcase';
 import { NoiseTexture } from '@/components/ui/NoiseTexture';
 
-// Spring config for landing page animations
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 0.8 };
 
 function AnimatedSection({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   const ref = useRef(null);
-  const isInView = useInView(ref, { once: true, margin: '-80px' });
+  const isInView = useInView(ref, { once: true, margin: '-60px' });
 
   return (
     <motion.section
       ref={ref}
       className={className}
-      initial={{ opacity: 0, y: 50, filter: 'blur(6px)' }}
-      animate={isInView ? { opacity: 1, y: 0, filter: 'blur(0px)' } : {}}
-      transition={{ ...spring, duration: 0.8 }}
+      initial={{ opacity: 0, y: 40 }}
+      animate={isInView ? { opacity: 1, y: 0 } : {}}
+      transition={{ ...spring, duration: 0.7 }}
     >
       {children}
     </motion.section>
@@ -40,12 +38,10 @@ export default function LandingPage() {
   const router = useRouter();
   const token = useAuthStore((s) => s.accessToken);
   const [mounted, setMounted] = useState(false);
-  const heroRef = useRef(null);
 
   const { scrollYProgress } = useScroll();
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.15], [1, 0]);
-  const heroScale = useTransform(scrollYProgress, [0, 0.15], [1, 0.95]);
-  const heroY = useTransform(scrollYProgress, [0, 0.15], [0, -40]);
+  const heroOpacity = useTransform(scrollYProgress, [0, 0.18], [1, 0]);
+  const heroScale = useTransform(scrollYProgress, [0, 0.18], [1, 0.96]);
 
   useEffect(() => {
     setMounted(true);
@@ -61,34 +57,38 @@ export default function LandingPage() {
   if (!mounted) return null;
 
   const features = [
-    { title: t('features.messaging.title'), description: t('features.messaging.description') },
-    { title: t('features.voice.title'), description: t('features.voice.description') },
-    { title: t('features.community.title'), description: t('features.community.description') },
-    { title: t('features.security.title'), description: t('features.security.description') },
-    { title: t('features.fast.title'), description: t('features.fast.description') },
-    { title: t('features.native.title'), description: t('features.native.description') },
+    { title: t('features.messaging.title'), description: t('features.messaging.description'), icon: MessageCircle },
+    { title: t('features.voice.title'), description: t('features.voice.description'), icon: Mic },
+    { title: t('features.community.title'), description: t('features.community.description'), icon: Users },
+    { title: t('features.security.title'), description: t('features.security.description'), icon: Shield },
+    { title: t('features.fast.title'), description: t('features.fast.description'), icon: Zap },
+    { title: t('features.native.title'), description: t('features.native.description'), icon: Monitor },
   ];
 
   return (
     <div className="min-h-screen overflow-y-auto" style={{ background: 'var(--color-surface-base)' }}>
-      {/* ---- Particle Constellation Background ---- */}
       <ParticleBackground />
 
       {/* ---- Navigation ---- */}
       <motion.nav
-        className="fixed top-0 left-0 right-0 z-50 glass-heavy"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
+        className="fixed top-0 left-0 right-0 z-50"
+        style={{
+          background: 'rgba(10, 14, 16, 0.7)',
+          backdropFilter: 'blur(20px)',
+          WebkitBackdropFilter: 'blur(20px)',
+          borderBottom: '1px solid rgba(255,255,255,0.04)',
+        }}
         initial={{ y: -80 }}
         animate={{ y: 0 }}
         transition={{ ...spring, delay: 0.1 }}
       >
-        <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8 h-16 flex items-center justify-between">
           <motion.div
             className="flex items-center gap-3"
             whileHover={{ scale: 1.02 }}
             transition={spring}
           >
-            <Image src="/logo.png" alt="Swiip" width={72} height={72} className="rounded-xl" />
+            <Image src="/logo.png" alt="Swiip" width={40} height={40} className="rounded-xl" />
             <span className="text-lg font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
               Swiip
             </span>
@@ -118,123 +118,308 @@ export default function LandingPage() {
 
       {/* ---- Hero ---- */}
       <motion.section
-        ref={heroRef}
-        className="relative pt-36 pb-28 px-6 overflow-hidden"
-        style={{ zIndex: 1, opacity: heroOpacity, scale: heroScale, y: heroY }}
+        className="relative pt-32 pb-20 px-6 lg:px-8 overflow-hidden"
+        style={{ zIndex: 1, opacity: heroOpacity, scale: heroScale }}
       >
-        <div className="relative max-w-4xl mx-auto text-center">
-          {/* Beta badge */}
-          <motion.div
-            className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium mb-10"
-            style={{
-              background: 'rgba(16,185,129,0.08)',
-              color: 'var(--color-text-accent)',
-              border: '1px solid rgba(16,185,129,0.15)',
-            }}
-            initial={{ opacity: 0, scale: 0.8, y: 20 }}
-            animate={{ opacity: 1, scale: 1, y: 0 }}
-            transition={{ ...spring, delay: 0.2 }}
-          >
-            <span className="w-1.5 h-1.5 rounded-full glow-pulse" style={{ background: 'var(--color-status-online)' }} />
-            Beta
-          </motion.div>
+        <div className="relative max-w-5xl mx-auto">
+          {/* Two-column hero */}
+          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+            {/* Left: Text */}
+            <div>
+              {/* Beta badge */}
+              <motion.div
+                className="inline-flex items-center gap-2 px-4 py-1.5 rounded-full text-xs font-medium mb-8"
+                style={{
+                  background: 'rgba(16,185,129,0.08)',
+                  color: 'var(--color-text-accent)',
+                  border: '1px solid rgba(16,185,129,0.15)',
+                }}
+                initial={{ opacity: 0, x: -20 }}
+                animate={{ opacity: 1, x: 0 }}
+                transition={{ ...spring, delay: 0.2 }}
+              >
+                <span className="w-1.5 h-1.5 rounded-full glow-pulse" style={{ background: 'var(--color-status-online)' }} />
+                Beta
+              </motion.div>
 
-          {/* Headline with text decode effect */}
-          <div
-            className="font-extrabold leading-none mb-7"
-            style={{
-              fontSize: 'clamp(40px, 7vw, 72px)',
-              letterSpacing: '-0.04em',
-              color: 'var(--color-text-primary)',
-            }}
-          >
-            <TextReveal text={t('hero.title')} delay={400} duration={1800} />
-          </div>
+              {/* Headline */}
+              <div
+                className="font-extrabold leading-[1.05] mb-6"
+                style={{
+                  fontSize: 'clamp(36px, 5vw, 56px)',
+                  letterSpacing: '-0.04em',
+                  color: 'var(--color-text-primary)',
+                }}
+              >
+                <TextReveal text={t('hero.title')} delay={300} duration={1200} />
+              </div>
 
-          {/* Subtitle with word stagger */}
-          <div className="text-lg md:text-xl max-w-xl mx-auto mb-12 leading-relaxed">
-            <WordStagger
-              text={t('hero.subtitle')}
-              delay={1.0}
-              className="block"
-            />
-          </div>
+              {/* Subtitle */}
+              <div
+                className="text-base lg:text-lg max-w-md mb-10 leading-relaxed"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
+                <WordStagger text={t('hero.subtitle')} delay={0.8} />
+              </div>
 
-          {/* CTA Buttons — Magnetic */}
-          <motion.div
-            className="flex flex-col sm:flex-row items-center justify-center gap-4"
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ ...spring, delay: 1.5 }}
-          >
-            <MagneticButton
-              as="a"
-              href="/downloads/Swiip-Setup-latest.exe"
-              className="btn-premium gradient-border"
-              style={{ padding: '14px 32px', fontSize: '15px' }}
-              strength={0.3}
+              {/* CTA Buttons */}
+              <motion.div
+                className="flex flex-col sm:flex-row items-start gap-3"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ ...spring, delay: 1.2 }}
+              >
+                <MagneticButton
+                  as="a"
+                  href="/downloads/Swiip-Setup-latest.exe"
+                  className="btn-premium gradient-border"
+                  style={{ padding: '13px 28px', fontSize: '14px' }}
+                  strength={0.3}
+                >
+                  <Download size={16} />
+                  {t('hero.downloadDesktop')}
+                </MagneticButton>
+                <MagneticButton
+                  as="a"
+                  href="/register"
+                  className="btn-secondary"
+                  style={{ padding: '13px 28px', fontSize: '14px' }}
+                  strength={0.3}
+                >
+                  <Globe size={16} />
+                  {t('hero.cta')}
+                </MagneticButton>
+              </motion.div>
+
+              <motion.p
+                className="mt-4 text-xs"
+                style={{ color: 'var(--color-text-disabled)' }}
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1.8 }}
+              >
+                Windows 10/11 &middot; macOS &middot; Web
+              </motion.p>
+            </div>
+
+            {/* Right: App Preview Mockup */}
+            <motion.div
+              className="relative hidden lg:block"
+              initial={{ opacity: 0, x: 40, rotateY: -8 }}
+              animate={{ opacity: 1, x: 0, rotateY: 0 }}
+              transition={{ ...spring, delay: 0.6, duration: 1 }}
+              style={{ perspective: '1200px' }}
             >
-              <Download size={18} />
-              {t('hero.downloadDesktop')}
-            </MagneticButton>
-            <MagneticButton
-              as="a"
-              href="/register"
-              className="btn-secondary"
-              style={{ padding: '14px 32px', fontSize: '15px' }}
-              strength={0.3}
-            >
-              <Globe size={18} />
-              {t('hero.cta')}
-            </MagneticButton>
-          </motion.div>
+              <div
+                className="rounded-2xl overflow-hidden relative"
+                style={{
+                  background: 'rgba(14, 18, 22, 0.9)',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  boxShadow: '0 30px 80px rgba(0,0,0,0.5), 0 0 0 1px rgba(255,255,255,0.02)',
+                }}
+              >
+                {/* Title bar */}
+                <div
+                  className="flex items-center gap-2 px-4 py-3"
+                  style={{ borderBottom: '1px solid rgba(255,255,255,0.04)', background: 'rgba(10,14,16,0.8)' }}
+                >
+                  <div className="flex gap-1.5">
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#ef4444' }} />
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#f59e0b' }} />
+                    <div className="w-2.5 h-2.5 rounded-full" style={{ background: '#22c55e' }} />
+                  </div>
+                  <div className="flex-1 flex items-center justify-center">
+                    <div className="flex items-center gap-2 px-4 py-1 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                      <Image src="/logo.png" alt="" width={14} height={14} className="rounded" />
+                      <span className="text-[10px] font-medium" style={{ color: 'var(--color-text-disabled)' }}>Swiip</span>
+                    </div>
+                  </div>
+                  <div className="w-12" />
+                </div>
 
-          <motion.p
-            className="mt-5 text-xs"
-            style={{ color: 'var(--color-text-disabled)' }}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 2.0 }}
-          >
-            Windows 10/11 &middot; macOS &middot; Web
-          </motion.p>
+                {/* Mock app content */}
+                <div className="flex" style={{ minHeight: 280 }}>
+                  {/* Sidebar */}
+                  <div className="w-14 flex-shrink-0 flex flex-col items-center gap-2 py-3" style={{ background: 'rgba(8,12,14,0.9)', borderRight: '1px solid rgba(255,255,255,0.04)' }}>
+                    <div className="w-9 h-9 rounded-xl" style={{ background: 'rgba(16,185,129,0.15)' }}>
+                      <div className="w-full h-full flex items-center justify-center">
+                        <Image src="/logo.png" alt="" width={20} height={20} className="rounded" />
+                      </div>
+                    </div>
+                    <div className="w-6 h-px my-1" style={{ background: 'rgba(255,255,255,0.06)' }} />
+                    {[0, 1, 2].map((i) => (
+                      <motion.div
+                        key={i}
+                        className="w-9 h-9 rounded-xl"
+                        style={{ background: i === 0 ? 'rgba(16,185,129,0.1)' : 'rgba(255,255,255,0.03)' }}
+                        initial={{ scale: 0 }}
+                        animate={{ scale: 1 }}
+                        transition={{ delay: 1.0 + i * 0.1, type: 'spring', stiffness: 400, damping: 20 }}
+                      />
+                    ))}
+                  </div>
+
+                  {/* Channel list */}
+                  <div className="w-40 flex-shrink-0 py-3 px-2 space-y-1" style={{ background: 'rgba(12,16,18,0.6)', borderRight: '1px solid rgba(255,255,255,0.03)' }}>
+                    <div className="px-2 mb-2">
+                      <div className="h-2.5 w-20 rounded" style={{ background: 'rgba(255,255,255,0.1)' }} />
+                    </div>
+                    {['# general', '# design', '# dev'].map((ch, i) => (
+                      <motion.div
+                        key={ch}
+                        className="flex items-center gap-2 px-2 py-1.5 rounded-lg text-[10px]"
+                        style={{
+                          background: i === 0 ? 'rgba(16,185,129,0.08)' : 'transparent',
+                          color: i === 0 ? 'var(--color-accent-primary)' : 'var(--color-text-disabled)',
+                        }}
+                        initial={{ opacity: 0, x: -10 }}
+                        animate={{ opacity: 1, x: 0 }}
+                        transition={{ delay: 1.2 + i * 0.08 }}
+                      >
+                        {ch}
+                      </motion.div>
+                    ))}
+                  </div>
+
+                  {/* Chat area */}
+                  <div className="flex-1 flex flex-col">
+                    <div className="flex-1 p-3 space-y-3">
+                      {[
+                        { w: 140, msg: 100, delay: 1.3 },
+                        { w: 100, msg: 160, delay: 1.45 },
+                        { w: 120, msg: 130, delay: 1.6 },
+                      ].map((m, i) => (
+                        <motion.div
+                          key={i}
+                          className="flex items-start gap-2"
+                          initial={{ opacity: 0, y: 8 }}
+                          animate={{ opacity: 1, y: 0 }}
+                          transition={{ delay: m.delay, type: 'spring', stiffness: 300, damping: 25 }}
+                        >
+                          <div className="w-6 h-6 rounded-full flex-shrink-0" style={{ background: `hsl(${150 + i * 40}, 50%, 40%)` }} />
+                          <div className="space-y-1">
+                            <div className="h-2 rounded" style={{ width: m.w * 0.5, background: 'rgba(255,255,255,0.15)' }} />
+                            <div className="h-2 rounded" style={{ width: m.msg, background: 'rgba(255,255,255,0.06)' }} />
+                          </div>
+                        </motion.div>
+                      ))}
+                    </div>
+                    {/* Input */}
+                    <div className="px-3 pb-3">
+                      <motion.div
+                        className="rounded-lg px-3 py-2 flex items-center"
+                        style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.04)' }}
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        transition={{ delay: 1.7 }}
+                      >
+                        <div className="h-2 w-24 rounded" style={{ background: 'rgba(255,255,255,0.06)' }} />
+                      </motion.div>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Ambient glow */}
+              <div
+                className="absolute -inset-10 rounded-3xl -z-10"
+                style={{
+                  background: 'radial-gradient(ellipse at center, rgba(16,185,129,0.08), transparent 70%)',
+                  filter: 'blur(40px)',
+                }}
+              />
+            </motion.div>
+          </div>
         </div>
       </motion.section>
 
-      {/* ---- Feature Showcase (Interactive) ---- */}
-      <AnimatedSection className="relative py-24 px-6" >
-        <div style={{ zIndex: 1, position: 'relative' }}>
-          <FeatureShowcase
-            features={features}
-            sectionTitle={t('cta.title')}
-            sectionSubtitle={t('cta.subtitle')}
-          />
+      {/* ---- Features Grid ---- */}
+      <AnimatedSection className="relative py-24 px-6 lg:px-8">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center mb-16">
+            <h2
+              className="text-3xl md:text-4xl font-bold mb-4"
+              style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.03em' }}
+            >
+              {t('cta.title')}
+            </h2>
+            <p className="max-w-md mx-auto text-base" style={{ color: 'var(--color-text-secondary)' }}>
+              {t('cta.subtitle')}
+            </p>
+          </div>
+
+          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
+            {features.map((f, i) => {
+              const Icon = f.icon;
+              return (
+                <motion.div
+                  key={i}
+                  className="group relative p-6 rounded-2xl overflow-hidden"
+                  style={{
+                    background: 'rgba(255,255,255,0.02)',
+                    border: '1px solid rgba(255,255,255,0.04)',
+                  }}
+                  whileHover={{
+                    scale: 1.02,
+                    borderColor: 'rgba(16, 185, 129, 0.15)',
+                    boxShadow: '0 8px 40px rgba(0,0,0,0.3)',
+                  }}
+                  transition={spring}
+                >
+                  <NoiseTexture opacity={0.03} />
+                  <div
+                    className="w-11 h-11 rounded-xl flex items-center justify-center mb-4"
+                    style={{
+                      background: 'rgba(16,185,129,0.08)',
+                      color: 'var(--color-accent-primary)',
+                    }}
+                  >
+                    <Icon size={20} />
+                  </div>
+                  <h3
+                    className="text-sm font-semibold mb-2"
+                    style={{ color: 'var(--color-text-primary)' }}
+                  >
+                    {f.title}
+                  </h3>
+                  <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-tertiary)' }}>
+                    {f.description}
+                  </p>
+                  {/* Hover glow */}
+                  <div
+                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
+                    style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(16,185,129,0.06), transparent 70%)' }}
+                  />
+                </motion.div>
+              );
+            })}
+          </div>
         </div>
       </AnimatedSection>
 
-      {/* ---- Stats / Social Proof ---- */}
-      <AnimatedSection className="relative py-20 px-6">
-        <div className="max-w-4xl mx-auto">
-          <div className="grid grid-cols-3 gap-8">
+      {/* ---- Stats ---- */}
+      <AnimatedSection className="relative py-16 px-6 lg:px-8">
+        <div className="max-w-5xl mx-auto">
+          <div className="grid grid-cols-3 gap-6">
             {[
               { value: '50ms', label: 'Latency' },
               { value: 'E2E', label: 'Encryption' },
-              { value: '∞', label: 'Channels' },
+              { value: '\u221E', label: 'Channels' },
             ].map((stat, i) => (
               <motion.div
                 key={i}
-                className="text-center p-6 rounded-2xl noise-texture relative overflow-hidden"
+                className="text-center p-8 rounded-2xl relative overflow-hidden"
                 style={{
                   background: 'rgba(255,255,255,0.02)',
                   border: '1px solid rgba(255,255,255,0.04)',
                 }}
                 whileHover={{
-                  scale: 1.05,
-                  borderColor: 'rgba(var(--ambient-rgb, 16, 185, 129), 0.2)',
-                  boxShadow: '0 8px 40px rgba(0,0,0,0.3)',
+                  scale: 1.04,
+                  borderColor: 'rgba(16,185,129,0.15)',
                 }}
                 transition={spring}
               >
+                <NoiseTexture opacity={0.03} />
                 <div
                   className="text-3xl md:text-4xl font-bold mb-2"
                   style={{
@@ -255,19 +440,19 @@ export default function LandingPage() {
       </AnimatedSection>
 
       {/* ---- CTA Banner ---- */}
-      <AnimatedSection className="relative py-24 px-6">
+      <AnimatedSection className="relative py-24 px-6 lg:px-8">
         <motion.div
-          className="max-w-3xl mx-auto text-center p-12 rounded-3xl relative overflow-hidden noise-texture"
+          className="max-w-4xl mx-auto text-center p-14 rounded-3xl relative overflow-hidden"
           style={{
-            background: 'rgba(16,185,129,0.06)',
-            border: '1px solid rgba(16,185,129,0.12)',
+            background: 'rgba(16,185,129,0.04)',
+            border: '1px solid rgba(16,185,129,0.1)',
           }}
-          whileHover={{ scale: 1.01, boxShadow: '0 0 60px rgba(16,185,129,0.1)' }}
+          whileHover={{ scale: 1.005, boxShadow: '0 0 80px rgba(16,185,129,0.08)' }}
           transition={spring}
         >
           <div className="absolute inset-0 pointer-events-none"
-            style={{ background: 'radial-gradient(ellipse at center top, rgba(16,185,129,0.12), transparent 70%)' }} />
-          <NoiseTexture opacity={0.04} />
+            style={{ background: 'radial-gradient(ellipse at center top, rgba(16,185,129,0.1), transparent 70%)' }} />
+          <NoiseTexture opacity={0.03} />
           <div className="relative z-10">
             <h2
               className="text-3xl font-bold mb-4"
@@ -293,22 +478,29 @@ export default function LandingPage() {
       </AnimatedSection>
 
       {/* ---- Footer ---- */}
-      <footer className="relative py-8 px-6" style={{ zIndex: 1 }}>
-        {/* Animated gradient line */}
+      <footer className="relative py-8 px-6 lg:px-8" style={{ zIndex: 1 }}>
         <div className="h-px w-full mb-8" style={{
           background: 'linear-gradient(90deg, transparent, rgba(16,185,129,0.3), transparent)',
         }} />
-        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <motion.div
             className="flex items-center gap-2"
             whileHover={{ scale: 1.03 }}
             transition={spring}
           >
-            <Image src="/logo.png" alt="Swiip" width={48} height={48} className="rounded-md" />
+            <Image src="/logo.png" alt="Swiip" width={32} height={32} className="rounded-md" />
             <span className="text-sm font-medium" style={{ color: 'var(--color-text-tertiary)' }}>
               Swiip
             </span>
           </motion.div>
+          <div className="flex items-center gap-6">
+            <Link href="/privacy" className="text-xs transition-colors" style={{ color: 'var(--color-text-disabled)' }}>
+              Privacy
+            </Link>
+            <Link href="/terms" className="text-xs transition-colors" style={{ color: 'var(--color-text-disabled)' }}>
+              Terms
+            </Link>
+          </div>
           <p className="text-xs" style={{ color: 'var(--color-text-disabled)' }}>
             &copy; {new Date().getFullYear()} Swiip. {t('footer.copyright')}
           </p>

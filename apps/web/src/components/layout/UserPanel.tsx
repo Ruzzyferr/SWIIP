@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Mic, MicOff, Headphones, EarOff, Settings } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Mic, MicOff, Headphones, EarOff, Settings, Download } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { StatusPicker } from '@/components/ui/StatusPicker';
@@ -27,6 +27,11 @@ export function UserPanel() {
   });
   const { toggleMute, toggleDeafen } = useVoiceActions();
   const [showStatusPicker, setShowStatusPicker] = useState(false);
+  const [isDesktop, setIsDesktop] = useState(true);
+
+  useEffect(() => {
+    setIsDesktop(typeof window !== 'undefined' && window.constchat?.platform === 'desktop');
+  }, []);
 
   if (!user) return null;
 
@@ -158,6 +163,25 @@ export function UserPanel() {
             {selfDeafened ? <EarOff size={15} /> : <Headphones size={15} />}
           </button>
         </Tooltip>
+
+        {!isDesktop && (
+          <Tooltip content="Download Desktop App" placement="top">
+            <a
+              href="/downloads/Swiip-Setup-latest.exe"
+              className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-fast"
+              style={{ color: 'var(--color-accent-primary)' }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(16,185,129,0.1)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'transparent';
+              }}
+              aria-label="Download desktop app"
+            >
+              <Download size={15} />
+            </a>
+          </Tooltip>
+        )}
 
         <Tooltip content="Settings" placement="top">
           <button

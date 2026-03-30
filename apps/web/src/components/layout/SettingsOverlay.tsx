@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   X,
@@ -9,9 +9,9 @@ import {
   Bell,
   Palette,
   Volume2,
-  Monitor,
   KeyRound,
   LogOut,
+  ChevronRight,
 } from 'lucide-react';
 import { useUIStore } from '@/stores/ui.store';
 import { useAuthStore } from '@/stores/auth.store';
@@ -24,6 +24,8 @@ import { AppearancePage } from '@/components/settings/AppearancePage';
 import { PrivacyPage } from '@/components/settings/PrivacyPage';
 import { NotificationsPage } from '@/components/settings/NotificationsPage';
 import { KeybindsPage } from '@/components/settings/KeybindsPage';
+
+const spring = { type: 'spring' as const, stiffness: 400, damping: 30 };
 
 const NAV_ITEMS = [
   { id: 'account', labelKey: 'account.title', icon: User, sectionKey: 'userSettings' },
@@ -60,6 +62,7 @@ export function SettingsOverlay() {
   const closeSettings = useUIStore((s) => s.closeSettings);
   const setPage = useUIStore((s) => s.setSettingsPage);
   const logoutStore = useAuthStore((s) => s.logout);
+  const user = useAuthStore((s) => s.user);
 
   // Escape to close
   useEffect(() => {
@@ -112,6 +115,9 @@ export function SettingsOverlay() {
     {}
   );
 
+  const activeItem = NAV_ITEMS.find((i) => i.id === page);
+  const ActiveIcon = activeItem?.icon;
+
   return (
     <AnimatePresence>
       {isOpen && (
@@ -126,25 +132,47 @@ export function SettingsOverlay() {
             background: 'var(--color-surface-base)',
           }}
         >
-          {/* Left nav — flex-1 right-aligned so nav hugs the content area */}
-          <div
-            className="flex-1 flex justify-end overflow-y-auto scroll-thin"
+          {/* ---- Left Navigation Panel ---- */}
+          <motion.div
+            className="flex flex-col h-full overflow-hidden"
             style={{
+              width: 260,
               flexShrink: 0,
-              background: 'var(--glass-bg)',
-              backdropFilter: 'blur(var(--glass-blur))',
-              WebkitBackdropFilter: 'blur(var(--glass-blur))',
-              borderRight: '1px solid var(--color-border-subtle)',
-              paddingTop: '60px',
-              paddingRight: '8px',
-              paddingLeft: '20px',
+              background: 'rgba(10, 14, 16, 0.95)',
+              borderRight: '1px solid rgba(255,255,255,0.04)',
             }}
+            initial={{ x: -260 }}
+            animate={{ x: 0 }}
+            exit={{ x: -260 }}
+            transition={spring}
           >
-            <nav className="w-[190px] space-y-1 pb-6">
+            {/* User info header */}
+            <div className="px-5 pt-6 pb-4">
+              <p
+                className="text-[10px] font-bold uppercase tracking-[0.15em] mb-1"
+                style={{ color: 'var(--color-text-disabled)' }}
+              >
+                {t('title')}
+              </p>
+              {user && (
+                <p
+                  className="text-sm font-medium truncate"
+                  style={{ color: 'var(--color-text-secondary)' }}
+                >
+                  {user.globalName ?? user.username}
+                </p>
+              )}
+            </div>
+
+            {/* Divider */}
+            <div className="h-px mx-4" style={{ background: 'rgba(255,255,255,0.04)' }} />
+
+            {/* Nav sections */}
+            <nav className="flex-1 overflow-y-auto scroll-thin px-3 py-3 space-y-1">
               {Object.entries(sections).map(([section, items]) => (
-                <div key={section} className="mb-3">
+                <div key={section} className="mb-4">
                   <p
-                    className="px-2 py-1 text-xs font-bold uppercase tracking-wider"
+                    className="px-3 py-2 text-[10px] font-bold uppercase tracking-[0.15em]"
                     style={{ color: 'var(--color-text-disabled)' }}
                   >
                     {section}
@@ -153,21 +181,20 @@ export function SettingsOverlay() {
                     const label = t(labelKey);
                     const active = page === id;
                     return (
-                      <button
+                      <motion.button
                         key={id}
                         onClick={() => setPage(id)}
-                        className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm font-medium transition-colors duration-fast"
+                        className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium relative overflow-hidden"
                         style={{
-                          background: active
-                            ? 'var(--color-accent-subtle)'
-                            : 'transparent',
                           color: active
                             ? 'var(--color-text-primary)'
                             : 'var(--color-text-secondary)',
                         }}
+                        whileHover={{ x: 2 }}
+                        transition={spring}
                         onMouseEnter={(e) => {
                           if (!active) {
-                            e.currentTarget.style.background = 'var(--color-surface-raised)';
+                            e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
                             e.currentTarget.style.color = 'var(--color-text-primary)';
                           }
                         }}
@@ -178,70 +205,127 @@ export function SettingsOverlay() {
                           }
                         }}
                       >
-                        <Icon size={15} />
-                        {label}
-                      </button>
+                        {active && (
+                          <motion.div
+                            layoutId="settings-nav-active"
+                            className="absolute inset-0 rounded-xl"
+                            style={{
+                              background: 'rgba(16, 185, 129, 0.08)',
+                              border: '1px solid rgba(16, 185, 129, 0.12)',
+                            }}
+                            transition={spring}
+                          />
+                        )}
+                        <span className="relative z-10 flex items-center gap-3">
+                          <Icon
+                            size={16}
+                            style={{
+                              color: active ? 'var(--color-accent-primary)' : 'inherit',
+                            }}
+                          />
+                          {label}
+                        </span>
+                        {active && (
+                          <ChevronRight
+                            size={14}
+                            className="relative z-10 ml-auto"
+                            style={{ color: 'var(--color-accent-primary)' }}
+                          />
+                        )}
+                      </motion.button>
                     );
                   })}
                 </div>
               ))}
+            </nav>
 
-              {/* Separator + Logout */}
-              <div
-                className="h-px my-2 mx-2"
-                style={{ background: 'var(--color-border-subtle)' }}
-              />
+            {/* Bottom: Logout */}
+            <div className="px-3 pb-4">
+              <div className="h-px mx-1 mb-2" style={{ background: 'rgba(255,255,255,0.04)' }} />
               <button
                 onClick={handleLogout}
-                className="flex items-center gap-2 w-full px-2 py-1.5 rounded-lg text-sm font-medium transition-colors duration-fast"
+                className="flex items-center gap-3 w-full px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200"
                 style={{ color: 'var(--color-danger-default)' }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.background = 'var(--color-danger-muted)';
+                  e.currentTarget.style.background = 'rgba(239, 68, 68, 0.08)';
                 }}
                 onMouseLeave={(e) => {
                   e.currentTarget.style.background = 'transparent';
                 }}
               >
-                <LogOut size={15} />
+                <LogOut size={16} />
                 {t('logOut')}
               </button>
-            </nav>
-          </div>
-
-          {/* Content area */}
-          <div className="flex-1 overflow-y-auto scroll-thin py-16 px-10">
-            <div className="max-w-[740px]">
-              {renderPage()}
             </div>
-          </div>
+          </motion.div>
 
-          {/* Close button */}
-          <div className="flex-shrink-0 pt-16 pr-8 pl-4">
-            <button
-              onClick={closeSettings}
-              className="w-9 h-9 rounded-full flex items-center justify-center transition-all duration-fast"
+          {/* ---- Main Content Area (full remaining width) ---- */}
+          <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+            {/* Content header bar */}
+            <div
+              className="flex items-center justify-between h-14 px-8 flex-shrink-0"
               style={{
-                border: '2px solid var(--color-border-strong)',
-                color: 'var(--color-text-secondary)',
+                borderBottom: '1px solid rgba(255,255,255,0.04)',
+                background: 'rgba(12, 16, 18, 0.6)',
               }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.borderColor = 'var(--color-text-primary)';
-                e.currentTarget.style.color = 'var(--color-text-primary)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.borderColor = 'var(--color-border-strong)';
-                e.currentTarget.style.color = 'var(--color-text-secondary)';
-              }}
-              aria-label="Close settings"
             >
-              <X size={16} />
-            </button>
-            <p
-              className="text-xs mt-1 text-center"
-              style={{ color: 'var(--color-text-disabled)' }}
-            >
-              ESC
-            </p>
+              <div className="flex items-center gap-3">
+                {ActiveIcon && (
+                  <div
+                    className="w-8 h-8 rounded-lg flex items-center justify-center"
+                    style={{ background: 'rgba(16,185,129,0.08)', color: 'var(--color-accent-primary)' }}
+                  >
+                    <ActiveIcon size={16} />
+                  </div>
+                )}
+                <h2
+                  className="text-base font-semibold"
+                  style={{ color: 'var(--color-text-primary)' }}
+                >
+                  {activeItem ? t(activeItem.labelKey) : t('title')}
+                </h2>
+              </div>
+
+              {/* Close button */}
+              <button
+                onClick={closeSettings}
+                className="flex items-center gap-2 px-3 py-1.5 rounded-lg transition-all duration-200"
+                style={{
+                  color: 'var(--color-text-tertiary)',
+                  background: 'transparent',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+                  e.currentTarget.style.color = 'var(--color-text-primary)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.background = 'transparent';
+                  e.currentTarget.style.color = 'var(--color-text-tertiary)';
+                }}
+                aria-label="Close settings"
+              >
+                <span className="text-xs font-medium">ESC</span>
+                <X size={16} />
+              </button>
+            </div>
+
+            {/* Scrollable content */}
+            <div className="flex-1 overflow-y-auto scroll-thin">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={page}
+                  initial={{ opacity: 0, y: 8 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -8 }}
+                  transition={{ duration: 0.15 }}
+                  className="px-8 lg:px-12 xl:px-16 py-8"
+                >
+                  <div className="max-w-[960px]">
+                    {renderPage()}
+                  </div>
+                </motion.div>
+              </AnimatePresence>
+            </div>
           </div>
         </motion.div>
       )}
