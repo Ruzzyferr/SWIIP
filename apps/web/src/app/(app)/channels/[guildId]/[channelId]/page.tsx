@@ -2,8 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { ChannelSidebar } from '@/components/layout/ChannelSidebar';
-import { ChannelHeader } from '@/components/layout/ChannelHeader';
+import { motion, AnimatePresence } from 'framer-motion';
 import { MemberSidebar } from '@/components/layout/MemberSidebar';
 import { MessageList } from '@/components/messaging/MessageList';
 import { MessageComposer } from '@/components/messaging/MessageComposer';
@@ -13,10 +12,11 @@ import { VoiceRoomView } from '@/components/voice/VoiceRoomView';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { useUIStore } from '@/stores/ui.store';
 import { useMessagesStore } from '@/stores/messages.store';
-import { useSwipeGesture } from '@/hooks/useSwipeGesture';
 import { editMessage as editMessageApi } from '@/lib/api/messages.api';
 import { acknowledgeChannel } from '@/lib/api/channels.api';
 import { ChannelType, type MessagePayload } from '@constchat/protocol';
+
+const spring = { type: 'spring' as const, stiffness: 400, damping: 30 };
 
 export default function ChannelPage() {
   const params = useParams();
@@ -28,20 +28,15 @@ export default function ChannelPage() {
   const setActiveGuild = useUIStore((s) => s.setActiveGuild);
   const setActiveChannel = useUIStore((s) => s.setActiveChannel);
   const isMemberSidebarOpen = useUIStore((s) => s.isMemberSidebarOpen);
-  const isMobileNavOpen = useUIStore((s) => s.isMobileNavOpen);
-  const toggleMobileNav = useUIStore((s) => s.toggleMobileNav);
-  const setMobileNavOpen = useUIStore((s) => s.setMobileNavOpen);
   const updateMessage = useMessagesStore((s) => s.updateMessage);
-  const [isMobile, setIsMobile] = useState(false);
 
   const [replyTo, setReplyTo] = useState<MessagePayload | null>(null);
   const [editingMessage, setEditingMessage] = useState<MessagePayload | null>(null);
 
-  // Sync active state + lazy-load guild members on navigation (Discord pattern)
+  // Sync active state + lazy-load guild members on navigation
   useEffect(() => {
     setActiveGuild(guildId);
     setActiveChannel(channelId);
-    setMobileNavOpen(false);
 
     // Lazy load members for this guild if not already loaded
     if (guildId && guildId !== '@me' && guildId !== 'me') {
@@ -54,7 +49,7 @@ export default function ChannelPage() {
         });
       }
     }
-  }, [guildId, channelId, setActiveGuild, setActiveChannel, setMobileNavOpen]);
+  }, [guildId, channelId, setActiveGuild, setActiveChannel]);
 
   // Auto-acknowledge channel as read when viewing it
   useEffect(() => {
@@ -67,7 +62,6 @@ export default function ChannelPage() {
         acknowledgeChannel(channelId, { lastReadMessageId: lastMsg.id }).catch(() => {});
       }
     }
-    // Also ack when new messages arrive while viewing this channel
     const unsub = useMessagesStore.subscribe((state) => {
       const channelData = state.channels[channelId];
       if (!channelData) return;
@@ -83,22 +77,6 @@ export default function ChannelPage() {
     return unsub;
   }, [channelId]);
 
-  useEffect(() => {
-    if (typeof window === 'undefined') return;
-    const media = window.matchMedia('(max-width: 767px)');
-    const sync = () => setIsMobile(media.matches);
-    sync();
-    media.addEventListener('change', sync);
-    return () => media.removeEventListener('change', sync);
-  }, []);
-
-  // Swipe gestures for mobile sidebar toggle
-  const swipeHandlers = useSwipeGesture({
-    onSwipeRight: () => { if (isMobile && !isMobileNavOpen) setMobileNavOpen(true); },
-    onSwipeLeft: () => { if (isMobile && isMobileNavOpen) setMobileNavOpen(false); },
-    enabled: isMobile,
-  });
-
   const handleReply = useCallback((message: MessagePayload) => {
     setReplyTo(message);
     setEditingMessage(null);
@@ -112,15 +90,10 @@ export default function ChannelPage() {
     [channelId, updateMessage]
   );
 
-  // DM conversation — render DM-specific view
+  // DM conversation — full-width chat
   if (isDM) {
-    if (isMobile && isMobileNavOpen) {
-      return <div {...swipeHandlers}><ChannelSidebar /></div>;
-    }
-
     return (
-      <div className="flex flex-1 min-w-0 overflow-hidden" {...swipeHandlers}>
-        {!isMobile && <ChannelSidebar />}
+      <div className="flex flex-1 min-w-0 overflow-hidden">
         <DMChatView conversationId={channelId} />
       </div>
     );
@@ -129,51 +102,53 @@ export default function ChannelPage() {
   const isVoiceChannel = channel?.type === ChannelType.VOICE;
 
   return (
-    <div className="flex flex-1 min-w-0 overflow-hidden" {...swipeHandlers}>
-      {/* Mobile: show menu panel OR content panel, not both */}
-      {(!isMobile || isMobileNavOpen) && <ChannelSidebar guildId={guildId} />}
+    <div className="flex flex-1 min-w-0 overflow-hidden relative">
+      {/* Full-width content */}
+      <div
+        className="flex-1 flex flex-col min-w-0"
+        style={{ background: 'transparent' }}
+      >
+        {isVoiceChannel ? (
+          <VoiceRoomView channelId={channelId} guildId={guildId} />
+        ) : (
+          <>
+            <MessageList
+              channelId={channelId}
+              onReply={handleReply}
+            />
+            <TypingIndicator channelId={channelId} guildId={guildId} />
+            <MessageComposer
+              channelId={channelId}
+              channelName={channel?.name ?? 'channel'}
+              replyTo={replyTo}
+              editingMessage={editingMessage}
+              onClearReply={() => setReplyTo(null)}
+              onClearEdit={() => setEditingMessage(null)}
+              onEditSubmit={handleEditSubmit}
+              onStartEdit={setEditingMessage}
+            />
+          </>
+        )}
+      </div>
 
-      {(!isMobile || !isMobileNavOpen) && (
-        <div
-          className="flex-1 flex flex-col min-w-0"
-          style={{ background: 'var(--color-surface-base)' }}
-        >
-          {/* Header */}
-          <ChannelHeader
-            channelId={channelId}
-            showMobileNavToggle={isMobile}
-            onToggleMobileNav={toggleMobileNav}
-          />
-
-          {isVoiceChannel ? (
-            <div className="flex flex-1 min-h-0 overflow-hidden">
-              <VoiceRoomView channelId={channelId} guildId={guildId} />
-              {!isMobile && isMemberSidebarOpen && <MemberSidebar guildId={guildId} channelId={channelId} isVoiceChannel />}
-            </div>
-          ) : (
-            <div className="flex flex-1 min-h-0 overflow-hidden">
-              <div className="flex-1 flex flex-col min-w-0">
-                <MessageList
-                  channelId={channelId}
-                  onReply={handleReply}
-                />
-                <TypingIndicator channelId={channelId} guildId={guildId} />
-                <MessageComposer
-                  channelId={channelId}
-                  channelName={channel?.name ?? 'channel'}
-                  replyTo={replyTo}
-                  editingMessage={editingMessage}
-                  onClearReply={() => setReplyTo(null)}
-                  onClearEdit={() => setEditingMessage(null)}
-                  onEditSubmit={handleEditSubmit}
-                  onStartEdit={setEditingMessage}
-                />
-              </div>
-              {!isMobile && isMemberSidebarOpen && <MemberSidebar guildId={guildId} />}
-            </div>
-          )}
-        </div>
-      )}
+      {/* Member sidebar — slide-over drawer */}
+      <AnimatePresence>
+        {isMemberSidebarOpen && (
+          <motion.div
+            initial={{ x: '100%', opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: '100%', opacity: 0 }}
+            transition={spring}
+            className="absolute right-0 top-0 bottom-0 z-30"
+            style={{
+              width: 'min(280px, 80vw)',
+              boxShadow: '-8px 0 40px rgba(0,0,0,0.4)',
+            }}
+          >
+            <MemberSidebar guildId={guildId} channelId={isVoiceChannel ? channelId : undefined} isVoiceChannel={isVoiceChannel} />
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

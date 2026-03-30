@@ -65,28 +65,28 @@ function ServerIcon({
           onMouseLeave={() => setHovered(false)}
           className="relative flex items-center justify-center overflow-hidden flex-shrink-0"
           style={{
-            width: 40,
-            height: 40,
+            width: 44,
+            height: 44,
             perspective: '600px',
           }}
           animate={{
-            borderRadius: isActive ? 12 : hovered ? 14 : 20,
+            borderRadius: isActive ? 14 : hovered ? 16 : 22,
             background: iconUrl
               ? 'transparent'
               : isActive
               ? 'var(--color-accent-muted)'
               : hovered
-              ? 'var(--color-surface-overlay)'
-              : 'var(--color-surface-raised)',
-            scale: isActive ? 1.05 : hovered ? 1.03 : 1,
+              ? 'rgba(255,255,255,0.08)'
+              : 'rgba(255,255,255,0.04)',
+            scale: isActive ? 1.08 : hovered ? 1.05 : 1,
             boxShadow: isActive
-              ? '0 0 20px rgba(var(--ambient-rgb, 16, 185, 129), 0.25)'
+              ? '0 0 24px rgba(var(--ambient-rgb, 16, 185, 129), 0.35), 0 0 0 2px rgba(var(--ambient-rgb, 16, 185, 129), 0.2)'
               : hovered
-              ? '0 0 12px rgba(var(--ambient-rgb, 16, 185, 129), 0.1)'
-              : 'inset 0 0 0 1px rgba(255,255,255,0.04)',
+              ? '0 0 16px rgba(var(--ambient-rgb, 16, 185, 129), 0.15), 0 0 0 1px rgba(255,255,255,0.08)'
+              : '0 0 0 1px rgba(255,255,255,0.04)',
           }}
-          whileHover={{ rotateY: 8 }}
-          whileTap={{ scale: 0.92 }}
+          whileHover={{ rotateY: 10 }}
+          whileTap={{ scale: 0.88 }}
           transition={spring}
           aria-label={name}
           aria-pressed={isActive}
@@ -95,15 +95,15 @@ function ServerIcon({
             <Image
               src={iconUrl}
               alt={name}
-              width={40}
-              height={40}
+              width={44}
+              height={44}
               className="object-cover w-full h-full"
             />
           ) : (
             <span
-              className="font-semibold"
+              className="font-bold"
               style={{
-                fontSize: 12,
+                fontSize: 13,
                 letterSpacing: '-0.02em',
                 color: isActive ? '#ffffff' : 'var(--color-text-secondary)',
               }}
@@ -201,12 +201,12 @@ function RailActionButton({
           href={href}
           className="flex items-center justify-center flex-shrink-0"
           style={{
-            width: 40,
-            height: 40,
-            borderRadius: 14,
-            background: 'transparent',
+            width: 44,
+            height: 44,
+            borderRadius: 16,
+            background: 'rgba(16, 185, 129, 0.06)',
             color: 'var(--color-accent-primary)',
-            border: '1.5px solid var(--color-accent-primary)',
+            border: '1.5px dashed rgba(16, 185, 129, 0.3)',
             transition: 'all 300ms cubic-bezier(0.45,0,0.15,1)',
           }}
           aria-label={label}
@@ -244,14 +244,16 @@ export function ServerRail() {
 
   return (
     <motion.nav
-      className="flex flex-col items-center scroll-hidden overflow-y-auto noise-texture"
+      className="flex flex-col items-center scroll-hidden overflow-y-auto"
       style={{
-        width: 64,
+        width: 68,
         margin: '8px',
-        borderRadius: 20,
-        background: 'var(--color-surface-elevated)',
-        border: '1px solid var(--color-border-subtle)',
-        boxShadow: 'var(--shadow-float)',
+        borderRadius: 24,
+        background: 'rgba(12, 16, 18, 0.85)',
+        backdropFilter: 'blur(24px)',
+        WebkitBackdropFilter: 'blur(24px)',
+        border: '1px solid rgba(255,255,255,0.06)',
+        boxShadow: '0 8px 40px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04)',
         display: 'flex',
         flexDirection: 'column' as const,
         alignItems: 'center',
@@ -275,20 +277,20 @@ export function ServerRail() {
           onClick={handleDMClick}
           className="relative flex items-center justify-center flex-shrink-0"
           animate={{
-            borderRadius: !activeGuildId ? 12 : 14,
+            borderRadius: !activeGuildId ? 14 : 18,
             background: !activeGuildId
-              ? 'var(--color-accent-muted)'
-              : 'var(--color-surface-raised)',
+              ? 'rgba(16, 185, 129, 0.15)'
+              : 'rgba(255,255,255,0.04)',
             boxShadow: !activeGuildId
-              ? '0 0 20px rgba(var(--ambient-rgb, 16, 185, 129), 0.25)'
-              : 'inset 0 0 0 1px rgba(255,255,255,0.04)',
+              ? '0 0 24px rgba(16, 185, 129, 0.3), 0 0 0 2px rgba(16, 185, 129, 0.2)'
+              : '0 0 0 1px rgba(255,255,255,0.04)',
           }}
-          whileHover={{ scale: 1.05 }}
-          whileTap={{ scale: 0.92 }}
+          whileHover={{ scale: 1.08 }}
+          whileTap={{ scale: 0.88 }}
           transition={spring}
           style={{
-            width: 40,
-            height: 40,
+            width: 44,
+            height: 44,
             overflow: 'hidden',
           }}
           aria-label={t('directMessages')}
@@ -297,8 +299,8 @@ export function ServerRail() {
           <Image
             src="/logo.png"
             alt="Swiip"
-            width={40}
-            height={40}
+            width={44}
+            height={44}
             className="w-full h-full object-contain"
             style={{
               filter: !activeGuildId

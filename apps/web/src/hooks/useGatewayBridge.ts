@@ -12,8 +12,9 @@ import { usePresenceStore } from '@/stores/presence.store';
 import { useVoiceStore } from '@/stores/voice.store';
 import { useDMsStore } from '@/stores/dms.store';
 import { useUIStore } from '@/stores/ui.store';
+import { useFriendsStore } from '@/stores/friends.store';
 import { getGuildMembers, getGuildMember, getGuild } from '@/lib/api/guilds.api';
-import { toastError, toastInfo } from '@/lib/toast';
+import { toastError, toastInfo, toastSuccess } from '@/lib/toast';
 import { playMessageSound, playMentionSound } from '@/lib/sounds';
 
 /**
@@ -372,6 +373,30 @@ export function useGatewayBridge() {
       }
       if (typeof data.mentionCount === 'number') {
         messagesStore.setMentionCount(data.channelId, data.mentionCount);
+      }
+    });
+
+    // --- Notification (friend requests, relationship updates) ---
+    gw.on('notification', (data: any) => {
+      if (data.type === 'relationship_update' && data.relationship) {
+        const rel = data.relationship;
+        useFriendsStore.getState().addRelationship({
+          id: rel.user?.id ?? '',
+          type: rel.type,
+          user: rel.user,
+          since: new Date().toISOString(),
+        });
+
+        // Toast for incoming friend request
+        if (rel.type === 'PENDING_INCOMING') {
+          const name = rel.user?.globalName ?? rel.user?.username ?? 'Someone';
+          toastInfo(`${name} sent you a friend request!`);
+        } else if (rel.type === 'FRIEND') {
+          const name = rel.user?.globalName ?? rel.user?.username ?? 'Someone';
+          toastSuccess(`You are now friends with ${name}!`);
+        }
+      } else if (data.type === 'relationship_remove' && data.targetUserId) {
+        useFriendsStore.getState().removeRelationship(data.targetUserId);
       }
     });
 

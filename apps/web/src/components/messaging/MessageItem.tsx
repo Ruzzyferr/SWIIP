@@ -648,16 +648,17 @@ export function MessageItem({
         </div>
       )}
 
-      {/* Message row */}
+      {/* Message row — glass bubble style */}
       <ContextMenu items={contextMenuItems}>
       <motion.div
         initial={{ opacity: 0, y: 8, filter: 'blur(2px)' }}
         animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
         transition={{ type: 'spring', stiffness: 500, damping: 35, mass: 0.5 }}
-        className="message-row relative group px-4 py-0.5"
+        className="message-row relative group px-3 py-0.5"
         style={{
-          paddingTop: isGrouped ? '1px' : '8px',
-          background: isHighlighted ? 'rgba(250, 166, 26, 0.12)' : isSelected ? 'rgba(88, 101, 242, 0.1)' : hovered ? 'rgba(255,255,255,0.02)' : 'transparent',
+          paddingTop: isGrouped ? '1px' : '6px',
+          display: 'flex',
+          flexDirection: canEdit ? 'row-reverse' : 'row',
           transition: 'background 600ms ease',
         }}
         onMouseEnter={() => setHovered(true)}
@@ -713,21 +714,20 @@ export function MessageItem({
           />
         )}
 
-        <div className="flex gap-3">
+        <div className="flex gap-2.5" style={{ maxWidth: '85%', flexDirection: canEdit ? 'row-reverse' : 'row' }}>
           {/* Avatar column */}
-          <div className="w-10 flex-shrink-0 flex justify-center">
+          <div className="w-9 flex-shrink-0 flex justify-center">
             {isGrouped ? (
-              /* Timestamp on hover for grouped */
               hovered ? (
                 <span
-                  className="text-xs leading-5 mt-0.5 select-none"
+                  className="text-[10px] leading-5 mt-0.5 select-none"
                   style={{ color: 'var(--color-text-disabled)' }}
                   title={timestamp.toLocaleString()}
                 >
                   {timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                 </span>
               ) : (
-                <div className="w-10" />
+                <div className="w-9" />
               )
             ) : (
               <button onClick={() => openModal('user-profile', { userId: authorId })} className="cursor-pointer">
@@ -742,8 +742,21 @@ export function MessageItem({
             )}
           </div>
 
-          {/* Content column */}
-          <div className="flex-1 min-w-0">
+          {/* Content column — glass bubble */}
+          <div
+            className="flex-1 min-w-0 rounded-2xl px-3 py-2"
+            style={{
+              background: canEdit
+                ? 'rgba(16, 185, 129, 0.08)'
+                : isHighlighted
+                ? 'rgba(250, 166, 26, 0.1)'
+                : 'rgba(255, 255, 255, 0.03)',
+              border: `1px solid ${canEdit ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.04)'}`,
+              borderRadius: canEdit
+                ? (isGrouped ? '18px 4px 18px 18px' : '18px 18px 4px 18px')
+                : (isGrouped ? '4px 18px 18px 18px' : '18px 18px 18px 4px'),
+            }}
+          >
             {/* Header row (non-grouped) */}
             {!isGrouped && (
               <div className="flex items-baseline gap-2 mb-0.5">

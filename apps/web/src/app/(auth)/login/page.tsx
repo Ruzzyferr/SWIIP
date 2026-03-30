@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, Suspense } from 'react';
+import { useState, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
@@ -15,6 +15,7 @@ import { setAccessToken } from '@/lib/api/client';
 import { useTranslations } from 'next-intl';
 import { MeshGradient } from '@/components/ui/MeshGradient';
 import { NoiseTexture } from '@/components/ui/NoiseTexture';
+import { InteractiveOwl } from '@/components/ui/InteractiveOwl';
 
 const loginSchema = z.object({
   email: z.string().email('Please enter a valid email address'),
@@ -65,6 +66,11 @@ function LoginContent() {
   const [serverError, setServerError] = useState<string | null>(null);
   const [submitState, setSubmitState] = useState<'idle' | 'loading' | 'success'>('idle');
 
+  // Owl state tracking
+  const [owlState, setOwlState] = useState<'idle' | 'watching' | 'hiding' | 'error' | 'success'>('idle');
+  const [emailLength, setEmailLength] = useState(0);
+  const maxEmailChars = 30; // for owl eye tracking progress
+
   const {
     register,
     handleSubmit,
@@ -76,6 +82,7 @@ function LoginContent() {
   const onSubmit = async (data: LoginFormData) => {
     setServerError(null);
     setSubmitState('loading');
+    setOwlState('idle');
     try {
       const res = await login({ email: data.email, password: data.password });
       setUser(res.user);
@@ -83,7 +90,8 @@ function LoginContent() {
       setAccessToken(res.tokens.accessToken);
 
       setSubmitState('success');
-      await new Promise((r) => setTimeout(r, 600));
+      setOwlState('success');
+      await new Promise((r) => setTimeout(r, 800));
 
       if (!res.user.verified) {
         router.push('/verify-email');
@@ -92,9 +100,12 @@ function LoginContent() {
       }
     } catch (err: unknown) {
       setSubmitState('idle');
+      setOwlState('error');
       const message =
         err instanceof Error ? err.message : 'Invalid email or password';
       setServerError(message);
+      // Reset owl back to idle after shake
+      setTimeout(() => setOwlState('idle'), 800);
     }
   };
 
@@ -110,41 +121,35 @@ function LoginContent() {
         animate="visible"
         className="relative z-10 w-full max-w-[400px] mx-4"
       >
-        {/* Logo */}
-        <motion.div variants={itemVariants} className="text-center mb-8">
-          <Link
-            href="/"
-            className="inline-flex items-center gap-2.5 mb-6 transition-opacity hover:opacity-80"
-          >
-            <motion.div
-              whileHover={{ rotate: [0, -5, 5, 0], scale: 1.05 }}
-              transition={spring}
-            >
-              <Image
-                src="/logo.png"
-                alt="Swiip"
-                width={72}
-                height={72}
-                className="rounded-xl"
-              />
-            </motion.div>
-            <span
-              className="text-xl font-bold tracking-tight"
-              style={{ color: 'var(--color-text-primary)' }}
-            >
+        {/* Owl mascot + branding */}
+        <motion.div variants={itemVariants} className="text-center mb-6">
+          <Link href="/" className="inline-block mb-2 transition-opacity hover:opacity-90">
+            <span className="text-lg font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
               Swiip
             </span>
           </Link>
+
+          {/* Interactive owl — reacts to form state */}
+          <motion.div
+            className="flex justify-center mb-4"
+            initial={{ scale: 0.8, opacity: 0, y: 20 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 300, damping: 20, delay: 0.2 }}
+          >
+            <InteractiveOwl
+              state={owlState}
+              watchProgress={Math.min(emailLength / maxEmailChars, 1)}
+              size={160}
+            />
+          </motion.div>
+
           <h1
-            className="text-3xl font-bold tracking-tight"
+            className="text-2xl font-bold tracking-tight"
             style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.03em' }}
           >
             {t('title')}
           </h1>
-          <p
-            className="mt-2 text-sm"
-            style={{ color: 'var(--color-text-tertiary)' }}
-          >
+          <p className="mt-1 text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
             {t('subtitle')}
           </p>
         </motion.div>
@@ -200,7 +205,9 @@ function LoginContent() {
                     type="email"
                     autoComplete="email"
                     autoFocus
-                    {...register('email')}
+                    {...register('email', {
+                      onChange: (e) => setEmailLength(e.target.value.length),
+                    })}
                     className="w-full px-3 py-2.5 rounded-lg text-sm outline-none transition-all"
                     style={{
                       background: 'var(--color-surface-raised)',
@@ -211,6 +218,7 @@ function LoginContent() {
                       transitionDuration: 'var(--duration-fast)',
                     }}
                     onFocus={(e) => {
+                      setOwlState('watching');
                       e.currentTarget.style.borderColor = errors.email
                         ? 'var(--color-danger-default)'
                         : 'var(--color-border-focus)';
@@ -219,6 +227,7 @@ function LoginContent() {
                         : '0 0 0 3px rgba(16,185,129,0.15), 0 0 20px rgba(16,185,129,0.05)';
                     }}
                     onBlur={(e) => {
+                      setOwlState('idle');
                       e.currentTarget.style.borderColor = errors.email
                         ? 'var(--color-danger-default)'
                         : 'var(--color-border-default)';
@@ -276,6 +285,7 @@ function LoginContent() {
                       transitionDuration: 'var(--duration-fast)',
                     }}
                     onFocus={(e) => {
+                      setOwlState('hiding');
                       e.currentTarget.style.borderColor = errors.password
                         ? 'var(--color-danger-default)'
                         : 'var(--color-border-focus)';
@@ -284,6 +294,7 @@ function LoginContent() {
                         : '0 0 0 3px rgba(16,185,129,0.15), 0 0 20px rgba(16,185,129,0.05)';
                     }}
                     onBlur={(e) => {
+                      setOwlState('idle');
                       e.currentTarget.style.borderColor = errors.password
                         ? 'var(--color-danger-default)'
                         : 'var(--color-border-default)';

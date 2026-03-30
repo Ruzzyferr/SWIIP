@@ -444,6 +444,75 @@ export class EventPublisherService implements OnModuleInit {
   }
 
   // ---------------------------------------------------------------------------
+  // Relationship events (friend requests)
+  // ---------------------------------------------------------------------------
+
+  @OnEvent('relationship.requestSent')
+  async onRelationshipRequestSent(payload: {
+    requesterId: string;
+    targetId: string;
+    requesterUser: unknown;
+    targetUser: unknown;
+  }): Promise<void> {
+    // Notify the requester (their outgoing list updated)
+    await this.publishUserEvent(payload.requesterId, 'NOTIFICATION', {
+      type: 'relationship_update',
+      relationship: {
+        type: 'PENDING_OUTGOING',
+        user: payload.targetUser,
+      },
+    });
+    // Notify the target (they have a new incoming request)
+    await this.publishUserEvent(payload.targetId, 'NOTIFICATION', {
+      type: 'relationship_update',
+      relationship: {
+        type: 'PENDING_INCOMING',
+        user: payload.requesterUser,
+      },
+    });
+  }
+
+  @OnEvent('relationship.accepted')
+  async onRelationshipAccepted(payload: {
+    userId: string;
+    targetId: string;
+    acceptedUser: unknown;
+    friendUser: unknown;
+  }): Promise<void> {
+    // Notify both users that they are now friends
+    await this.publishUserEvent(payload.userId, 'NOTIFICATION', {
+      type: 'relationship_update',
+      relationship: {
+        type: 'FRIEND',
+        user: payload.friendUser,
+      },
+    });
+    await this.publishUserEvent(payload.targetId, 'NOTIFICATION', {
+      type: 'relationship_update',
+      relationship: {
+        type: 'FRIEND',
+        user: payload.acceptedUser,
+      },
+    });
+  }
+
+  @OnEvent('relationship.removed')
+  async onRelationshipRemoved(payload: {
+    userId: string;
+    targetId: string;
+  }): Promise<void> {
+    // Notify both users that the relationship was removed
+    await this.publishUserEvent(payload.userId, 'NOTIFICATION', {
+      type: 'relationship_remove',
+      targetUserId: payload.targetId,
+    });
+    await this.publishUserEvent(payload.targetId, 'NOTIFICATION', {
+      type: 'relationship_remove',
+      targetUserId: payload.userId,
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // Moderation events
   // ---------------------------------------------------------------------------
 

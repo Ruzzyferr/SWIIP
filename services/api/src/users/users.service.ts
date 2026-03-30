@@ -5,6 +5,7 @@ import {
   BadRequestException,
   ForbiddenException,
 } from '@nestjs/common';
+import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import {
@@ -34,6 +35,7 @@ export class UsersService {
   constructor(
     private readonly prisma: PrismaService,
     private readonly redis: RedisService,
+    private readonly eventEmitter: EventEmitter2,
   ) {}
 
   private readonly PUBLIC_SELECT = {
@@ -183,13 +185,9 @@ export class UsersService {
 
     if (!user) throw new NotFoundException('User not found');
 
-    const relationship = await this.prisma.userRelationship.findFirst({
-      where: {
-        OR: [
-          { requesterId, targetId: userId },
-          { requesterId: userId, targetId: requesterId },
-        ],
-      },
+    // Only check the requester's own perspective row
+    const relationship = await this.prisma.userRelationship.findUnique({
+      where: { requesterId_targetId: { requesterId, targetId: userId } },
       select: { type: true },
     });
 
@@ -250,68 +248,54 @@ export class UsersService {
   }
 
   async getRelationships(userId: string) {
-    const sent = await this.prisma.userRelationship.findMany({
+    // Each relationship creates TWO rows: one per user with their own perspective type.
+    // We only return rows where requesterId=userId to get the correct perspective.
+    const rows = await this.prisma.userRelationship.findMany({
       where: { requesterId: userId },
       include: { target: { select: this.PUBLIC_SELECT } },
     });
 
-    const received = await this.prisma.userRelationship.findMany({
-      where: { targetId: userId },
-      include: { requester: { select: this.PUBLIC_SELECT } },
-    });
-
-    return [
-      ...sent.map((r: any) => ({
-        id: r.id,
-        type: r.type,
-        user: this.mapUserFields(r.target),
-        since: new Date().toISOString(),
-      })),
-      ...received.map((r: any) => ({
-        id: r.id,
-        type: r.type,
-        user: this.mapUserFields(r.requester),
-        since: new Date().toISOString(),
-      })),
-    ];
+    return rows.map((r: any) => ({
+      id: r.id,
+      type: r.type,
+      user: this.mapUserFields(r.target),
+      since: new Date().toISOString(),
+    }));
   }
 
   async sendFriendRequest(requesterId: string, targetUsername: string, discriminator: string) {
     const target = await this.prisma.user.findUnique({
       where: { username_discriminator: { username: targetUsername, discriminator } },
-      select: { id: true, username: true, discriminator: true },
+      select: { ...this.PUBLIC_SELECT },
     });
 
     if (!target) throw new NotFoundException('User not found');
     if (target.id === requesterId) throw new BadRequestException('Cannot add yourself');
 
-    const existing = await this.prisma.userRelationship.findFirst({
-      where: {
-        OR: [
-          { requesterId, targetId: target.id },
-          { requesterId: target.id, targetId: requesterId },
-        ],
-      },
+    // Check BOTH rows explicitly — each user has their own perspective row
+    const myRow = await this.prisma.userRelationship.findUnique({
+      where: { requesterId_targetId: { requesterId, targetId: target.id } },
+    });
+    const theirRow = await this.prisma.userRelationship.findUnique({
+      where: { requesterId_targetId: { requesterId: target.id, targetId: requesterId } },
     });
 
-    if (existing) {
-      if (existing.type === 'FRIEND') throw new ConflictException('Already friends');
-      if (existing.type === 'BLOCKED') throw new ForbiddenException('Cannot send friend request');
-      if (existing.type === 'PENDING_OUTGOING' && existing.requesterId === requesterId) {
-        throw new ConflictException('Friend request already sent');
-      }
+    // Block checks
+    if (myRow?.type === 'BLOCKED') throw new ForbiddenException('You have this user blocked');
+    if (theirRow?.type === 'BLOCKED') throw new ForbiddenException('Cannot send friend request');
 
-      if (existing.type === 'PENDING_OUTGOING' && existing.requesterId === target.id) {
-        return this.acceptFriendRequest(requesterId, target.id);
-      }
+    // Already friends
+    if (myRow?.type === 'FRIEND') throw new ConflictException('Already friends');
+
+    // Already sent a pending request
+    if (myRow?.type === 'PENDING_OUTGOING') throw new ConflictException('Friend request already sent');
+
+    // They already sent us a request — auto-accept
+    if (myRow?.type === 'PENDING_INCOMING') {
+      return this.acceptFriendRequest(requesterId, target.id);
     }
 
-    // Check if blocked by target
-    const blocked = await this.prisma.userRelationship.findFirst({
-      where: { requesterId: target.id, targetId: requesterId, type: 'BLOCKED' },
-    });
-    if (blocked) throw new ForbiddenException('Cannot send friend request');
-
+    // Create both perspective rows
     await this.prisma.$transaction([
       this.prisma.userRelationship.create({
         data: { requesterId, targetId: target.id, type: 'PENDING_OUTGOING' },
@@ -321,28 +305,48 @@ export class UsersService {
       }),
     ]);
 
+    // Emit event for real-time delivery
+    const requester = await this.findByIdPublic(requesterId);
+    this.eventEmitter.emit('relationship.requestSent', {
+      requesterId,
+      targetId: target.id,
+      requesterUser: requester,
+      targetUser: this.mapUserFields(target),
+    });
+
     return { message: 'Friend request sent' };
   }
 
   async acceptFriendRequest(userId: string, targetId: string) {
-    const incoming = await this.prisma.userRelationship.findUnique({
-      where: { requesterId_targetId: { requesterId: targetId, targetId: userId } },
+    // Verify the user actually has a PENDING_INCOMING from target
+    const myRow = await this.prisma.userRelationship.findUnique({
+      where: { requesterId_targetId: { requesterId: userId, targetId } },
     });
 
-    if (!incoming || incoming.type !== 'PENDING_OUTGOING') {
+    if (!myRow || myRow.type !== 'PENDING_INCOMING') {
       throw new NotFoundException('No pending friend request found');
     }
 
     await this.prisma.$transaction([
       this.prisma.userRelationship.update({
-        where: { requesterId_targetId: { requesterId: targetId, targetId: userId } },
-        data: { type: 'FRIEND' },
-      }),
-      this.prisma.userRelationship.update({
         where: { requesterId_targetId: { requesterId: userId, targetId } },
         data: { type: 'FRIEND' },
       }),
+      this.prisma.userRelationship.update({
+        where: { requesterId_targetId: { requesterId: targetId, targetId: userId } },
+        data: { type: 'FRIEND' },
+      }),
     ]);
+
+    // Emit event for real-time delivery
+    const acceptedUser = await this.findByIdPublic(userId);
+    const friendUser = await this.findByIdPublic(targetId);
+    this.eventEmitter.emit('relationship.accepted', {
+      userId,
+      targetId,
+      acceptedUser,
+      friendUser,
+    });
 
     return { message: 'Friend request accepted' };
   }
@@ -357,19 +361,26 @@ export class UsersService {
         type: { in: ['PENDING_OUTGOING', 'PENDING_INCOMING'] },
       },
     });
+
+    this.eventEmitter.emit('relationship.removed', { userId, targetId });
+
     return { message: 'Friend request declined' };
   }
 
   async removeFriend(userId: string, targetId: string) {
+    // Remove ANY relationship between the two users (friend or pending)
     await this.prisma.userRelationship.deleteMany({
       where: {
         OR: [
           { requesterId: userId, targetId },
           { requesterId: targetId, targetId: userId },
         ],
-        type: 'FRIEND',
+        type: { in: ['FRIEND', 'PENDING_OUTGOING', 'PENDING_INCOMING'] },
       },
     });
+
+    this.eventEmitter.emit('relationship.removed', { userId, targetId });
+
     return { message: 'Friend removed' };
   }
 
