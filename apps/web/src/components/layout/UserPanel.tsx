@@ -46,14 +46,10 @@ export function UserPanel() {
 
   return (
     <div
-      className="flex items-center gap-2 px-2"
+      className="flex items-center gap-3 px-4"
       style={{
-        minHeight: '52px',
+        minHeight: '48px',
         paddingBottom: 'max(0px, env(safe-area-inset-bottom))',
-        background: 'var(--glass-bg)',
-        backdropFilter: 'blur(var(--glass-blur))',
-        WebkitBackdropFilter: 'blur(var(--glass-blur))',
-        borderTop: '1px solid var(--color-border-subtle)',
       }}
     >
       {/* Avatar (opens status picker) + name (opens settings) */}

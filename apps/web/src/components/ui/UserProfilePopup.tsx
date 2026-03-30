@@ -18,6 +18,7 @@ import {
   type RelationshipType,
 } from '@/lib/api/friends.api';
 import { openDM } from '@/lib/api/dms.api';
+import { useDMsStore } from '@/stores/dms.store';
 import { toastError } from '@/lib/toast';
 
 export function UserProfilePopup() {
@@ -48,16 +49,19 @@ export function UserProfilePopup() {
     });
   }, [userId]);
 
+  const addConversation = useDMsStore((s) => s.addConversation);
+
   const handleSendDM = useCallback(async () => {
     if (!userId) return;
     try {
       const dm = await openDM(userId);
+      addConversation(dm);
       closeModal();
       router.push(`/channels/@me/${dm.id}`);
     } catch {
       toastError('Failed to open DM');
     }
-  }, [userId, closeModal, router]);
+  }, [userId, addConversation, closeModal, router]);
 
   const handleAddFriend = useCallback(async () => {
     if (!profile?.user?.username) return;

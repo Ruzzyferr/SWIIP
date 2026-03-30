@@ -7,6 +7,7 @@ import { kickMember, banMember, updateMember } from '@/lib/api/guilds.api';
 import { openDM } from '@/lib/api/dms.api';
 import { sendFriendRequest, blockUser } from '@/lib/api/friends.api';
 import { useFriendsStore } from '@/stores/friends.store';
+import { useDMsStore } from '@/stores/dms.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { useUIStore } from '@/stores/ui.store';
@@ -47,14 +48,19 @@ export function MemberContextMenu({
   const isPending = relationships.some((r) => r.user?.id === member.user?.id && (r.type === 'PENDING_OUTGOING' || r.type === 'PENDING_INCOMING'));
   const isBlocked = relationships.some((r) => r.user?.id === member.user?.id && r.type === 'BLOCKED');
 
+  const addConversation = useDMsStore((s) => s.addConversation);
+
   const handleSendMessage = async () => {
     if (!member.user?.id) return;
     try {
       const dm = await openDM(member.user.id);
+      // Add to DM store so it appears in conversation list and DMChatView can find it
+      addConversation(dm);
       router.push(`/channels/@me/${dm.id}`);
       onClose();
     } catch (err) {
       console.error('Failed to open DM:', err);
+      toastError('Failed to open DM');
     }
   };
 

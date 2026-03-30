@@ -14,6 +14,7 @@ import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 const KeyboardShortcutsModal = dynamic(() => import('@/components/modals/KeyboardShortcutsModal').then(m => ({ default: m.KeyboardShortcutsModal })), { ssr: false });
 import { UserPanel } from '@/components/layout/UserPanel';
 import { VoiceConnectionPanel } from '@/components/voice/VoiceConnectionPanel';
+import { DMConversationList } from '@/components/layout/DMConversationList';
 import { useUIStore } from '@/stores/ui.store';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { useAmbientTheme } from '@/hooks/useAmbientTheme';
@@ -25,6 +26,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   // Ambient Adaptive Theming
   const activeGuildId = useUIStore((s) => s.activeGuildId);
+  const isDMMode = !activeGuildId || activeGuildId === '@me' || activeGuildId === 'me';
   const activeGuild = useGuildsStore((s) => activeGuildId ? s.guilds[activeGuildId] : null);
   const guildIconUrl = activeGuild?.icon ?? null;
   useAmbientTheme(guildIconUrl);
@@ -90,28 +92,46 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
           <ErrorBoundary fallbackTitle="Something went wrong">
             <div className="flex-1 flex min-w-0 overflow-hidden h-full" style={{ position: 'relative' }}>
+              {/* DM conversation sidebar — visible when in DM mode */}
+              {isDMMode && (
+                <div
+                  className="w-60 shrink-0 overflow-y-auto h-full p-2"
+                  style={{
+                    background: 'rgba(10, 14, 16, 0.6)',
+                    borderRight: '1px solid rgba(255,255,255,0.04)',
+                  }}
+                >
+                  <DMConversationList />
+                </div>
+              )}
               {children}
             </div>
           </ErrorBoundary>
         </div>
-      </div>
 
-      {/* Floating bottom-left: voice panel + user panel */}
-      <div
-        className="fixed bottom-3 left-3 z-30 flex flex-col gap-1"
-        style={{
-          width: 260,
-          borderRadius: 16,
-          background: 'rgba(12, 16, 18, 0.9)',
-          backdropFilter: 'blur(24px)',
-          WebkitBackdropFilter: 'blur(24px)',
-          border: '1px solid rgba(255,255,255,0.06)',
-          boxShadow: '0 8px 40px rgba(0,0,0,0.5)',
-          overflow: 'hidden',
-        }}
-      >
-        <VoiceConnectionPanel />
-        <UserPanel />
+        {/* Bottom dock: voice panel + user panel — part of layout flow */}
+        <div
+          className="shrink-0 relative z-30"
+          style={{
+            background: 'rgba(12, 16, 18, 0.85)',
+            backdropFilter: 'blur(24px)',
+            WebkitBackdropFilter: 'blur(24px)',
+            borderTop: '1px solid rgba(255,255,255,0.06)',
+            boxShadow: '0 -4px 30px rgba(0,0,0,0.3)',
+          }}
+        >
+          {/* Ambient glow line on top */}
+          <div
+            className="absolute top-0 left-0 right-0 h-px"
+            style={{
+              background: 'linear-gradient(90deg, transparent, var(--ambient-primary-muted, rgba(16,185,129,0.12)) 30%, var(--ambient-primary, #10B981) 50%, var(--ambient-primary-muted, rgba(16,185,129,0.12)) 70%, transparent)',
+              opacity: 0.4,
+              transition: 'background 600ms ease',
+            }}
+          />
+          <VoiceConnectionPanel />
+          <UserPanel />
+        </div>
       </div>
 
       <ModalRoot />

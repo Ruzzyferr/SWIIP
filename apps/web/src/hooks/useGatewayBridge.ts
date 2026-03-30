@@ -52,6 +52,7 @@ export function useGatewayBridge() {
   const setTyping = usePresenceStore((s) => s.setTyping);
 
   const setConversations = useDMsStore((s) => s.setConversations);
+  const addConversation = useDMsStore((s) => s.addConversation);
 
   useEffect(() => {
     if (!accessToken || bridged.current) return;
@@ -308,7 +309,13 @@ export function useGatewayBridge() {
 
     // --- Channels ---
     gw.on('channel_create', (data) => {
-      setChannel(data.channel);
+      // DM channels go to DM store, guild channels go to guild store
+      const ch = data.channel ?? data;
+      if (ch.type === 'DM' || ch.type === 'GROUP_DM') {
+        addConversation(ch as any);
+      } else {
+        setChannel(ch);
+      }
     });
 
     gw.on('channel_update', (data) => {
