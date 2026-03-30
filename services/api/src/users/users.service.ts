@@ -496,19 +496,29 @@ export class UsersService {
       },
     });
 
-    // Check Redis for more recent presence updates
+    // Check Redis for more recent presence updates (gateway stores real-time status here)
     const presenceMap = new Map(presences.map((p: any) => [p.userId, p]));
 
-    // Batch Redis lookups with MGET instead of N individual calls
-    const redisKeys = userIds.map((id) => `presence:${id}`);
-    const redisValues = await this.redis.mget(...redisKeys);
-    for (let i = 0; i < userIds.length; i++) {
-      const raw = redisValues[i];
-      if (raw) {
-        try {
-          presenceMap.set(userIds[i]!, JSON.parse(raw));
-        } catch {
-          // ignore malformed Redis presence
+    const client = this.redis.getClient();
+    const pipeline = client.pipeline();
+    for (const id of userIds) {
+      pipeline.hgetall(`swiip:presence:${id}`);
+    }
+    const results = await pipeline.exec();
+    if (results) {
+      for (let i = 0; i < userIds.length; i++) {
+        const [err, raw] = results[i] as [Error | null, Record<string, string>];
+        if (!err && raw && raw['status']) {
+          const statusMap: Record<string, string> = {
+            online: 'ONLINE', idle: 'IDLE', dnd: 'DND', offline: 'OFFLINE', invisible: 'INVISIBLE',
+          };
+          presenceMap.set(userIds[i]!, {
+            userId: userIds[i],
+            status: statusMap[raw['status']] ?? raw['status'],
+            customStatusText: raw['customStatus'] || null,
+            customStatusEmoji: null,
+            lastSeenAt: raw['updatedAt'] ? new Date(parseInt(raw['updatedAt'], 10)) : null,
+          });
         }
       }
     }

@@ -461,6 +461,10 @@ export type ServerEvent =
           lastReadMessageId: string | null;
           mentionCount: number;
         }>;
+        friendPresences?: Array<{
+          userId: string;
+          status: string;
+        }>;
         sessionId: string;
         resumeUrl: string;
       };

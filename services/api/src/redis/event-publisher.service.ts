@@ -175,6 +175,11 @@ export class EventPublisherService implements OnModuleInit {
       await this.publishGuildEvent(payload.guildId, 'MESSAGE_CREATE', {
         message: payload.message,
       });
+    } else {
+      // DM/Group DM — publish to the dm:{conversationId} topic so all participants get it
+      await this.publishEvent(`dm:${payload.channelId}`, 'MESSAGE_CREATE', {
+        message: payload.message,
+      });
     }
   }
 
@@ -191,6 +196,12 @@ export class EventPublisherService implements OnModuleInit {
         channelId: payload.channelId,
         message: payload.message,
       });
+    } else {
+      await this.publishEvent(`dm:${payload.channelId}`, 'MESSAGE_UPDATE', {
+        messageId: payload.messageId,
+        channelId: payload.channelId,
+        message: payload.message,
+      });
     }
   }
 
@@ -202,6 +213,11 @@ export class EventPublisherService implements OnModuleInit {
   }): Promise<void> {
     if (payload.guildId) {
       await this.publishGuildEvent(payload.guildId, 'MESSAGE_DELETE', {
+        messageId: payload.messageId,
+        channelId: payload.channelId,
+      });
+    } else {
+      await this.publishEvent(`dm:${payload.channelId}`, 'MESSAGE_DELETE', {
         messageId: payload.messageId,
         channelId: payload.channelId,
       });

@@ -34,8 +34,16 @@ export function InviteModal() {
   const channels = useGuildsStore((s) => s.channels);
 
   const guildId = (activeModal?.props?.guildId as string) ?? '';
-  const channelId = (activeModal?.props?.channelId as string) ?? '';
+  const passedChannelId = (activeModal?.props?.channelId as string) ?? '';
   const guild = guilds[guildId];
+
+  // If no channelId was passed (e.g. from top bar), find the first text channel in the guild
+  const resolvedChannelId = passedChannelId || (() => {
+    const guildChannels = Object.values(channels).find(
+      (ch: any) => ch.guildId === guildId && ch.type !== 'CATEGORY' && ch.type !== 'VOICE'
+    );
+    return (guildChannels as any)?.id ?? '';
+  })();
 
   const [invite, setInvite] = useState<CreateInviteResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -45,15 +53,15 @@ export function InviteModal() {
 
   // Auto-generate invite on open and when settings change
   useEffect(() => {
-    if (guildId && channelId) {
+    if (guildId && resolvedChannelId) {
       generateInvite();
     }
-  }, [guildId, channelId, expiresIn, maxUses]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [guildId, resolvedChannelId, expiresIn, maxUses]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const generateInvite = async () => {
     setLoading(true);
     try {
-      const result = await createInvite(guildId, channelId, {
+      const result = await createInvite(guildId, resolvedChannelId, {
         maxAge: expiresIn ?? undefined,
         maxUses: maxUses ?? undefined,
       });
@@ -104,7 +112,7 @@ export function InviteModal() {
         <input
           readOnly
           value={loading ? 'Generating...' : inviteUrl}
-          className="flex-1 text-sm bg-transparent outline-none"
+          className="flex-1 min-w-0 text-sm bg-transparent outline-none truncate"
           style={{ color: 'var(--color-text-primary)' }}
           onClick={(e) => (e.target as HTMLInputElement).select()}
         />
@@ -113,6 +121,7 @@ export function InviteModal() {
           disabled={!invite || loading}
           size="sm"
           variant={copied ? 'ghost' : 'primary'}
+          className="flex-shrink-0 whitespace-nowrap"
         >
           {copied ? <Check size={14} /> : <Copy size={14} />}
           <span className="ml-1">{copied ? 'Copied' : 'Copy'}</span>

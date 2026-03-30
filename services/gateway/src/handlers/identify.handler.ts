@@ -33,12 +33,18 @@ interface ReadStatePayload {
   mentionCount: number;
 }
 
+interface FriendPresencePayload {
+  userId: string;
+  status: string;
+}
+
 interface ReadyPayload {
   user: UserPayload;
   guilds: GuildPayload[];
   dms: DMChannelPayload[];
   voiceStates: VoiceStatePayload[];
   readStates: ReadStatePayload[];
+  friendPresences: FriendPresencePayload[];
   sessionId: string;
   resumeUrl: string;
 }
@@ -199,42 +205,27 @@ async function fetchReadyPayload(
   context: GatewayContext,
 ): Promise<ReadyPayload> {
   const redis = context.pubsub.getPublisher();
-  const cacheKey = `swiip:ready_cache:${userId}`;
 
-  // Try Redis cache for user/guild/dm data (populated by the API service after login)
-  let body: { user: UserPayload; guilds: GuildPayload[]; dms: DMChannelPayload[]; readStates?: ReadStatePayload[] };
-  try {
-    const cached = await redis.get(cacheKey);
-    if (cached) {
-      const parsed = JSON.parse(cached);
-      body = { user: parsed.user, guilds: parsed.guilds, dms: parsed.dms, readStates: parsed.readStates };
-    } else {
-      throw new Error('cache miss');
-    }
-  } catch {
-    // Fall back to internal API
-    const url = `${context.apiBaseUrl}/internal/ready/${userId}`;
-    const response = await fetch(url, {
-      headers: {
-        'X-Internal-Token': context.config.JWT_SECRET,
-        'Content-Type': 'application/json',
-      },
-      signal: AbortSignal.timeout(5_000),
-    });
+  // Always call the internal API (no cache) so that:
+  // 1. The friend set in Redis gets populated on every IDENTIFY
+  // 2. Friend presences are always fresh
+  // The 30s cache previously used here caused stale friend data.
+  let body: { user: UserPayload; guilds: GuildPayload[]; dms: DMChannelPayload[]; readStates?: ReadStatePayload[]; friendPresences?: FriendPresencePayload[] };
+  const url = `${context.apiBaseUrl}/internal/ready/${userId}`;
+  const response = await fetch(url, {
+    headers: {
+      'X-Internal-Token': context.config.JWT_SECRET,
+      'Content-Type': 'application/json',
+    },
+    signal: AbortSignal.timeout(5_000),
+  });
 
-    if (!response.ok) {
-      throw new Error(`Internal API returned ${response.status} for ready payload`);
-    }
-
-    body = (await response.json()) as typeof body;
-
-    // Cache user/guild/dm data for 30s (voice states are always fetched fresh)
-    try {
-      await redis.set(cacheKey, JSON.stringify(body), 'EX', 30);
-    } catch {
-      // Non-fatal
-    }
+  if (!response.ok) {
+    throw new Error(`Internal API returned ${response.status} for ready payload`);
   }
+
+  body = (await response.json()) as typeof body;
+  const friendPresences: FriendPresencePayload[] = body.friendPresences ?? [];
 
   // Always fetch voice states fresh from Redis (not cached)
   const voiceStates: VoiceStatePayload[] = [];
@@ -269,6 +260,7 @@ async function fetchReadyPayload(
     dms: body.dms,
     voiceStates,
     readStates: body.readStates ?? [],
+    friendPresences,
     sessionId,
     resumeUrl: buildResumeUrl(context),
   };

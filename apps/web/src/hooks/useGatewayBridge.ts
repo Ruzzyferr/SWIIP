@@ -49,6 +49,7 @@ export function useGatewayBridge() {
   const removeMessage = useMessagesStore((s) => s.removeMessage);
 
   const setPresence = usePresenceStore((s) => s.setPresence);
+  const setPresences = usePresenceStore((s) => s.setPresences);
   const setTyping = usePresenceStore((s) => s.setTyping);
 
   const setConversations = useDMsStore((s) => s.setConversations);
@@ -153,6 +154,23 @@ export function useGatewayBridge() {
             messagesStore.setMentionCount(rs.channelId, rs.mentionCount);
           }
         }
+      }
+
+      // Populate friend presences from READY payload
+      if (data.friendPresences && Array.isArray(data.friendPresences)) {
+        setPresences(
+          data.friendPresences
+            .filter((fp: any) => fp.userId && fp.status)
+            .map((fp: any) => ({
+              userId: fp.userId,
+              status: fp.status,
+            })),
+        );
+      }
+
+      // Set own presence as online
+      if (data.user?.id) {
+        setPresence(data.user.id, { status: 'online' });
       }
 
       // Lazy load guild members — only fetch the active guild immediately,

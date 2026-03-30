@@ -154,7 +154,8 @@ export class InternalController {
       },
     });
 
-    // Populate friend set in Redis so the gateway can broadcast presence to friends
+    // Fetch friend list and populate Redis friend set for gateway presence broadcasts
+    let friendPresences: Array<{ userId: string; status: string }> = [];
     try {
       const friends = await this.prisma.userRelationship.findMany({
         where: { requesterId: userId, type: 'FRIEND' },
@@ -167,6 +168,24 @@ export class InternalController {
         await client.del(friendKey);
         await client.sadd(friendKey, ...friendIds);
         await client.expire(friendKey, 86_400); // 24h TTL
+
+        // Fetch real-time presence for all friends from Redis
+        const pipeline = client.pipeline();
+        for (const fid of friendIds) {
+          pipeline.hgetall(`swiip:presence:${fid}`);
+        }
+        const results = await pipeline.exec();
+        if (results) {
+          for (let i = 0; i < friendIds.length; i++) {
+            const [err, raw] = results[i] as [Error | null, Record<string, string>];
+            if (!err && raw && raw['status'] && raw['status'] !== 'offline') {
+              friendPresences.push({
+                userId: friendIds[i]!,
+                status: raw['status'],
+              });
+            }
+          }
+        }
       } else {
         await client.del(friendKey);
       }
@@ -174,7 +193,7 @@ export class InternalController {
       // Non-fatal — friend presence just won't work until next login
     }
 
-    return { user: mappedUser, guilds, dms, readStates };
+    return { user: mappedUser, guilds, dms, readStates, friendPresences };
   }
 
   @Get('guilds/:guildId/member-ids')

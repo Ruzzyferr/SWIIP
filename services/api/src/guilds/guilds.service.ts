@@ -98,6 +98,18 @@ export class GuildsService {
         },
       });
 
+      // Create Admin role for the server owner
+      const adminRole = await tx.role.create({
+        data: {
+          guildId: newGuild.id,
+          name: 'Admin',
+          position: 1,
+          color: 0xE74C3C, // Red color to distinguish admins
+          hoist: true,
+          permissionsInteger: Permissions.ADMINISTRATOR,
+        },
+      });
+
       // Create General category
       const generalCategory = await tx.category.create({
         data: {
@@ -137,12 +149,12 @@ export class GuildsService {
         data: { systemChannelId: generalText.id },
       });
 
-      // Add owner as member
+      // Add owner as member with Admin role
       await tx.guildMember.create({
         data: {
           guildId: newGuild.id,
           userId,
-          roles: [everyoneRole.id],
+          roles: [everyoneRole.id, adminRole.id],
           isOwner: true,
         },
       });

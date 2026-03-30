@@ -656,7 +656,7 @@ export function MessageItem({
         transition={{ type: 'spring', stiffness: 500, damping: 35, mass: 0.5 }}
         className="message-row relative group px-3 py-0.5"
         style={{
-          paddingTop: isGrouped ? '1px' : '6px',
+          paddingTop: isGrouped ? '2px' : '8px',
           display: 'flex',
           flexDirection: canEdit ? 'row-reverse' : 'row',
           transition: 'background 600ms ease',
@@ -744,17 +744,20 @@ export function MessageItem({
 
           {/* Content column — glass bubble */}
           <div
-            className="flex-1 min-w-0 rounded-2xl px-3 py-2"
+            className="flex-1 min-w-0 rounded-2xl px-3.5 py-2.5"
             style={{
               background: canEdit
-                ? 'rgba(16, 185, 129, 0.08)'
+                ? 'rgba(16, 185, 129, 0.10)'
                 : isHighlighted
-                ? 'rgba(250, 166, 26, 0.1)'
-                : 'rgba(255, 255, 255, 0.03)',
-              border: `1px solid ${canEdit ? 'rgba(16, 185, 129, 0.12)' : 'rgba(255, 255, 255, 0.04)'}`,
+                ? 'rgba(250, 166, 26, 0.08)'
+                : 'rgba(255, 255, 255, 0.04)',
+              border: `1px solid ${canEdit ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.06)'}`,
               borderRadius: canEdit
-                ? (isGrouped ? '18px 4px 18px 18px' : '18px 18px 4px 18px')
-                : (isGrouped ? '4px 18px 18px 18px' : '18px 18px 18px 4px'),
+                ? (isGrouped ? '18px 6px 18px 18px' : '18px 18px 6px 18px')
+                : (isGrouped ? '6px 18px 18px 18px' : '18px 18px 18px 6px'),
+              boxShadow: canEdit
+                ? '0 1px 3px rgba(16, 185, 129, 0.06)'
+                : '0 1px 2px rgba(0, 0, 0, 0.08)',
             }}
           >
             {/* Header row (non-grouped) */}
@@ -783,11 +786,11 @@ export function MessageItem({
                 {canEdit && (
                   message.id.startsWith('pending-') ? (
                     <Tooltip content={t('sending')} placement="top">
-                      <Clock size={11} style={{ color: 'var(--color-text-disabled)' }} />
+                      <Clock size={12} style={{ color: 'var(--color-text-tertiary)', opacity: 0.7 }} />
                     </Tooltip>
                   ) : (
                     <Tooltip content={t('delivered')} placement="top">
-                      <CheckCheck size={11} style={{ color: 'var(--color-success-default)' }} />
+                      <CheckCheck size={12} style={{ color: '#10B981' }} />
                     </Tooltip>
                   )
                 )}
@@ -867,8 +870,8 @@ export function MessageItem({
               <>
                 {message.content ? (
                   <p
-                    className="text-sm leading-relaxed"
-                    style={{ color: 'var(--color-text-primary)', wordBreak: 'break-word' }}
+                    className="text-[13.5px] leading-[1.65]"
+                    style={{ color: 'var(--color-text-primary)', wordBreak: 'break-word', letterSpacing: '0.01em' }}
                   >
                     {renderContent(message.content)}
                     {editedAt && (
