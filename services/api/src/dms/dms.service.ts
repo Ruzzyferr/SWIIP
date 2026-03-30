@@ -19,6 +19,23 @@ export class DMsService {
     private readonly eventEmitter: EventEmitter2,
   ) {}
 
+  /** Ensure a Channel record exists for a DM conversation (backfill for old conversations) */
+  private async ensureChannelRecord(conversationId: string, type: 'DM' | 'GROUP_DM', name?: string) {
+    const existing = await this.prisma.channel.findUnique({ where: { id: conversationId } });
+    if (!existing) {
+      await this.prisma.channel.create({
+        data: {
+          id: conversationId,
+          name: name ?? (type === 'DM' ? 'DM' : 'Group DM'),
+          type,
+          guildId: null,
+        },
+      }).catch(() => {
+        // Race condition: another request may have created it
+      });
+    }
+  }
+
   /** Map participants array to recipients (UserPayload[]) with avatar/banner fields */
   private toRecipients(participants: any[]): any[] {
     return participants.map((p: any) => {
@@ -74,36 +91,52 @@ export class DMsService {
     if (existingConversation) {
       const participantIds = existingConversation.participants.map((p: any) => p.userId);
       if (participantIds.includes(userId) && participantIds.includes(targetId)) {
+        // Backfill Channel record for pre-existing DM conversations
+        await this.ensureChannelRecord(existingConversation.id, 'DM');
         return this.toDMPayload(existingConversation);
       }
     }
 
-    // Create new DM conversation
-    const conversation = await this.prisma.dMConversation.create({
-      data: {
-        type: 'DM',
-        participants: {
-          create: [
-            { userId },
-            { userId: targetId },
-          ],
+    // Create new DM conversation + a matching Channel record so messages/ack work
+    const conversation = await this.prisma.$transaction(async (tx) => {
+      const conv = await tx.dMConversation.create({
+        data: {
+          type: 'DM',
+          participants: {
+            create: [
+              { userId },
+              { userId: targetId },
+            ],
+          },
         },
-      },
-      include: {
-        participants: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                username: true,
-                discriminator: true,
-                globalName: true,
-                avatarId: true,
+        include: {
+          participants: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  discriminator: true,
+                  globalName: true,
+                  avatarId: true,
+                },
               },
             },
           },
         },
-      },
+      });
+
+      // Create a Channel record with the same ID so Message FK works
+      await tx.channel.create({
+        data: {
+          id: conv.id,
+          name: 'DM',
+          type: 'DM',
+          guildId: null,
+        },
+      });
+
+      return conv;
     });
 
     this.logger.log(`DM created between ${userId} and ${targetId}`);
@@ -124,30 +157,44 @@ export class DMsService {
       throw new BadRequestException(`Group DMs are limited to ${this.MAX_GROUP_DM_MEMBERS} members`);
     }
 
-    const conversation = await this.prisma.dMConversation.create({
-      data: {
-        type: 'GROUP_DM',
-        name: name ?? `Group DM (${uniqueIds.length})`,
-        ownerId: userId,
-        participants: {
-          create: uniqueIds.map((uid) => ({ userId: uid })),
+    const conversation = await this.prisma.$transaction(async (tx) => {
+      const conv = await tx.dMConversation.create({
+        data: {
+          type: 'GROUP_DM',
+          name: name ?? `Group DM (${uniqueIds.length})`,
+          ownerId: userId,
+          participants: {
+            create: uniqueIds.map((uid) => ({ userId: uid })),
+          },
         },
-      },
-      include: {
-        participants: {
-          include: {
-            user: {
-              select: {
-                id: true,
-                username: true,
-                discriminator: true,
-                globalName: true,
-                avatarId: true,
+        include: {
+          participants: {
+            include: {
+              user: {
+                select: {
+                  id: true,
+                  username: true,
+                  discriminator: true,
+                  globalName: true,
+                  avatarId: true,
+                },
               },
             },
           },
         },
-      },
+      });
+
+      // Create a Channel record with the same ID so Message FK works
+      await tx.channel.create({
+        data: {
+          id: conv.id,
+          name: conv.name ?? 'Group DM',
+          type: 'GROUP_DM',
+          guildId: null,
+        },
+      });
+
+      return conv;
     });
 
     this.logger.log(`Group DM created by ${userId} with ${uniqueIds.length} members`);
@@ -260,6 +307,13 @@ export class DMsService {
       orderBy: { conversation: { updatedAt: 'desc' } },
     });
 
+    // Backfill Channel records for pre-existing DM conversations
+    await Promise.all(
+      participations.map((p: any) =>
+        this.ensureChannelRecord(p.conversation.id, p.conversation.type, p.conversation.name ?? undefined),
+      ),
+    );
+
     return participations.map((p: any) => {
       const conv = p.conversation;
       return this.toDMPayload(conv);
@@ -295,6 +349,10 @@ export class DMsService {
     });
 
     if (!conversation) throw new NotFoundException('Conversation not found');
+
+    // Backfill Channel record for pre-existing DM conversations
+    await this.ensureChannelRecord(conversationId, conversation.type as 'DM' | 'GROUP_DM', conversation.name ?? undefined);
+
     return this.toDMPayload(conversation);
   }
 
@@ -308,6 +366,9 @@ export class DMsService {
     });
 
     if (!participation) throw new ForbiddenException('Not a participant in this conversation');
+
+    // Backfill Channel record for pre-existing DM conversations
+    await this.ensureChannelRecord(conversationId, 'DM');
 
     const limit = Math.min(options.limit ?? 50, 100);
 

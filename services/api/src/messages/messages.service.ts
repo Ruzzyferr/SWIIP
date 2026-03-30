@@ -139,6 +139,14 @@ export class MessagesService {
       if (!this.permissionsService.hasPermission(perms, Permissions.SEND_MESSAGES)) {
         throw new ForbiddenException('Missing SEND_MESSAGES permission');
       }
+    } else if (channel.type === 'DM' || channel.type === 'GROUP_DM') {
+      // Verify the user is a participant of this DM conversation
+      const participation = await this.prisma.dMParticipant.findFirst({
+        where: { conversationId: channelId, userId, leftAt: null },
+      });
+      if (!participation) {
+        throw new ForbiddenException('Not a participant in this conversation');
+      }
     }
 
     // Check slowmode
@@ -223,6 +231,14 @@ export class MessagesService {
       where: { id: channelId },
       data: { lastMessageId: message.id },
     });
+
+    // Keep DMConversation.lastMessageId in sync for DM channels
+    if (channel.type === 'DM' || channel.type === 'GROUP_DM') {
+      await this.prisma.dMConversation.update({
+        where: { id: channelId },
+        data: { lastMessageId: message.id, updatedAt: new Date() },
+      }).catch(() => {});
+    }
 
     await this.redis.publish(
       `channel:${channelId}:messages`,
