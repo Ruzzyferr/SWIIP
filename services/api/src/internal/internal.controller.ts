@@ -11,6 +11,7 @@ import {
 import { ConfigService } from '@nestjs/config';
 import { timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
+import { RedisService } from '../redis/redis.service';
 
 /**
  * Internal endpoints for service-to-service communication.
@@ -23,6 +24,7 @@ export class InternalController {
   constructor(
     private readonly prisma: PrismaService,
     private readonly config: ConfigService,
+    private readonly redis: RedisService,
   ) {
     this.internalSecret = this.config.get<string>('INTERNAL_API_SECRET')
       || this.config.get<string>('JWT_SECRET')
@@ -151,6 +153,26 @@ export class InternalController {
         mentionCount: true,
       },
     });
+
+    // Populate friend set in Redis so the gateway can broadcast presence to friends
+    try {
+      const friends = await this.prisma.userRelationship.findMany({
+        where: { requesterId: userId, type: 'FRIEND' },
+        select: { targetId: true },
+      });
+      const friendIds = friends.map((f: any) => f.targetId);
+      const client = this.redis.getClient();
+      const friendKey = `swiip:user_friends:${userId}`;
+      if (friendIds.length > 0) {
+        await client.del(friendKey);
+        await client.sadd(friendKey, ...friendIds);
+        await client.expire(friendKey, 86_400); // 24h TTL
+      } else {
+        await client.del(friendKey);
+      }
+    } catch {
+      // Non-fatal — friend presence just won't work until next login
+    }
 
     return { user: mappedUser, guilds, dms, readStates };
   }

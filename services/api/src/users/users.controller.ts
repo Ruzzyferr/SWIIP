@@ -42,6 +42,13 @@ export class UsersController {
     return this.usersService.updateProfile(user.userId, dto);
   }
 
+  @Delete('users/@me')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete (anonymize) current user account' })
+  async deleteMe(@CurrentUser() user: AuthUser) {
+    await this.usersService.deleteAccount(user.userId);
+  }
+
   @Get('users/@me/guilds')
   @ApiOperation({ summary: 'Get guilds current user is in' })
   async getMyGuilds(@CurrentUser() user: AuthUser) {

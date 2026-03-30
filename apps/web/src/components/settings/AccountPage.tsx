@@ -6,7 +6,7 @@ import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePresenceStore } from '@/stores/presence.store';
-import { updateProfile, uploadAvatar, uploadBanner } from '@/lib/api/users.api';
+import { updateProfile, uploadAvatar, uploadBanner, deleteAccount } from '@/lib/api/users.api';
 import { getGatewayClient } from '@/lib/gateway/GatewayClient';
 import { toastError } from '@/lib/toast';
 import { updateUserStatus } from '@/lib/presence';
@@ -153,6 +153,9 @@ export function AccountPage() {
   const getPresence = usePresenceStore((s) => s.getPresence);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [bannerUploading, setBannerUploading] = useState(false);
+  const [confirmDelete, setConfirmDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const logout = useAuthStore((s) => s.logout);
   const avatarInputRef = useRef<HTMLInputElement>(null);
   const bannerInputRef = useRef<HTMLInputElement>(null);
 
@@ -489,9 +492,39 @@ export function AccountPage() {
               Permanently delete your account and all data. This cannot be undone.
             </p>
           </div>
-          <Button variant="danger" size="sm">
-            Delete Account
-          </Button>
+          {!confirmDelete ? (
+            <Button variant="danger" size="sm" onClick={() => setConfirmDelete(true)}>
+              Delete Account
+            </Button>
+          ) : (
+            <div className="flex items-center gap-3">
+              <span className="text-xs font-medium" style={{ color: 'var(--color-danger, #ef4444)' }}>
+                Are you sure?
+              </span>
+              <Button
+                variant="danger"
+                size="sm"
+                disabled={deleting}
+                onClick={async () => {
+                  setDeleting(true);
+                  try {
+                    await deleteAccount();
+                    logout();
+                    window.location.href = '/';
+                  } catch (err: any) {
+                    toastError(err?.response?.data?.message ?? 'Failed to delete account');
+                    setDeleting(false);
+                    setConfirmDelete(false);
+                  }
+                }}
+              >
+                {deleting ? <Loader2 className="w-4 h-4 animate-spin" /> : 'Confirm'}
+              </Button>
+              <Button variant="ghost" size="sm" onClick={() => setConfirmDelete(false)}>
+                Cancel
+              </Button>
+            </div>
+          )}
         </div>
       </div>
     </div>

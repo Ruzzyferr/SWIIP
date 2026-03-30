@@ -98,7 +98,7 @@ export class DMsService {
     }
 
     // Create new DM conversation + a matching Channel record so messages/ack work
-    const conversation = await this.prisma.$transaction(async (tx) => {
+    const conversation = await this.prisma.$transaction(async (tx: any) => {
       const conv = await tx.dMConversation.create({
         data: {
           type: 'DM',
@@ -157,7 +157,7 @@ export class DMsService {
       throw new BadRequestException(`Group DMs are limited to ${this.MAX_GROUP_DM_MEMBERS} members`);
     }
 
-    const conversation = await this.prisma.$transaction(async (tx) => {
+    const conversation = await this.prisma.$transaction(async (tx: any) => {
       const conv = await tx.dMConversation.create({
         data: {
           type: 'GROUP_DM',

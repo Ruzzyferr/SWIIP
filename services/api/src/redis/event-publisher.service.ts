@@ -494,6 +494,43 @@ export class EventPublisherService implements OnModuleInit {
         user: payload.acceptedUser,
       },
     });
+
+    // Update friend sets in Redis so the gateway can broadcast presence to friends
+    const client = this.redis.getClient();
+    try {
+      await client.sadd(`swiip:user_friends:${payload.userId}`, payload.targetId);
+      await client.sadd(`swiip:user_friends:${payload.targetId}`, payload.userId);
+    } catch (err) {
+      this.logger.error('Failed to update friend sets in Redis', err);
+    }
+
+    // Send each user the other's current presence so they immediately see online status
+    try {
+      const [userPresence, targetPresence] = await Promise.all([
+        client.hgetall(`swiip:presence:${payload.userId}`),
+        client.hgetall(`swiip:presence:${payload.targetId}`),
+      ]);
+
+      if (targetPresence && targetPresence['status'] && targetPresence['status'] !== 'offline') {
+        await this.publishEvent(`user:${payload.userId}`, 'PRESENCE_UPDATE', {
+          userId: payload.targetId,
+          status: targetPresence['status'],
+          customStatus: targetPresence['customStatus'] || undefined,
+          activities: targetPresence['activities'] ? JSON.parse(targetPresence['activities']) : undefined,
+        }, { stream: false });
+      }
+
+      if (userPresence && userPresence['status'] && userPresence['status'] !== 'offline') {
+        await this.publishEvent(`user:${payload.targetId}`, 'PRESENCE_UPDATE', {
+          userId: payload.userId,
+          status: userPresence['status'],
+          customStatus: userPresence['customStatus'] || undefined,
+          activities: userPresence['activities'] ? JSON.parse(userPresence['activities']) : undefined,
+        }, { stream: false });
+      }
+    } catch (err) {
+      this.logger.error('Failed to sync presence on friend accept', err);
+    }
   }
 
   @OnEvent('relationship.removed')
@@ -510,6 +547,15 @@ export class EventPublisherService implements OnModuleInit {
       type: 'relationship_remove',
       targetUserId: payload.userId,
     });
+
+    // Remove from friend sets in Redis
+    try {
+      const client = this.redis.getClient();
+      await client.srem(`swiip:user_friends:${payload.userId}`, payload.targetId);
+      await client.srem(`swiip:user_friends:${payload.targetId}`, payload.userId);
+    } catch (err) {
+      this.logger.error('Failed to clean up friend sets in Redis', err);
+    }
   }
 
   // ---------------------------------------------------------------------------

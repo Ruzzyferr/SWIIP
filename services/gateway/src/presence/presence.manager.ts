@@ -75,6 +75,23 @@ export class PresenceManager {
         log.error({ err, guildId, userId }, 'Failed to publish presence update'),
       ),
     );
+
+    // Also broadcast to friends (so friends not in the same guild see status changes)
+    try {
+      const friendIds = await this.redis.smembers(`swiip:user_friends:${userId}`);
+      if (friendIds.length > 0) {
+        for (const friendId of friendIds) {
+          broadcastPromises.push(
+            this.pubsub.publish(`user:${friendId}`, event).catch((err) =>
+              log.error({ err, friendId, userId }, 'Failed to publish presence to friend'),
+            ),
+          );
+        }
+      }
+    } catch (err) {
+      log.error({ err, userId }, 'Failed to read friend list for presence broadcast');
+    }
+
     await Promise.all(broadcastPromises);
   }
 

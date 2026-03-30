@@ -32,6 +32,10 @@ export async function uploadAvatar(file: File): Promise<UploadResult> {
   return res.data;
 }
 
+export async function deleteAccount(): Promise<void> {
+  await apiClient.delete('/users/@me');
+}
+
 export async function uploadBanner(file: File): Promise<UploadResult> {
   const form = new FormData();
   form.append('file', file);

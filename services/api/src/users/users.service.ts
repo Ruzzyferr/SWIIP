@@ -53,6 +53,55 @@ export class UsersService {
     createdAt: true,
   };
 
+  async deleteAccount(userId: string): Promise<void> {
+    const user = await this.prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new NotFoundException('User not found');
+
+    // Anonymize the user record instead of hard-deleting so message history is preserved
+    const deletedTag = `deleted_user_${userId.slice(0, 8)}`;
+    await this.prisma.$transaction(async (tx: any) => {
+      // Remove all sessions
+      await tx.session.deleteMany({ where: { userId } });
+
+      // Remove presence
+      await tx.presenceState.deleteMany({ where: { userId } });
+
+      // Remove relationships (friends, blocks, pending)
+      await tx.userRelationship.deleteMany({
+        where: { OR: [{ userId }, { targetId: userId }] },
+      });
+
+      // Remove DM participations
+      await tx.dMParticipant.deleteMany({ where: { userId } });
+
+      // Remove guild memberships
+      await tx.guildMember.deleteMany({ where: { userId } });
+
+      // Anonymize user record
+      await tx.user.update({
+        where: { id: userId },
+        data: {
+          username: deletedTag,
+          globalName: 'Deleted User',
+          email: `${deletedTag}@deleted.local`,
+          passwordHash: '',
+          avatarId: null,
+          bannerId: null,
+          bio: null,
+          mfaEnabled: false,
+          mfaSecret: null,
+          backupCodes: [],
+          verified: false,
+        },
+      });
+    });
+
+    // Clean up Redis presence
+    await this.redis.del(`presence:${userId}`);
+
+    this.eventEmitter.emit('user.deleted', { userId });
+  }
+
   async findByIdPublic(id: string) {
     const user = await this.prisma.user.findUnique({
       where: { id },
