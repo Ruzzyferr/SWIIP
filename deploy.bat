@@ -78,8 +78,18 @@ docker build -f apps/web/Dockerfile ^
   --target builder ^
   -t swiip-web-builder .
 if errorlevel 1 (
-    echo [!] Docker web build failed.
-    goto desktop_fail
+    echo [!] Docker web build failed. Pruning build cache and retrying...
+    docker builder prune -f >nul 2>&1
+    docker build -f apps/web/Dockerfile ^
+      --build-arg NEXT_PUBLIC_API_URL=https://swiip.app/api ^
+      --build-arg NEXT_PUBLIC_GATEWAY_URL=wss://swiip.app/gateway ^
+      --build-arg NEXT_PUBLIC_CDN_URL=https://constchat.fra1.cdn.digitaloceanspaces.com ^
+      --target builder ^
+      -t swiip-web-builder .
+    if errorlevel 1 (
+        echo [!] Docker web build failed after cache prune.
+        goto desktop_fail
+    )
 )
 
 :: Extract standalone output from Docker builder stage
@@ -238,8 +248,8 @@ echo.
 
 echo [*] Waiting for GitHub Actions to pick up the push...
 echo     Commit: !COMMIT_SHA!
-echo     Giving GitHub 10s to register the push event...
-timeout /t 10 /nobreak >nul
+echo     Giving GitHub 5s to register the push event...
+timeout /t 5 /nobreak >nul
 
 set WAIT_TRIES=0
 
@@ -251,6 +261,7 @@ if !WAIT_TRIES! GEQ 24 (
     exit /b 1
 )
 set /a WAIT_TRIES+=1
+echo     Checking for workflows... (attempt !WAIT_TRIES!/24)
 timeout /t 5 /nobreak >nul
 
 :: Find ALL workflow runs for this commit (deploy.yml + ci.yml + desktop-release.yml)
@@ -258,7 +269,7 @@ set FOUND_RUNS=0
 for /f "tokens=*" %%i in ('gh run list --commit !COMMIT_SHA! --json databaseId --jq ".[].databaseId" 2^>nul') do set /a FOUND_RUNS+=1
 
 if !FOUND_RUNS! EQU 0 (
-    echo     ...no workflows found yet for commit !COMMIT_SHA! (attempt !WAIT_TRIES!/24)
+    echo     ...no workflows registered yet, retrying...
     goto ci_poll_start
 )
 
@@ -283,7 +294,7 @@ for /f "tokens=*" %%i in ('gh run list --commit !COMMIT_SHA! --json databaseId,n
         set "CUR_WF_NAME=%%y"
     )
 
-    echo   --- !CUR_WF_NAME! ---
+    echo   --- Run #!CUR_RUN_ID! ---
 
     :: Get all jobs for this run
     for /f "tokens=1,2,3 delims=	" %%a in ('gh run view !CUR_RUN_ID! --json jobs --jq ".jobs[] | [.name, .status, .conclusion] | @tsv" 2^>nul') do (
