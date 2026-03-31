@@ -118,7 +118,7 @@ const apiConfigSchema = z.object({
    * Allowed CORS origin(s). Accepts a single origin string or a
    * comma-separated list, e.g. "https://swiip.app,https://www.swiip.app".
    */
-  CORS_ORIGIN: z.string().default('*'),
+  CORS_ORIGIN: z.string().min(1),
 
   /** Maximum file upload size in megabytes. */
   MAX_UPLOAD_SIZE_MB: z
@@ -259,7 +259,7 @@ const mediaSignallingConfigSchema = z.object({
   TURN_USERNAME: z.string().optional(),
   TURN_CREDENTIAL: z.string().optional(),
 
-  CORS_ORIGIN: z.string().default('*'),
+  CORS_ORIGIN: z.string().min(1),
 
   NODE_ENV: nodeEnvSchema,
   LOG_LEVEL: logLevelSchema,

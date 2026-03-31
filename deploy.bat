@@ -174,8 +174,17 @@ echo [OK] Committed: !COMMIT_MSG!
 
 :do_push
 echo [*] Pushing to origin/master...
-git --no-pager push origin master
+git --no-pager push origin master 2>&1
 if errorlevel 1 goto push_fail
+
+:: Check if push actually sent new commits or was already up-to-date
+git --no-pager log origin/master..HEAD --oneline 2>nul | findstr /r "." >nul 2>&1
+if not errorlevel 1 (
+    echo [!] Push succeeded but local commits still ahead — unexpected state.
+    echo     Check your remote manually.
+    pause
+    exit /b 1
+)
 echo [OK] Push successful
 goto wait_ci
 
@@ -193,40 +202,150 @@ echo ============================================================
 echo   STEP: CI/CD Pipeline (GitHub Actions)
 echo ============================================================
 echo.
-echo [*] Waiting for GitHub Actions to start...
-timeout /t 5 /nobreak >nul
 
-:: Get the latest workflow run
-for /f "tokens=1" %%i in ('gh run list --workflow "Build & Deploy" --limit 1 --json databaseId --jq ".[0].databaseId" 2^>nul') do set RUN_ID=%%i
+:: Give GitHub a moment to register the push event
+echo [*] Waiting for GitHub Actions to pick up the push...
+set FOUND_RUN=0
+set WAIT_TRIES=0
 
-if not defined RUN_ID (
-    echo [!] Could not find workflow run. Check manually:
-    echo     https://github.com/Ruzzyferr/ConstChat/actions
+:ci_poll_start
+if !WAIT_TRIES! GEQ 12 (
+    echo [!] Timed out waiting for workflow to start after 60s.
+    echo     Check manually: https://github.com/Ruzzyferr/ConstChat/actions
     pause
     exit /b 1
 )
+set /a WAIT_TRIES+=1
+timeout /t 5 /nobreak >nul
 
-echo [*] Watching workflow run #!RUN_ID!...
+:: Get the latest "Build & Deploy" run
+set RUN_ID=
+for /f "tokens=1" %%i in ('gh run list --workflow "Build ^& Deploy" --limit 1 --json databaseId --jq ".[0].databaseId" 2^>nul') do set RUN_ID=%%i
+
+if not defined RUN_ID (
+    echo     ...no workflow found yet (attempt !WAIT_TRIES!/12)
+    goto ci_poll_start
+)
+
+:: Check that this run was triggered recently (within last 2 minutes)
+set RUN_STATUS=
+for /f "tokens=*" %%s in ('gh run view !RUN_ID! --json status --jq ".status" 2^>nul') do set RUN_STATUS=%%s
+
+if "!RUN_STATUS!"=="completed" (
+    :: If the latest run is already completed, it might be from a previous push
+    :: Wait a bit more for the new one to appear
+    if !WAIT_TRIES! LSS 6 (
+        echo     ...latest run already completed, waiting for new run (attempt !WAIT_TRIES!/12)
+        goto ci_poll_start
+    )
+)
+
+echo [OK] Found workflow run #!RUN_ID! (status: !RUN_STATUS!)
 echo     https://github.com/Ruzzyferr/ConstChat/actions/runs/!RUN_ID!
 echo.
-gh run watch !RUN_ID! --exit-status
-if errorlevel 1 goto ci_fail
+
+:: ── Watch individual build jobs ──────────────────────────────
+echo ============================================================
+echo   Monitoring Build Jobs
+echo ============================================================
+echo.
+
+:ci_watch_loop
+set ALL_DONE=1
+set ANY_FAILED=0
+set STATUS_LINE=
+
+:: Get all jobs and their statuses
+for /f "tokens=1,2,3 delims=	" %%a in ('gh run view !RUN_ID! --json jobs --jq ".jobs[] | [.name, .status, .conclusion] | @tsv" 2^>nul') do (
+    set "JOB_NAME=%%a"
+    set "JOB_STATUS=%%b"
+    set "JOB_CONCLUSION=%%c"
+
+    if "!JOB_STATUS!"=="completed" (
+        if "!JOB_CONCLUSION!"=="success" (
+            echo     [OK] !JOB_NAME!
+        ) else if "!JOB_CONCLUSION!"=="failure" (
+            echo     [!!] !JOB_NAME! — FAILED
+            set ANY_FAILED=1
+        ) else if "!JOB_CONCLUSION!"=="cancelled" (
+            echo     [--] !JOB_NAME! — cancelled
+        ) else (
+            echo     [??] !JOB_NAME! — !JOB_CONCLUSION!
+        )
+    ) else if "!JOB_STATUS!"=="in_progress" (
+        echo     [..] !JOB_NAME! — running...
+        set ALL_DONE=0
+    ) else if "!JOB_STATUS!"=="queued" (
+        echo     [  ] !JOB_NAME! — queued
+        set ALL_DONE=0
+    ) else (
+        echo     [  ] !JOB_NAME! — !JOB_STATUS!
+        set ALL_DONE=0
+    )
+)
+
+if !ANY_FAILED!==1 goto ci_fail
+
+if !ALL_DONE!==1 goto ci_done
+
+echo.
+echo     Refreshing in 10s...
+echo.
+timeout /t 10 /nobreak >nul
+goto ci_watch_loop
+
+:ci_done
+:: Final check — get overall run conclusion
+set RUN_CONCLUSION=
+for /f "tokens=*" %%s in ('gh run view !RUN_ID! --json conclusion --jq ".conclusion" 2^>nul') do set RUN_CONCLUSION=%%s
+
+if "!RUN_CONCLUSION!"=="failure" goto ci_fail
 
 echo.
 echo ============================================================
 echo   DEPLOY COMPLETE
 echo ============================================================
 echo.
+echo   All jobs passed. Your changes are live!
+echo.
 echo   Server: 209.38.205.251
 echo   URL:    https://swiip.app
+echo.
+echo   Run:    https://github.com/Ruzzyferr/ConstChat/actions/runs/!RUN_ID!
 echo.
 pause
 exit /b 0
 
 :ci_fail
 echo.
-echo [!] CI/CD pipeline failed! Check the logs:
-echo     https://github.com/Ruzzyferr/ConstChat/actions/runs/!RUN_ID!
+echo ============================================================
+echo   DEPLOY FAILED
+echo ============================================================
+echo.
+echo   One or more jobs failed. Check the logs:
+echo   https://github.com/Ruzzyferr/ConstChat/actions/runs/!RUN_ID!
+echo.
+
+:: Show which jobs failed
+echo   Failed jobs:
+for /f "tokens=1,2,3 delims=	" %%a in ('gh run view !RUN_ID! --json jobs --jq ".jobs[] | select(.conclusion==\"failure\") | [.name, .status, .conclusion] | @tsv" 2^>nul') do (
+    echo     - %%a
+)
+echo.
+
+set /p RETRY="  Retry deploy? [y/N]: "
+if /i "!RETRY!"=="y" (
+    echo [*] Re-running failed jobs...
+    gh run rerun !RUN_ID! --failed 2>nul
+    if errorlevel 1 (
+        echo [*] Rerun command failed, triggering full re-run...
+        gh run rerun !RUN_ID! 2>nul
+    )
+    echo [OK] Re-run triggered, watching again...
+    echo.
+    timeout /t 5 /nobreak >nul
+    goto ci_watch_loop
+)
 pause
 exit /b 1
 
@@ -240,29 +359,68 @@ echo   STEP: Redeploy Server
 echo ============================================================
 echo.
 
+echo [*] Connecting to server...
+ssh -o ConnectTimeout=10 %SERVER% "echo ok" >nul 2>&1
+if errorlevel 1 (
+    echo [!] Cannot connect to server %SERVER%
+    echo     Check your SSH key and network connection.
+    pause
+    exit /b 1
+)
+echo [OK] Server connection established
+
 echo [*] Logging into GHCR on server...
 ssh %SERVER% "echo $GITHUB_TOKEN | docker login ghcr.io -u Ruzzyferr --password-stdin 2>/dev/null || echo 'GHCR login failed — set GITHUB_TOKEN on server'"
 
 echo [*] Pulling latest code...
-ssh %SERVER% "cd %REPO_DIR% && git pull origin master"
+ssh %SERVER% "cd %REPO_DIR% && git checkout -- . && git pull origin master 2>&1"
+if errorlevel 1 (
+    echo [!] Git pull failed on server.
+    pause
+    exit /b 1
+)
+echo [OK] Code updated
 
 echo [*] Pulling latest images from GHCR...
 ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% pull api gateway web workers media-signalling 2>&1"
 if errorlevel 1 goto deploy_fail
+echo [OK] Images pulled
 
 echo [*] Running Prisma migrations...
 ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% run --rm api migrate 2>&1 || echo 'Migration skipped'"
+echo [OK] Migrations done
 
 echo.
 echo [*] Restarting services...
 ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% --profile voice up -d api gateway web workers media-signalling 2>&1"
 if errorlevel 1 goto deploy_fail
+echo [OK] Services restarted
 
 echo.
-echo [*] Waiting 30s for services to start...
-timeout /t 30 /nobreak >nul
+echo [*] Waiting 15s for services to initialize...
+timeout /t 15 /nobreak >nul
 
-ssh %SERVER% "docker ps --format 'table {{.Names}}\t{{.Status}}'"
+echo.
+echo   Service Status:
+echo   ─────────────────────────────────────────────
+ssh %SERVER% "docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}'" 2>nul
+echo.
+
+:: Health check
+echo [*] Running health check...
+set HEALTH_OK=1
+ssh %SERVER% "curl -sf -o /dev/null -w '%%{http_code}' http://localhost:3000/ 2>/dev/null || echo 'FAIL'" > "%TEMP%\swiip_health.txt" 2>nul
+set /p HEALTH_RESULT=<"%TEMP%\swiip_health.txt"
+del "%TEMP%\swiip_health.txt" 2>nul
+
+if "!HEALTH_RESULT!"=="FAIL" (
+    echo [!] Web service health check FAILED
+    echo     Services may still be starting. Check manually:
+    echo     ssh %SERVER% "docker logs constchat-web-1 --tail 20"
+    set HEALTH_OK=0
+) else (
+    echo [OK] Web service responding (HTTP !HEALTH_RESULT!)
+)
 
 echo.
 echo [*] Cleaning up old images...
@@ -270,7 +428,11 @@ ssh %SERVER% "docker image prune -f --filter until=24h > /dev/null 2>&1"
 
 echo.
 echo ============================================================
-echo   REDEPLOY COMPLETE
+if !HEALTH_OK!==1 (
+    echo   REDEPLOY COMPLETE — All services healthy
+) else (
+    echo   REDEPLOY COMPLETE — Some services may need attention
+)
 echo ============================================================
 echo.
 echo   Server: 209.38.205.251
@@ -281,5 +443,9 @@ exit /b 0
 
 :deploy_fail
 echo [!] Deploy failed! Check errors above.
+echo.
+echo   Checking current service status...
+ssh %SERVER% "docker ps --format 'table {{.Names}}\t{{.Status}}'" 2>nul
+echo.
 pause
 exit /b 1

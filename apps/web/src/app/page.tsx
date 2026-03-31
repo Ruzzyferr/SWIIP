@@ -39,7 +39,8 @@ export default function LandingPage() {
   const token = useAuthStore((s) => s.accessToken);
   const [mounted, setMounted] = useState(false);
 
-  const { scrollYProgress } = useScroll();
+  const scrollRef = useRef<HTMLDivElement>(null!);
+  const { scrollYProgress } = useScroll({ container: scrollRef });
   const heroOpacity = useTransform(scrollYProgress, [0, 0.18], [1, 0]);
   const heroScale = useTransform(scrollYProgress, [0, 0.18], [1, 0.96]);
 
@@ -66,7 +67,7 @@ export default function LandingPage() {
   ];
 
   return (
-    <div className="min-h-screen overflow-y-auto" style={{ background: 'var(--color-surface-base)' }}>
+    <div ref={scrollRef} className="h-screen overflow-y-auto" style={{ background: 'var(--color-surface-base)' }}>
       <ParticleBackground />
 
       {/* ---- Navigation ---- */}
@@ -118,7 +119,7 @@ export default function LandingPage() {
 
       {/* ---- Hero ---- */}
       <motion.section
-        className="relative pt-32 pb-20 px-6 lg:px-8 overflow-hidden"
+        className="relative pt-20 sm:pt-32 pb-10 sm:pb-20 px-6 lg:px-8 overflow-hidden"
         style={{ zIndex: 1, opacity: heroOpacity, scale: heroScale }}
       >
         <div className="relative max-w-5xl mx-auto">
@@ -144,7 +145,7 @@ export default function LandingPage() {
 
               {/* Headline */}
               <div
-                className="font-extrabold leading-[1.05] mb-6"
+                className="font-extrabold leading-[1.05] mb-4 sm:mb-6"
                 style={{
                   fontSize: 'clamp(36px, 5vw, 56px)',
                   letterSpacing: '-0.04em',
@@ -156,7 +157,7 @@ export default function LandingPage() {
 
               {/* Subtitle */}
               <div
-                className="text-base lg:text-lg max-w-md mb-10 leading-relaxed"
+                className="text-base lg:text-lg max-w-md mb-6 sm:mb-10 leading-relaxed"
                 style={{ color: 'var(--color-text-secondary)' }}
               >
                 <WordStagger text={t('hero.subtitle')} delay={0.8} />
@@ -403,7 +404,7 @@ export default function LandingPage() {
           <div className="grid grid-cols-3 gap-6">
             {[
               { value: '50ms', label: 'Latency' },
-              { value: 'E2E', label: 'Encryption' },
+              { value: 'TLS', label: 'Encrypted' },
               { value: '\u221E', label: 'Channels' },
             ].map((stat, i) => (
               <motion.div

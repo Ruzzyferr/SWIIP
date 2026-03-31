@@ -21,6 +21,7 @@
     "@aws-sdk/s3-request-presigner": "^3.1019.0",
     "@constchat/config": "workspace:*",
     "@fastify/cookie": "^9.4.0",
+    "@fastify/helmet": "^11.1.1",
     "@fastify/static": "^7.0.4",
     "@nestjs/common": "^10.3",
     "@nestjs/config": "^3.2",

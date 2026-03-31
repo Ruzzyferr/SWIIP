@@ -1,6 +1,8 @@
 import { Module } from '@nestjs/common';
+import { APP_GUARD } from '@nestjs/core';
 import { ConfigModule } from '@nestjs/config';
 import { ThrottlerModule } from '@nestjs/throttler';
+import { FastifyThrottlerGuard } from './common/guards/fastify-throttler.guard';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { PrismaModule } from './prisma/prisma.module';
 import { RedisModule } from './redis/redis.module';
@@ -58,6 +60,12 @@ import { EmailModule } from './email/email.module';
     InternalModule,
     HealthModule,
     EmailModule,
+  ],
+  providers: [
+    {
+      provide: APP_GUARD,
+      useClass: FastifyThrottlerGuard,
+    },
   ],
 })
 export class AppModule {}

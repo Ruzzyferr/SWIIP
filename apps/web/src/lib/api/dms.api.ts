@@ -34,7 +34,7 @@ export async function createGroupDM(data: CreateGroupDMRequest): Promise<DMChann
 }
 
 export async function getDMChannel(conversationId: string): Promise<DMChannelPayload> {
-  const res = await apiClient.get<DMChannelPayload>(`/channels/${conversationId}`);
+  const res = await apiClient.get<DMChannelPayload>(`/users/@me/conversations/${conversationId}`);
   return res.data;
 }
 

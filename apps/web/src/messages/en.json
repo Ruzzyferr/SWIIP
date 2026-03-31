@@ -427,7 +427,7 @@
       },
       "security": {
         "title": "Secure Communication",
-        "description": "End-to-end encryption and two-factor authentication"
+        "description": "TLS encryption, two-factor authentication, and session security"
       },
       "community": {
         "title": "Community Tools",

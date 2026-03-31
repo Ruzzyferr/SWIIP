@@ -427,7 +427,7 @@
       },
       "security": {
         "title": "Güvenli İletişim",
-        "description": "Uçtan uca şifreleme ve iki faktörlü kimlik doğrulama"
+        "description": "TLS şifreleme, iki faktörlü kimlik doğrulama ve oturum güvenliği"
       },
       "community": {
         "title": "Topluluk Araçları",

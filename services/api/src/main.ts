@@ -6,6 +6,7 @@ import { SwaggerModule, DocumentBuilder } from '@nestjs/swagger';
 import { AppModule } from './app.module';
 import { parseApiConfig } from '@constchat/config';
 import fastifyCookie from '@fastify/cookie';
+import helmet from '@fastify/helmet';
 
 // BigInt fields (e.g. permissions flags) must be serializable to JSON
 (BigInt.prototype as any).toJSON = function () { return this.toString(); };
@@ -30,6 +31,21 @@ async function bootstrap() {
   );
 
   await app.register(fastifyCookie as any);
+
+  await app.register(helmet as any, {
+    contentSecurityPolicy: config.NODE_ENV === 'production' ? {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'blob:', 'https:'],
+        connectSrc: ["'self'", 'ws:', 'wss:'],
+        fontSrc: ["'self'"],
+        objectSrc: ["'none'"],
+        frameAncestors: ["'none'"],
+      },
+    } : false,
+  });
 
   app.enableCors({
     origin: config.CORS_ORIGIN.split(','),

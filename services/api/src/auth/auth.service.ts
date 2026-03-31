@@ -45,6 +45,8 @@ export class AuthService {
   private readonly EMAIL_VERIFY_MAX_ATTEMPTS = 5;
   private readonly EMAIL_RESEND_COOLDOWN = 60; // 60 seconds
   private readonly PASSWORD_RESET_TTL = 60 * 60; // 1 hour
+  private readonly LOGIN_MAX_ATTEMPTS = 5;
+  private readonly LOGIN_LOCKOUT_SECONDS = 60 * 15; // 15 minutes
 
   constructor(
     private readonly prisma: PrismaService,
@@ -137,6 +139,29 @@ export class AuthService {
     return { user, tokens, sessionId: session.id };
   }
 
+  private loginAttemptsKey(email: string): string {
+    return `auth:login:attempts:${email.toLowerCase()}`;
+  }
+
+  private async checkLoginLockout(email: string): Promise<void> {
+    const current = await this.redis.get(this.loginAttemptsKey(email));
+    if (current && parseInt(current, 10) >= this.LOGIN_MAX_ATTEMPTS) {
+      throw new UnauthorizedException(`Too many failed login attempts. Please try again in ${this.LOGIN_LOCKOUT_SECONDS / 60} minutes.`);
+    }
+  }
+
+  private async recordFailedLogin(email: string): Promise<void> {
+    await this.redis.checkAttempts(
+      this.loginAttemptsKey(email),
+      this.LOGIN_MAX_ATTEMPTS,
+      this.LOGIN_LOCKOUT_SECONDS,
+    );
+  }
+
+  private async clearLoginAttempts(email: string): Promise<void> {
+    await this.redis.del(this.loginAttemptsKey(email));
+  }
+
   async login(
     email: string,
     password: string,
@@ -149,7 +174,17 @@ export class AuthService {
       userAgent?: string;
     },
   ): Promise<{ user: any; tokens: TokenPair; sessionId: string }> {
-    const user = await this.validateUser(email, password);
+    await this.checkLoginLockout(email);
+
+    let user: any;
+    try {
+      user = await this.validateUser(email, password);
+    } catch (err) {
+      await this.recordFailedLogin(email);
+      throw err;
+    }
+
+    await this.clearLoginAttempts(email);
 
     if (user.mfaEnabled) {
       if (!mfaCode) {
@@ -351,18 +386,16 @@ export class AuthService {
       throw new BadRequestException('No verification code found. Please request a new one.');
     }
 
-    const attempts = parseInt(await this.redis.get(`email:verify:attempts:${userId}`) || '0', 10);
-    if (attempts >= this.EMAIL_VERIFY_MAX_ATTEMPTS) {
+    const { allowed } = await this.redis.checkAttempts(
+      `email:verify:attempts:${userId}`,
+      this.EMAIL_VERIFY_MAX_ATTEMPTS,
+      this.EMAIL_VERIFY_TTL,
+    );
+    if (!allowed) {
       await this.redis.del(`email:verify:code:${userId}`);
       await this.redis.del(`email:verify:attempts:${userId}`);
       throw new BadRequestException('Too many attempts. Please request a new code.');
     }
-
-    await this.redis.setex(
-      `email:verify:attempts:${userId}`,
-      this.EMAIL_VERIFY_TTL,
-      String(attempts + 1),
-    );
 
     if (code !== storedCode) {
       throw new BadRequestException('Invalid verification code');

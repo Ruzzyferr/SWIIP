@@ -167,6 +167,23 @@ export class RedisService implements OnModuleInit, OnModuleDestroy {
     return this.client.incrby(key, increment);
   }
 
+  /**
+   * Atomically increment an attempt counter. Sets a TTL on the first increment
+   * so the window is anchored to the first attempt (race-safe via INCR).
+   * Returns whether the action is allowed and the current attempt count.
+   */
+  async checkAttempts(
+    key: string,
+    maxAttempts: number,
+    windowSeconds: number,
+  ): Promise<{ allowed: boolean; count: number }> {
+    const count = await this.client.incr(key);
+    if (count === 1) {
+      await this.client.expire(key, windowSeconds);
+    }
+    return { allowed: count <= maxAttempts, count };
+  }
+
   async keys(pattern: string): Promise<string[]> {
     return this.client.keys(pattern);
   }

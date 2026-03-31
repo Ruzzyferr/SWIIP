@@ -20,6 +20,7 @@ import {
 import { AuthService } from './auth.service';
 import { ConfigService } from '@nestjs/config';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
+import { Throttle } from '@nestjs/throttler';
 import { CurrentUser } from './decorators/current-user.decorator';
 import { Public } from './decorators/public.decorator';
 import { AuthUser } from './auth.service';
@@ -33,6 +34,9 @@ import {
   EnableMFADto,
   DisableMFADto,
 } from './dto/auth.dto';
+
+const AUTH_THROTTLE = { default: { ttl: 60000, limit: 5 } } as const;
+const AUTH_THROTTLE_STRICT = { default: { ttl: 60000, limit: 3 } } as const;
 
 @ApiTags('Auth')
 @Controller('auth')
@@ -89,6 +93,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle(AUTH_THROTTLE)
   @Post('register')
   @HttpCode(HttpStatus.CREATED)
   @ApiOperation({ summary: 'Register a new account' })
@@ -105,6 +110,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle(AUTH_THROTTLE)
   @Post('login')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Login with email and password' })
@@ -156,6 +162,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle(AUTH_THROTTLE_STRICT)
   @Post('forgot-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Request password reset email' })
@@ -165,6 +172,7 @@ export class AuthController {
   }
 
   @Public()
+  @Throttle(AUTH_THROTTLE)
   @Post('reset-password')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Reset password with token' })
