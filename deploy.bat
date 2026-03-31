@@ -143,6 +143,20 @@ cd /d "%~dp0"
 
 echo.
 echo ============================================================
+echo   STEP: Update Lockfile
+echo ============================================================
+echo.
+echo [*] Running pnpm install to sync lockfile...
+call pnpm install --no-frozen-lockfile >nul 2>&1
+if errorlevel 1 (
+    echo [!] pnpm install failed. Check errors above.
+    pause
+    exit /b 1
+)
+echo [OK] Lockfile up to date
+
+echo.
+echo ============================================================
 echo   STEP: Git Push
 echo ============================================================
 echo.
