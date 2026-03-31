@@ -27,12 +27,8 @@ COPY services/workers ./services/workers
 
 RUN pnpm --filter @constchat/protocol build
 RUN pnpm --filter @constchat/config build
-RUN pnpm --filter @constchat/workers build
-
-# Workers uses Prisma client — generate it while devDependencies are available
-# Prisma schema lives in services/api but workers references @prisma/client
 COPY services/api/prisma ./services/workers/prisma
-RUN cd services/workers && npx prisma generate --schema=prisma/schema.prisma
+RUN pnpm --filter @constchat/workers build
 
 # Find where Prisma client was actually generated (pnpm hoisting may vary)
 RUN PRISMA_DIR=$(find /app -path "*/node_modules/.prisma/client" -type d | head -1) && \

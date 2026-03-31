@@ -29,9 +29,6 @@ RUN pnpm --filter @constchat/protocol build
 RUN pnpm --filter @constchat/config build
 RUN pnpm --filter @constchat/api build
 
-# Generate Prisma client while devDependencies (prisma CLI) are still available
-RUN cd services/api && npx prisma generate
-
 # Create flat deployment with resolved node_modules (no pnpm symlinks)
 RUN pnpm --filter @constchat/api deploy --prod /app/deploy
 # Copy built artifacts and prisma schema into deploy dir
