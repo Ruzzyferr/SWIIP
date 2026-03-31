@@ -52,3 +52,30 @@ export class SearchController {
     return this.search.searchUsers(guildId, q, Number(limit));
   }
 }
+
+@ApiTags('Search')
+@ApiBearerAuth()
+@UseGuards(JwtAuthGuard)
+@Controller('channels/:channelId/search')
+export class ChannelSearchController {
+  constructor(private readonly search: SearchService) {}
+
+  @Get('messages')
+  @ApiOperation({ summary: 'Search messages in a channel (DM or guild channel)' })
+  async searchMessages(
+    @Param('channelId') channelId: string,
+    @Query() query: SearchMessagesQuery,
+  ) {
+    return this.search.searchChannelMessages(
+      channelId,
+      query.q,
+      {
+        authorId: query.from,
+        before: query.before,
+        after: query.after,
+      },
+      query.limit ?? 25,
+      query.offset ?? 0,
+    );
+  }
+}

@@ -1,6 +1,6 @@
 import { create } from 'zustand';
 import { immer } from 'zustand/middleware/immer';
-import type { MessagePayload } from '@constchat/protocol';
+import type { MessagePayload, EmojiRef } from '@constchat/protocol';
 
 interface ChannelMessages {
   messages: MessagePayload[];
@@ -26,6 +26,8 @@ interface MessagesState {
     partial: Partial<MessagePayload>
   ) => void;
   removeMessage: (channelId: string, messageId: string) => void;
+  addReactionToMessage: (channelId: string, messageId: string, emoji: EmojiRef, userId: string, currentUserId?: string) => void;
+  removeReactionFromMessage: (channelId: string, messageId: string, emoji: EmojiRef, userId: string, currentUserId?: string) => void;
   setLoading: (channelId: string, loading: boolean) => void;
   setHasMore: (channelId: string, hasMore: boolean) => void;
   setLastRead: (channelId: string, messageId: string) => void;
@@ -136,6 +138,46 @@ export const useMessagesStore = create<MessagesState>()(
         const ch = state.channels[channelId];
         if (!ch) return;
         ch.messages = ch.messages.filter((m) => m.id !== messageId);
+      }),
+
+    addReactionToMessage: (channelId, messageId, emoji, userId, currentUserId) =>
+      set((state) => {
+        const ch = state.channels[channelId];
+        if (!ch) return;
+        const msg = ch.messages.find((m) => m.id === messageId);
+        if (!msg) return;
+        if (!msg.reactions) msg.reactions = [];
+        const existing = msg.reactions.find(
+          (r) => r.emoji.name === emoji.name && (r.emoji.id ?? null) === (emoji.id ?? null)
+        );
+        if (existing) {
+          existing.count += 1;
+          if (userId === currentUserId) existing.me = true;
+        } else {
+          msg.reactions.push({
+            emoji,
+            count: 1,
+            me: userId === currentUserId,
+          });
+        }
+      }),
+
+    removeReactionFromMessage: (channelId, messageId, emoji, userId, currentUserId) =>
+      set((state) => {
+        const ch = state.channels[channelId];
+        if (!ch) return;
+        const msg = ch.messages.find((m) => m.id === messageId);
+        if (!msg || !msg.reactions) return;
+        const idx = msg.reactions.findIndex(
+          (r) => r.emoji.name === emoji.name && (r.emoji.id ?? null) === (emoji.id ?? null)
+        );
+        if (idx === -1) return;
+        const reaction = msg.reactions[idx]!;
+        reaction.count -= 1;
+        if (userId === currentUserId) reaction.me = false;
+        if (reaction.count <= 0) {
+          msg.reactions.splice(idx, 1);
+        }
       }),
 
     setLoading: (channelId, loading) =>

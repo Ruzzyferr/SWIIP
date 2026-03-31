@@ -7,7 +7,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Search, X, Hash, Loader2 } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Avatar } from '@/components/ui/Avatar';
-import { searchMessages, parseSearchQuery } from '@/lib/api/messages.api';
+import { searchMessages, searchChannelMessages, parseSearchQuery } from '@/lib/api/messages.api';
 import { useUIStore } from '@/stores/ui.store';
 import type { MessagePayload } from '@constchat/protocol';
 
@@ -20,6 +20,8 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
   const activeGuildId = useUIStore((s) => s.activeGuildId);
+  const activeChannelId = useUIStore((s) => s.activeChannelId);
+  const isDMMode = !activeGuildId || activeGuildId === '@me' || activeGuildId === 'me';
 
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<MessagePayload[]>([]);
@@ -53,7 +55,17 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
 
   // Debounced search
   useEffect(() => {
-    if (!query.trim() || !activeGuildId || activeGuildId === '@me' || activeGuildId === 'me') {
+    if (!query.trim()) {
+      setResults([]);
+      return;
+    }
+
+    // Need either a guild or a DM channel to search in
+    if (!isDMMode && !activeGuildId) {
+      setResults([]);
+      return;
+    }
+    if (isDMMode && !activeChannelId) {
       setResults([]);
       return;
     }
@@ -63,12 +75,22 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
       setLoading(true);
       try {
         const { text, authorId, before, after, has, channelId } = parseSearchQuery(query.trim());
-        const res = await searchMessages(activeGuildId, text || query.trim(), channelId, {
-          authorId,
-          before,
-          after,
-          has,
-        });
+        let res: MessagePayload[];
+        if (isDMMode && activeChannelId) {
+          res = await searchChannelMessages(activeChannelId, text || query.trim(), {
+            authorId,
+            before,
+            after,
+            has,
+          });
+        } else {
+          res = await searchMessages(activeGuildId!, text || query.trim(), channelId, {
+            authorId,
+            before,
+            after,
+            has,
+          });
+        }
         setResults(res);
         setSelectedIndex(0);
       } catch {
@@ -79,7 +101,7 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
     }, 300);
 
     return () => clearTimeout(debounceRef.current);
-  }, [query, activeGuildId]);
+  }, [query, activeGuildId, activeChannelId, isDMMode]);
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -94,8 +116,9 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
       } else if (e.key === 'Enter' && results[selectedIndex]) {
         const msg = results[selectedIndex];
         const channelId = (msg as any).channelId ?? '';
-        if (channelId && activeGuildId) {
-          router.push(`/channels/${activeGuildId}/${channelId}`);
+        if (channelId) {
+          const base = isDMMode ? '/channels/@me' : `/channels/${activeGuildId}`;
+          router.push(`${base}/${channelId}`);
           onClose();
         }
       }
@@ -139,7 +162,7 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
               ref={inputRef}
               value={query}
               onChange={(e) => setQuery(e.target.value)}
-              placeholder="Search messages..."
+              placeholder={isDMMode ? 'Search in conversation...' : 'Search messages...'}
               className="flex-1 bg-transparent text-sm outline-none"
               style={{ color: 'var(--color-text-primary)' }}
               autoFocus
@@ -174,8 +197,9 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
                   key={msg.id}
                   onClick={() => {
                     const channelId = (msg as any).channelId ?? '';
-                    if (channelId && activeGuildId) {
-                      router.push(`/channels/${activeGuildId}/${channelId}`);
+                    if (channelId) {
+                      const base = isDMMode ? '/channels/@me' : `/channels/${activeGuildId}`;
+                      router.push(`${base}/${channelId}`);
                       onClose();
                     }
                   }}
@@ -217,7 +241,7 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
                 <div className="text-center mb-4">
                   <Search size={24} className="mx-auto mb-2" style={{ color: 'var(--color-text-disabled)' }} />
                   <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
-                    Search for messages in this server
+                    {isDMMode ? 'Search for messages in this conversation' : 'Search for messages in this server'}
                   </p>
                 </div>
                 <div className="space-y-1.5">

@@ -47,6 +47,8 @@ export function useGatewayBridge() {
   const addMessage = useMessagesStore((s) => s.addMessage);
   const updateMessage = useMessagesStore((s) => s.updateMessage);
   const removeMessage = useMessagesStore((s) => s.removeMessage);
+  const addReactionToMessage = useMessagesStore((s) => s.addReactionToMessage);
+  const removeReactionFromMessage = useMessagesStore((s) => s.removeReactionFromMessage);
 
   const setPresence = usePresenceStore((s) => s.setPresence);
   const setPresences = usePresenceStore((s) => s.setPresences);
@@ -262,6 +264,17 @@ export function useGatewayBridge() {
 
     gw.on('message_delete', (data) => {
       removeMessage(data.channelId, data.messageId);
+    });
+
+    // --- Reactions ---
+    gw.on('reaction_add', (data) => {
+      const currentUserId = useAuthStore.getState().user?.id;
+      addReactionToMessage(data.channelId, data.messageId, data.emoji, data.userId, currentUserId);
+    });
+
+    gw.on('reaction_remove', (data) => {
+      const currentUserId = useAuthStore.getState().user?.id;
+      removeReactionFromMessage(data.channelId, data.messageId, data.emoji, data.userId, currentUserId);
     });
 
     // --- Typing ---

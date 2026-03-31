@@ -442,6 +442,7 @@ export class MessagesService {
   async addReaction(messageId: string, channelId: string, userId: string, emoji: string) {
     const message = await this.prisma.message.findFirst({
       where: { id: messageId, channelId, deletedAt: null },
+      include: { channel: { select: { guildId: true } } },
     });
     if (!message) throw new NotFoundException('Message not found');
 
@@ -478,10 +479,13 @@ export class MessagesService {
       },
     });
 
-    await this.redis.publish(
-      `channel:${channelId}:messages`,
-      JSON.stringify({ type: 'REACTION_ADD', data: { messageId, userId, emoji } }),
-    );
+    this.eventEmitter.emit('reaction.added', {
+      channelId,
+      guildId: (message as any).channel?.guildId ?? undefined,
+      messageId,
+      userId,
+      emoji: { id: emojiId ?? null, name: emojiName },
+    });
 
     return reaction;
   }
@@ -498,10 +502,19 @@ export class MessagesService {
       },
     });
 
-    await this.redis.publish(
-      `channel:${channelId}:messages`,
-      JSON.stringify({ type: 'REACTION_REMOVE', data: { messageId, userId, emoji } }),
-    );
+    // Look up channel to determine guild vs DM routing
+    const channel = await this.prisma.channel.findUnique({
+      where: { id: channelId },
+      select: { guildId: true },
+    });
+
+    this.eventEmitter.emit('reaction.removed', {
+      channelId,
+      guildId: channel?.guildId ?? undefined,
+      messageId,
+      userId,
+      emoji: { id: emojiId ?? null, name: emojiName },
+    });
 
     return { message: 'Reaction removed' };
   }

@@ -160,6 +160,18 @@ export function parseSearchQuery(raw: string): {
   };
 }
 
+export async function searchChannelMessages(
+  channelId: string,
+  query: string,
+  extra?: Omit<SearchMessagesParams, 'q' | 'channelId'>
+): Promise<MessagePayload[]> {
+  const res = await apiClient.get<{ results: MessagePayload[]; total: number }>(
+    `/channels/${channelId}/search/messages`,
+    { params: { q: query, ...extra } }
+  );
+  return res.data.results ?? res.data as any;
+}
+
 export interface UploadAttachmentResponse {
   uploadUrl: string;
   uploadId: string;

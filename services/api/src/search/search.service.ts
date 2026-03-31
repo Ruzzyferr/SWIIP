@@ -116,6 +116,40 @@ export class SearchService implements OnModuleInit {
     await this.client.index('messages').deleteDocument(messageId).catch(() => {});
   }
 
+  async searchChannelMessages(
+    channelId: string,
+    query: string,
+    filters: SearchFilters = {},
+    limit = 25,
+    offset = 0,
+  ): Promise<{ results: MessageSearchResult[]; total: number }> {
+    const sanitize = (val: string) => val.replace(/"/g, '');
+    const filterParts: string[] = [`channelId = "${sanitize(channelId)}"`];
+
+    if (filters.authorId) filterParts.push(`authorId = "${sanitize(filters.authorId)}"`);
+    if (filters.after) filterParts.push(`timestamp > "${sanitize(filters.after)}"`);
+    if (filters.before) filterParts.push(`timestamp < "${sanitize(filters.before)}"`);
+
+    try {
+      const result = await this.client
+        .index('messages')
+        .search<MessageSearchResult>(query, {
+          filter: filterParts.join(' AND '),
+          limit,
+          offset,
+          sort: ['timestamp:desc'],
+        });
+
+      return {
+        results: result.hits,
+        total: result.estimatedTotalHits ?? result.hits.length,
+      };
+    } catch (err) {
+      this.logger.error({ err }, 'Channel message search failed');
+      return { results: [], total: 0 };
+    }
+  }
+
   async searchUsers(guildId: string, query: string, limit = 10): Promise<any[]> {
     try {
       const result = await this.client.index('users').search(query, {

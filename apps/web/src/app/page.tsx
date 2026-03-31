@@ -12,6 +12,7 @@ import { ParticleBackground } from '@/components/ui/ParticleBackground';
 import { TextReveal, WordStagger } from '@/components/ui/TextReveal';
 import { MagneticButton } from '@/components/ui/MagneticButton';
 import { NoiseTexture } from '@/components/ui/NoiseTexture';
+import { FeatureShowcase } from '@/components/landing/FeatureShowcase';
 
 const spring = { type: 'spring' as const, stiffness: 300, damping: 30, mass: 0.8 };
 
@@ -334,68 +335,13 @@ export default function LandingPage() {
         </div>
       </motion.section>
 
-      {/* ---- Features Grid ---- */}
+      {/* ---- Interactive Feature Showcase ---- */}
       <AnimatedSection className="relative py-24 px-6 lg:px-8">
-        <div className="max-w-7xl mx-auto">
-          <div className="text-center mb-16">
-            <h2
-              className="text-3xl md:text-4xl font-bold mb-4"
-              style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.03em' }}
-            >
-              {t('cta.title')}
-            </h2>
-            <p className="max-w-md mx-auto text-base" style={{ color: 'var(--color-text-secondary)' }}>
-              {t('cta.subtitle')}
-            </p>
-          </div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            {features.map((f, i) => {
-              const Icon = f.icon;
-              return (
-                <motion.div
-                  key={i}
-                  className="group relative p-6 rounded-2xl overflow-hidden"
-                  style={{
-                    background: 'rgba(255,255,255,0.02)',
-                    border: '1px solid rgba(255,255,255,0.04)',
-                  }}
-                  whileHover={{
-                    scale: 1.02,
-                    borderColor: 'rgba(16, 185, 129, 0.15)',
-                    boxShadow: '0 8px 40px rgba(0,0,0,0.3)',
-                  }}
-                  transition={spring}
-                >
-                  <NoiseTexture opacity={0.03} />
-                  <div
-                    className="w-11 h-11 rounded-xl flex items-center justify-center mb-4"
-                    style={{
-                      background: 'rgba(16,185,129,0.08)',
-                      color: 'var(--color-accent-primary)',
-                    }}
-                  >
-                    <Icon size={20} />
-                  </div>
-                  <h3
-                    className="text-sm font-semibold mb-2"
-                    style={{ color: 'var(--color-text-primary)' }}
-                  >
-                    {f.title}
-                  </h3>
-                  <p className="text-sm leading-relaxed" style={{ color: 'var(--color-text-tertiary)' }}>
-                    {f.description}
-                  </p>
-                  {/* Hover glow */}
-                  <div
-                    className="absolute inset-0 opacity-0 group-hover:opacity-100 transition-opacity duration-500 pointer-events-none"
-                    style={{ background: 'radial-gradient(ellipse at 50% 0%, rgba(16,185,129,0.06), transparent 70%)' }}
-                  />
-                </motion.div>
-              );
-            })}
-          </div>
-        </div>
+        <FeatureShowcase
+          features={features}
+          sectionTitle={t('cta.title')}
+          sectionSubtitle={t('cta.subtitle')}
+        />
       </AnimatedSection>
 
       {/* ---- Stats ---- */}

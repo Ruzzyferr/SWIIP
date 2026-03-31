@@ -19,7 +19,9 @@ import {
   Compass,
   Link2,
 } from 'lucide-react';
+import dynamic from 'next/dynamic';
 import { Tooltip } from '@/components/ui/Tooltip';
+const SearchModal = dynamic(() => import('@/components/search/SearchModal').then(m => ({ default: m.SearchModal })), { ssr: false });
 import { useGuildsStore } from '@/stores/guilds.store';
 import { useUIStore } from '@/stores/ui.store';
 import { useTranslations } from 'next-intl';
@@ -502,6 +504,8 @@ export function SwiipTopBar() {
   const activeGuildId = useUIStore((s) => s.activeGuildId);
   const openServerSettings = useUIStore((s) => s.openServerSettings);
   const openModal = useUIStore((s) => s.openModal);
+  const isDMMode = !activeGuildId || activeGuildId === '@me' || activeGuildId === 'me';
+  const [showSearch, setShowSearch] = useState(false);
 
   return (
     <header
@@ -536,7 +540,7 @@ export function SwiipTopBar() {
 
       {/* Right actions */}
       <div className="flex items-center gap-1 flex-shrink-0">
-        {activeGuildId && (
+        {activeGuildId && !isDMMode && (
           <>
             <Tooltip content={t('showMembers')} placement="bottom">
               <motion.button
@@ -584,6 +588,7 @@ export function SwiipTopBar() {
 
         <Tooltip content={t('search')} placement="bottom">
           <motion.button
+            onClick={() => setShowSearch(true)}
             whileHover={{ scale: 1.1 }}
             whileTap={{ scale: 0.9 }}
             transition={spring}
@@ -594,6 +599,8 @@ export function SwiipTopBar() {
           </motion.button>
         </Tooltip>
       </div>
+
+      <SearchModal open={showSearch} onClose={() => setShowSearch(false)} />
     </header>
   );
 }

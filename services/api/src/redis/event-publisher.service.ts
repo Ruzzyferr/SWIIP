@@ -225,6 +225,52 @@ export class EventPublisherService implements OnModuleInit {
   }
 
   // ---------------------------------------------------------------------------
+  // Reaction events
+  // ---------------------------------------------------------------------------
+
+  @OnEvent('reaction.added')
+  async onReactionAdded(payload: {
+    channelId: string;
+    guildId?: string;
+    messageId: string;
+    userId: string;
+    emoji: { id: string | null; name: string };
+  }): Promise<void> {
+    const data = {
+      channelId: payload.channelId,
+      messageId: payload.messageId,
+      userId: payload.userId,
+      emoji: payload.emoji,
+    };
+    if (payload.guildId) {
+      await this.publishGuildEvent(payload.guildId, 'REACTION_ADD', data);
+    } else {
+      await this.publishEvent(`dm:${payload.channelId}`, 'REACTION_ADD', data);
+    }
+  }
+
+  @OnEvent('reaction.removed')
+  async onReactionRemoved(payload: {
+    channelId: string;
+    guildId?: string;
+    messageId: string;
+    userId: string;
+    emoji: { id: string | null; name: string };
+  }): Promise<void> {
+    const data = {
+      channelId: payload.channelId,
+      messageId: payload.messageId,
+      userId: payload.userId,
+      emoji: payload.emoji,
+    };
+    if (payload.guildId) {
+      await this.publishGuildEvent(payload.guildId, 'REACTION_REMOVE', data);
+    } else {
+      await this.publishEvent(`dm:${payload.channelId}`, 'REACTION_REMOVE', data);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Guild events
   // ---------------------------------------------------------------------------
 
