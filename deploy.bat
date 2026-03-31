@@ -44,6 +44,19 @@ echo [OK] Docker Desktop is ready
 
 
 :: ============================================================
+:: Sync lockfile before Docker build (Docker uses --frozen-lockfile)
+:: ============================================================
+echo.
+echo [*] Syncing lockfile before Docker build...
+call pnpm install --no-frozen-lockfile >nul 2>&1
+if errorlevel 1 (
+    echo [!] pnpm install failed.
+    pause
+    exit /b 1
+)
+echo [OK] Lockfile synced
+
+:: ============================================================
 :: Desktop Build
 :: ============================================================
 :desktop_build
@@ -200,6 +213,12 @@ if not errorlevel 1 (
     exit /b 1
 )
 echo [OK] Push successful
+
+:: Capture the commit SHA we just pushed — used to find all triggered workflows
+set COMMIT_SHA=
+for /f "tokens=1" %%h in ('git rev-parse HEAD 2^>nul') do set COMMIT_SHA=%%h
+echo [*] Commit: !COMMIT_SHA!
+
 goto wait_ci
 
 :push_fail
@@ -218,14 +237,15 @@ echo ============================================================
 echo.
 
 echo [*] Waiting for GitHub Actions to pick up the push...
-echo     Giving GitHub 20s to register the push event...
-timeout /t 20 /nobreak >nul
+echo     Commit: !COMMIT_SHA!
+echo     Giving GitHub 10s to register the push event...
+timeout /t 10 /nobreak >nul
 
 set WAIT_TRIES=0
 
 :ci_poll_start
 if !WAIT_TRIES! GEQ 24 (
-    echo [!] Timed out waiting for workflow to start after ~2 minutes.
+    echo [!] Timed out waiting for workflows to start after ~2 minutes.
     echo     Check manually: https://github.com/Ruzzyferr/ConstChat/actions
     pause
     exit /b 1
@@ -233,97 +253,91 @@ if !WAIT_TRIES! GEQ 24 (
 set /a WAIT_TRIES+=1
 timeout /t 5 /nobreak >nul
 
-:: Get the latest run ID
-set RUN_ID=
-for /f "tokens=1" %%i in ('gh run list --workflow deploy.yml --limit 1 --json databaseId --jq ".[0].databaseId" 2^>nul') do set RUN_ID=%%i
+:: Find ALL workflow runs for this commit (deploy.yml + ci.yml + desktop-release.yml)
+set FOUND_RUNS=0
+for /f "tokens=*" %%i in ('gh run list --commit !COMMIT_SHA! --json databaseId --jq ".[].databaseId" 2^>nul') do set /a FOUND_RUNS+=1
 
-if not defined RUN_ID (
-    echo     ...no workflow found yet (attempt !WAIT_TRIES!/24)
+if !FOUND_RUNS! EQU 0 (
+    echo     ...no workflows found yet for commit !COMMIT_SHA! (attempt !WAIT_TRIES!/24)
     goto ci_poll_start
 )
 
-:: Check its status
-set RUN_STATUS=
-for /f "tokens=*" %%s in ('gh run view !RUN_ID! --json status --jq ".status" 2^>nul') do set RUN_STATUS=%%s
-
-:: If still completed (old run), keep waiting — new run not registered yet
-if "!RUN_STATUS!"=="completed" (
-    echo     ...latest run already finished, waiting for new run (attempt !WAIT_TRIES!/24)
-    goto ci_poll_start
-)
-
-echo [OK] Found workflow run #!RUN_ID! (status: !RUN_STATUS!)
-echo     https://github.com/Ruzzyferr/ConstChat/actions/runs/!RUN_ID!
+echo [OK] Found !FOUND_RUNS! workflow run(s) for this commit.
 echo.
 
-:: ── Watch individual build jobs ──────────────────────────────
+:: ── Watch all triggered workflows ─────────────────────────────
 echo ============================================================
-echo   Monitoring Build Jobs
+echo   Monitoring All Workflows
 echo ============================================================
 echo.
 
 :ci_watch_loop
 set ALL_DONE=1
 set ANY_FAILED=0
-set STATUS_LINE=
 
-:: Get all jobs and their statuses
-for /f "tokens=1,2,3 delims=	" %%a in ('gh run view !RUN_ID! --json jobs --jq ".jobs[] | [.name, .status, .conclusion] | @tsv" 2^>nul') do (
-    set "JOB_NAME=%%a"
-    set "JOB_STATUS=%%b"
-    set "JOB_CONCLUSION=%%c"
-
-    if "!JOB_STATUS!"=="completed" (
-        if "!JOB_CONCLUSION!"=="success" (
-            echo     [OK] !JOB_NAME!
-        ) else if "!JOB_CONCLUSION!"=="failure" (
-            echo     [!!] !JOB_NAME! — FAILED
-            set ANY_FAILED=1
-        ) else if "!JOB_CONCLUSION!"=="cancelled" (
-            echo     [--] !JOB_NAME! — cancelled
-        ) else (
-            echo     [??] !JOB_NAME! — !JOB_CONCLUSION!
-        )
-    ) else if "!JOB_STATUS!"=="in_progress" (
-        echo     [..] !JOB_NAME! — running...
-        set ALL_DONE=0
-    ) else if "!JOB_STATUS!"=="queued" (
-        echo     [  ] !JOB_NAME! — queued
-        set ALL_DONE=0
-    ) else (
-        echo     [  ] !JOB_NAME! — !JOB_STATUS!
-        set ALL_DONE=0
+:: Iterate over every run triggered by our commit
+for /f "tokens=*" %%i in ('gh run list --commit !COMMIT_SHA! --json databaseId,name --jq ".[] | [.databaseId, .name] | @tsv" 2^>nul') do (
+    :: Split databaseId and workflow name
+    for /f "tokens=1,* delims=	" %%x in ("%%i") do (
+        set "CUR_RUN_ID=%%x"
+        set "CUR_WF_NAME=%%y"
     )
+
+    echo   --- !CUR_WF_NAME! ---
+
+    :: Get all jobs for this run
+    for /f "tokens=1,2,3 delims=	" %%a in ('gh run view !CUR_RUN_ID! --json jobs --jq ".jobs[] | [.name, .status, .conclusion] | @tsv" 2^>nul') do (
+        set "JOB_NAME=%%a"
+        set "JOB_STATUS=%%b"
+        set "JOB_CONCLUSION=%%c"
+
+        if "!JOB_STATUS!"=="completed" (
+            if "!JOB_CONCLUSION!"=="success" (
+                echo     [OK] !JOB_NAME!
+            ) else if "!JOB_CONCLUSION!"=="failure" (
+                echo     [!!] !JOB_NAME! — FAILED
+                set ANY_FAILED=1
+                set FAILED_RUN_ID=!CUR_RUN_ID!
+            ) else if "!JOB_CONCLUSION!"=="cancelled" (
+                echo     [--] !JOB_NAME! — cancelled
+            ) else (
+                echo     [??] !JOB_NAME! — !JOB_CONCLUSION!
+            )
+        ) else if "!JOB_STATUS!"=="in_progress" (
+            echo     [..] !JOB_NAME! — running...
+            set ALL_DONE=0
+        ) else if "!JOB_STATUS!"=="queued" (
+            echo     [  ] !JOB_NAME! — queued
+            set ALL_DONE=0
+        ) else (
+            echo     [  ] !JOB_NAME! — !JOB_STATUS!
+            set ALL_DONE=0
+        )
+    )
+    echo.
 )
 
 if !ANY_FAILED!==1 goto ci_fail
 
 if !ALL_DONE!==1 goto ci_done
 
-echo.
 echo     Refreshing in 10s...
 echo.
 timeout /t 10 /nobreak >nul
 goto ci_watch_loop
 
 :ci_done
-:: Final check — get overall run conclusion
-set RUN_CONCLUSION=
-for /f "tokens=*" %%s in ('gh run view !RUN_ID! --json conclusion --jq ".conclusion" 2^>nul') do set RUN_CONCLUSION=%%s
-
-if "!RUN_CONCLUSION!"=="failure" goto ci_fail
-
 echo.
 echo ============================================================
 echo   DEPLOY COMPLETE
 echo ============================================================
 echo.
-echo   All jobs passed. Your changes are live!
+echo   All workflows passed. Your changes are live!
 echo.
 echo   Server: 209.38.205.251
 echo   URL:    https://swiip.app
 echo.
-echo   Run:    https://github.com/Ruzzyferr/ConstChat/actions/runs/!RUN_ID!
+echo   Actions: https://github.com/Ruzzyferr/ConstChat/actions
 echo.
 pause
 exit /b 0
@@ -335,28 +349,35 @@ echo   DEPLOY FAILED
 echo ============================================================
 echo.
 echo   One or more jobs failed. Check the logs:
-echo   https://github.com/Ruzzyferr/ConstChat/actions/runs/!RUN_ID!
+echo   https://github.com/Ruzzyferr/ConstChat/actions
 echo.
 
-:: Show which jobs failed
+:: Show all failed jobs across all workflows
 echo   Failed jobs:
-for /f "tokens=1,2,3 delims=	" %%a in ('gh run view !RUN_ID! --json jobs --jq ".jobs[] | select(.conclusion==\"failure\") | [.name, .status, .conclusion] | @tsv" 2^>nul') do (
-    echo     - %%a
+for /f "tokens=*" %%i in ('gh run list --commit !COMMIT_SHA! --json databaseId,name --jq ".[] | [.databaseId, .name] | @tsv" 2^>nul') do (
+    for /f "tokens=1,* delims=	" %%x in ("%%i") do (
+        set "CUR_RUN_ID=%%x"
+        set "CUR_WF_NAME=%%y"
+    )
+    for /f "tokens=1,2,3 delims=	" %%a in ('gh run view !CUR_RUN_ID! --json jobs --jq ".jobs[] | select(.conclusion==\"failure\") | [.name, .status, .conclusion] | @tsv" 2^>nul') do (
+        echo     - !CUR_WF_NAME! / %%a
+    )
 )
 echo.
 
-set /p RETRY="  Retry deploy? [y/N]: "
-if /i "!RETRY!"=="y" (
-    echo [*] Re-running failed jobs...
-    gh run rerun !RUN_ID! --failed 2>nul
-    if errorlevel 1 (
-        echo [*] Rerun command failed, triggering full re-run...
-        gh run rerun !RUN_ID! 2>nul
+if defined FAILED_RUN_ID (
+    set /p RETRY="  Retry failed workflow? [y/N]: "
+    if /i "!RETRY!"=="y" (
+        echo [*] Re-running failed jobs...
+        gh run rerun !FAILED_RUN_ID! --failed 2>nul
+        if errorlevel 1 (
+            gh run rerun !FAILED_RUN_ID! 2>nul
+        )
+        echo [OK] Re-run triggered, watching again...
+        echo.
+        timeout /t 5 /nobreak >nul
+        goto ci_watch_loop
     )
-    echo [OK] Re-run triggered, watching again...
-    echo.
-    timeout /t 5 /nobreak >nul
-    goto ci_watch_loop
 )
 pause
 exit /b 1
