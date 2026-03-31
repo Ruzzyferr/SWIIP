@@ -220,7 +220,7 @@ timeout /t 5 /nobreak >nul
 
 :: Get the latest "Build & Deploy" run
 set RUN_ID=
-for /f "tokens=1" %%i in ('gh run list --workflow "Build ^& Deploy" --limit 1 --json databaseId --jq ".[0].databaseId" 2^>nul') do set RUN_ID=%%i
+for /f "tokens=1" %%i in ('gh run list --workflow "Build & Deploy" --limit 1 --json databaseId --jq ".[0].databaseId" 2^>nul') do set RUN_ID=%%i
 
 if not defined RUN_ID (
     echo     ...no workflow found yet (attempt !WAIT_TRIES!/12)
