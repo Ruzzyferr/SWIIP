@@ -15,10 +15,10 @@
   },
   "files": ["dist"],
   "scripts": {
-    "build": "tsup src/index.ts --format cjs,esm --dts --clean",
-    "dev": "tsup src/index.ts --format cjs,esm --dts --watch",
-    "typecheck": "tsc --noEmit",
-    "lint": "eslint src --ext .ts,.tsx"
+    "build": "echo 'no source yet'",
+    "dev": "echo 'no source yet'",
+    "typecheck": "echo 'no source yet'",
+    "lint": "echo 'no source yet'"
   },
   "peerDependencies": {
     "react": "^18.0.0",

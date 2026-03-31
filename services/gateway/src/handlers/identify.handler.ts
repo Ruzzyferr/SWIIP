@@ -210,7 +210,6 @@ async function fetchReadyPayload(
   // 1. The friend set in Redis gets populated on every IDENTIFY
   // 2. Friend presences are always fresh
   // The 30s cache previously used here caused stale friend data.
-  let body: { user: UserPayload; guilds: GuildPayload[]; dms: DMChannelPayload[]; readStates?: ReadStatePayload[]; friendPresences?: FriendPresencePayload[] };
   const url = `${context.apiBaseUrl}/internal/ready/${userId}`;
   const response = await fetch(url, {
     headers: {
@@ -224,7 +223,7 @@ async function fetchReadyPayload(
     throw new Error(`Internal API returned ${response.status} for ready payload`);
   }
 
-  body = (await response.json()) as typeof body;
+  const body = (await response.json()) as { user: UserPayload; guilds: GuildPayload[]; dms: DMChannelPayload[]; readStates?: ReadStatePayload[]; friendPresences?: FriendPresencePayload[] };
   const friendPresences: FriendPresencePayload[] = body.friendPresences ?? [];
 
   // Always fetch voice states fresh from Redis (not cached)

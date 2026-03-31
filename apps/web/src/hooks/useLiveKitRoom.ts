@@ -1068,7 +1068,7 @@ export function useLiveKitRoom() {
               room.removeAllListeners();
             }
             for (const el of audioElementsRef.current.values()) {
-              try { el.pause(); el.remove(); } catch {}
+              try { el.pause(); el.remove(); } catch { /* ignore cleanup errors */ }
             }
             audioElementsRef.current.clear();
             trackOwnerRef.current.clear();

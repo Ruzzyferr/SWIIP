@@ -155,7 +155,7 @@ export class InternalController {
     });
 
     // Fetch friend list and populate Redis friend set for gateway presence broadcasts
-    let friendPresences: Array<{ userId: string; status: string }> = [];
+    const friendPresences: Array<{ userId: string; status: string }> = [];
     try {
       const friends = await this.prisma.userRelationship.findMany({
         where: { requesterId: userId, type: 'FRIEND' },

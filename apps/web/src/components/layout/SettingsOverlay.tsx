@@ -77,7 +77,7 @@ export function SettingsOverlay() {
   const handleLogout = async () => {
     try {
       await logoutApi();
-    } catch {}
+    } catch { /* ignore logout errors */ }
     setAccessToken(null);
     logoutStore();
     window.location.href = '/login';
