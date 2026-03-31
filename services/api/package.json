@@ -20,6 +20,7 @@
     "@aws-sdk/client-s3": "^3.1019.0",
     "@aws-sdk/s3-request-presigner": "^3.1019.0",
     "@constchat/config": "workspace:*",
+    "@constchat/protocol": "workspace:*",
     "@fastify/cookie": "^9.4.0",
     "@fastify/helmet": "^11.1.1",
     "@fastify/static": "^7.0.4",

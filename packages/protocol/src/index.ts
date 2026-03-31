@@ -55,3 +55,9 @@ export {
   type ServerDispatchEnvelope,
   type ClientEnvelope,
 } from './events';
+
+export {
+  type PrismaReactionRow,
+  normalizeReactionsFromPrismaRows,
+  coerceMessageReactionsToProtocol,
+} from './message-normalize';

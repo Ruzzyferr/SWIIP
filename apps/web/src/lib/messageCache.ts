@@ -5,6 +5,7 @@
  */
 
 import type { MessagePayload } from '@constchat/protocol';
+import { coerceMessageReactionsToProtocol } from '@constchat/protocol';
 
 const DB_NAME = 'constchat-messages';
 const DB_VERSION = 1;
@@ -73,8 +74,14 @@ export async function cacheMessages(channelId: string, messages: MessagePayload[
   }
 }
 
-/** Load cached messages for a channel. */
-export async function getCachedMessages(channelId: string): Promise<MessagePayload[]> {
+/**
+ * Load cached messages for a channel.
+ * Legacy IndexedDB entries may store Prisma-shaped `reactions` rows; coerce to protocol so UI does not crash.
+ */
+export async function getCachedMessages(
+  channelId: string,
+  viewerUserId?: string,
+): Promise<MessagePayload[]> {
   try {
     const db = await openDB();
     const tx = db.transaction(STORE_NAME, 'readonly');
@@ -91,7 +98,8 @@ export async function getCachedMessages(channelId: string): Promise<MessagePaylo
           const tb = new Date(b.timestamp ?? 0).getTime();
           return ta - tb;
         });
-        resolve(results);
+        const uid = viewerUserId ?? '';
+        resolve(results.map((m) => coerceMessageReactionsToProtocol(m, uid)));
       };
       request.onerror = () => reject(request.error);
     });

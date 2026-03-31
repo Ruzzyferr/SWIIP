@@ -6,6 +6,7 @@ import { ArrowDown, Trash2, X } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageItem } from './MessageItem';
 import { useMessagesStore } from '@/stores/messages.store';
+import { useAuthStore } from '@/stores/auth.store';
 import { getMessages, bulkDeleteMessages, deleteMessage } from '@/lib/api/messages.api';
 import { getCachedMessages, cacheMessages } from '@/lib/messageCache';
 import { formatDateSeparator } from '@/lib/utils';
@@ -236,7 +237,7 @@ export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessa
 
     const load = async () => {
       // 1. Show cached messages immediately (if any)
-      const cached = await getCachedMessages(channelId);
+      const cached = await getCachedMessages(channelId, useAuthStore.getState().user?.id);
       if (!cancelled && cached.length > 0 && messages.length === 0) {
         setMessages(channelId, cached, true);
       }
