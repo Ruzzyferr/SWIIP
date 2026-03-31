@@ -286,13 +286,9 @@ echo.
 set ALL_DONE=1
 set ANY_FAILED=0
 
-:: Iterate over every run triggered by our commit
-for /f "tokens=*" %%i in ('gh run list --commit !COMMIT_SHA! --json databaseId,name --jq ".[] | [.databaseId, .name] | @tsv" 2^>nul') do (
-    :: Split databaseId and workflow name
-    for /f "tokens=1,* delims=	" %%x in ("%%i") do (
-        set "CUR_RUN_ID=%%x"
-        set "CUR_WF_NAME=%%y"
-    )
+:: Iterate over every run triggered by our commit (name field omitted — & in "Build & Deploy" breaks CMD parser)
+for /f "tokens=*" %%i in ('gh run list --commit !COMMIT_SHA! --json databaseId --jq ".[].databaseId" 2^>nul') do (
+    set "CUR_RUN_ID=%%i"
 
     echo   --- Run #!CUR_RUN_ID! ---
 
@@ -365,13 +361,10 @@ echo.
 
 :: Show all failed jobs across all workflows
 echo   Failed jobs:
-for /f "tokens=*" %%i in ('gh run list --commit !COMMIT_SHA! --json databaseId,name --jq ".[] | [.databaseId, .name] | @tsv" 2^>nul') do (
-    for /f "tokens=1,* delims=	" %%x in ("%%i") do (
-        set "CUR_RUN_ID=%%x"
-        set "CUR_WF_NAME=%%y"
-    )
+for /f "tokens=*" %%i in ('gh run list --commit !COMMIT_SHA! --json databaseId --jq ".[].databaseId" 2^>nul') do (
+    set "CUR_RUN_ID=%%i"
     for /f "tokens=1,2,3 delims=	" %%a in ('gh run view !CUR_RUN_ID! --json jobs --jq ".jobs[] | select(.conclusion==\"failure\") | [.name, .status, .conclusion] | @tsv" 2^>nul') do (
-        echo     - !CUR_WF_NAME! / %%a
+        echo     - Run #!CUR_RUN_ID! / %%a
     )
 )
 echo.

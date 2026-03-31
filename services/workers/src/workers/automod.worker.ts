@@ -17,7 +17,7 @@ interface AutomodRule {
   id: string;
   triggerType: string;
   triggerMetadata: any;
-  actions: any[];
+  actions: any;
   exemptRoles: string[];
   exemptChannels: string[];
 }
