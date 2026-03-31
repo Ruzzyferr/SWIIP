@@ -199,9 +199,7 @@ if not errorlevel 1 (
     pause
     exit /b 1
 )
-:: Capture the pushed commit SHA so we can find the exact CI run
-for /f "tokens=*" %%s in ('git rev-parse HEAD') do set PUSH_SHA=%%s
-echo [OK] Push successful (SHA: !PUSH_SHA!)
+echo [OK] Push successful
 goto wait_ci
 
 :push_fail
@@ -219,14 +217,15 @@ echo   STEP: CI/CD Pipeline (GitHub Actions)
 echo ============================================================
 echo.
 
-:: Give GitHub a moment to register the push event
 echo [*] Waiting for GitHub Actions to pick up the push...
-set FOUND_RUN=0
+echo     Giving GitHub 20s to register the push event...
+timeout /t 20 /nobreak >nul
+
 set WAIT_TRIES=0
 
 :ci_poll_start
-if !WAIT_TRIES! GEQ 36 (
-    echo [!] Timed out waiting for workflow to start after 3 minutes.
+if !WAIT_TRIES! GEQ 24 (
+    echo [!] Timed out waiting for workflow to start after ~2 minutes.
     echo     Check manually: https://github.com/Ruzzyferr/ConstChat/actions
     pause
     exit /b 1
@@ -234,26 +233,24 @@ if !WAIT_TRIES! GEQ 36 (
 set /a WAIT_TRIES+=1
 timeout /t 5 /nobreak >nul
 
-:: Get the latest run
+:: Get the latest run ID
 set RUN_ID=
 for /f "tokens=1" %%i in ('gh run list --workflow deploy.yml --limit 1 --json databaseId --jq ".[0].databaseId" 2^>nul') do set RUN_ID=%%i
 
 if not defined RUN_ID (
-    echo     ...waiting for workflow to start (attempt !WAIT_TRIES!/36)
+    echo     ...no workflow found yet (attempt !WAIT_TRIES!/24)
     goto ci_poll_start
 )
 
-:: Verify it matches our push commit
-set RUN_SHA=
-for /f "tokens=*" %%s in ('gh run view !RUN_ID! --json headSha --jq ".headSha" 2^>nul') do set RUN_SHA=%%s
-
-if not "!RUN_SHA!"=="!PUSH_SHA!" (
-    echo     ...latest run is for a different commit, waiting (attempt !WAIT_TRIES!/36)
-    goto ci_poll_start
-)
-
+:: Check its status
 set RUN_STATUS=
 for /f "tokens=*" %%s in ('gh run view !RUN_ID! --json status --jq ".status" 2^>nul') do set RUN_STATUS=%%s
+
+:: If still completed (old run), keep waiting — new run not registered yet
+if "!RUN_STATUS!"=="completed" (
+    echo     ...latest run already finished, waiting for new run (attempt !WAIT_TRIES!/24)
+    goto ci_poll_start
+)
 
 echo [OK] Found workflow run #!RUN_ID! (status: !RUN_STATUS!)
 echo     https://github.com/Ruzzyferr/ConstChat/actions/runs/!RUN_ID!
