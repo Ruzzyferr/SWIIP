@@ -199,7 +199,9 @@ if not errorlevel 1 (
     pause
     exit /b 1
 )
-echo [OK] Push successful
+:: Capture the pushed commit SHA so we can find the exact CI run
+for /f "tokens=*" %%s in ('git rev-parse HEAD') do set PUSH_SHA=%%s
+echo [OK] Push successful (SHA: !PUSH_SHA!)
 goto wait_ci
 
 :push_fail
@@ -223,8 +225,8 @@ set FOUND_RUN=0
 set WAIT_TRIES=0
 
 :ci_poll_start
-if !WAIT_TRIES! GEQ 12 (
-    echo [!] Timed out waiting for workflow to start after 60s.
+if !WAIT_TRIES! GEQ 36 (
+    echo [!] Timed out waiting for workflow to start after 3 minutes.
     echo     Check manually: https://github.com/Ruzzyferr/ConstChat/actions
     pause
     exit /b 1
@@ -232,27 +234,19 @@ if !WAIT_TRIES! GEQ 12 (
 set /a WAIT_TRIES+=1
 timeout /t 5 /nobreak >nul
 
-:: Get the latest "Build & Deploy" run
+:: Find the run that matches our exact commit SHA
 set RUN_ID=
-for /f "tokens=1" %%i in ('gh run list --workflow deploy.yml --limit 1 --json databaseId --jq ".[0].databaseId" 2^>nul') do set RUN_ID=%%i
+for /f "tokens=1" %%i in ('gh run list --workflow deploy.yml --limit 10 --json databaseId,headSha --jq ".[] | select(.headSha == \"!PUSH_SHA!\") | .databaseId" 2^>nul') do (
+    if not defined RUN_ID set RUN_ID=%%i
+)
 
 if not defined RUN_ID (
-    echo     ...no workflow found yet (attempt !WAIT_TRIES!/12)
+    echo     ...waiting for workflow to start (attempt !WAIT_TRIES!/36)
     goto ci_poll_start
 )
 
-:: Check that this run was triggered recently (within last 2 minutes)
 set RUN_STATUS=
 for /f "tokens=*" %%s in ('gh run view !RUN_ID! --json status --jq ".status" 2^>nul') do set RUN_STATUS=%%s
-
-if "!RUN_STATUS!"=="completed" (
-    :: If the latest run is already completed, it might be from a previous push
-    :: Wait a bit more for the new one to appear
-    if !WAIT_TRIES! LSS 6 (
-        echo     ...latest run already completed, waiting for new run (attempt !WAIT_TRIES!/12)
-        goto ci_poll_start
-    )
-)
 
 echo [OK] Found workflow run #!RUN_ID! (status: !RUN_STATUS!)
 echo     https://github.com/Ruzzyferr/ConstChat/actions/runs/!RUN_ID!
