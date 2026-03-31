@@ -1,7 +1,7 @@
 # ── Stage 1: builder ─────────────────────────────────────────────────────────
 FROM node:22-alpine AS builder
 WORKDIR /app
-RUN npm install -g pnpm
+RUN corepack enable
 
 # Copy all source first, then install — avoids pnpm symlink breakage
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml tsconfig.base.json ./

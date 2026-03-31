@@ -67,8 +67,8 @@ echo ============================================================
 echo.
 echo [*] Building desktop installer (with web bundle)...
 
-:: Build Next.js standalone inside Docker to avoid Windows symlink issues
-:: (Windows + pnpm + Next.js standalone = EPERM symlink errors)
+REM Build Next.js standalone inside Docker to avoid Windows symlink issues
+REM Windows + pnpm + Next.js standalone = EPERM symlink errors
 echo [*] Building web app via Docker (avoids Windows symlink issues)...
 cd /d "%~dp0"
 docker build -f apps/web/Dockerfile ^
@@ -276,62 +276,61 @@ if !FOUND_RUNS! EQU 0 (
 echo [OK] Found !FOUND_RUNS! workflow run(s) for this commit.
 echo.
 
-:: ── Watch all triggered workflows ─────────────────────────────
-echo ============================================================
-echo   Monitoring All Workflows
-echo ============================================================
+REM Collect all run IDs into a file to avoid special char issues in for loops
+set "RUN_LIST=%TEMP%\constchat_runs.txt"
+gh run list --commit !COMMIT_SHA! --json databaseId --jq ".[].databaseId" > "!RUN_LIST!" 2>nul
+
+:: Count runs
+set RUN_COUNT=0
+for /f "tokens=*" %%i in ('type "!RUN_LIST!"') do set /a RUN_COUNT+=1
+
+echo [OK] Will watch !RUN_COUNT! workflow run(s) sequentially using gh run watch.
+echo     (Each run shows live-updating job status)
 echo.
 
-:ci_watch_loop
-set ALL_DONE=1
+REM Watch each run with gh run watch (goto-based iteration)
+set WATCH_IDX=0
 set ANY_FAILED=0
+set FAILED_RUN_ID=
 
-:: Iterate over every run triggered by our commit (name field omitted — & in "Build & Deploy" breaks CMD parser)
-for /f "tokens=*" %%i in ('gh run list --commit !COMMIT_SHA! --json databaseId --jq ".[].databaseId" 2^>nul') do (
-    set "CUR_RUN_ID=%%i"
+:ci_watch_next
+set /a WATCH_IDX+=1
+set "CUR_WATCH_ID="
 
-    echo   --- Run #!CUR_RUN_ID! ---
-
-    :: Get all jobs for this run
-    for /f "tokens=1,2,3 delims=	" %%a in ('gh run view !CUR_RUN_ID! --json jobs --jq ".jobs[] | [.name, .status, .conclusion] | @tsv" 2^>nul') do (
-        set "JOB_NAME=%%a"
-        set "JOB_STATUS=%%b"
-        set "JOB_CONCLUSION=%%c"
-
-        if "!JOB_STATUS!"=="completed" (
-            if "!JOB_CONCLUSION!"=="success" (
-                echo     [OK] !JOB_NAME!
-            ) else if "!JOB_CONCLUSION!"=="failure" (
-                echo     [!!] !JOB_NAME! — FAILED
-                set ANY_FAILED=1
-                set FAILED_RUN_ID=!CUR_RUN_ID!
-            ) else if "!JOB_CONCLUSION!"=="cancelled" (
-                echo     [--] !JOB_NAME! — cancelled
-            ) else (
-                echo     [??] !JOB_NAME! — !JOB_CONCLUSION!
-            )
-        ) else if "!JOB_STATUS!"=="in_progress" (
-            echo     [..] !JOB_NAME! — running...
-            set ALL_DONE=0
-        ) else if "!JOB_STATUS!"=="queued" (
-            echo     [  ] !JOB_NAME! — queued
-            set ALL_DONE=0
-        ) else (
-            echo     [  ] !JOB_NAME! — !JOB_STATUS!
-            set ALL_DONE=0
-        )
-    )
-    echo.
+:: Read the Nth line from run list
+set "LINE_NUM=0"
+for /f "tokens=*" %%i in ('type "!RUN_LIST!"') do (
+    set /a LINE_NUM+=1
+    if !LINE_NUM!==!WATCH_IDX! set CUR_WATCH_ID=%%i
 )
 
-if !ANY_FAILED!==1 goto ci_fail
+:: If no more runs, go to results
+if not defined CUR_WATCH_ID goto ci_watch_results
 
-if !ALL_DONE!==1 goto ci_done
-
-echo     Refreshing in 10s...
+echo ============================================================
+echo   Watching Run #!CUR_WATCH_ID! (!WATCH_IDX!/!RUN_COUNT!)
+echo ============================================================
 echo.
-timeout /t 10 /nobreak >nul
-goto ci_watch_loop
+
+gh run watch !CUR_WATCH_ID! --exit-status
+if errorlevel 1 (
+    echo.
+    echo   [!!] Run #!CUR_WATCH_ID! FAILED
+    set ANY_FAILED=1
+    set FAILED_RUN_ID=!CUR_WATCH_ID!
+) else (
+    echo.
+    echo   [OK] Run #!CUR_WATCH_ID! passed
+)
+echo.
+
+goto ci_watch_next
+
+:ci_watch_results
+:: Clean up temp file
+del "!RUN_LIST!" 2>nul
+
+if !ANY_FAILED!==1 goto ci_fail
 
 :ci_done
 echo.
@@ -359,16 +358,6 @@ echo   One or more jobs failed. Check the logs:
 echo   https://github.com/Ruzzyferr/ConstChat/actions
 echo.
 
-:: Show all failed jobs across all workflows
-echo   Failed jobs:
-for /f "tokens=*" %%i in ('gh run list --commit !COMMIT_SHA! --json databaseId --jq ".[].databaseId" 2^>nul') do (
-    set "CUR_RUN_ID=%%i"
-    for /f "tokens=1,2,3 delims=	" %%a in ('gh run view !CUR_RUN_ID! --json jobs --jq ".jobs[] | select(.conclusion==\"failure\") | [.name, .status, .conclusion] | @tsv" 2^>nul') do (
-        echo     - Run #!CUR_RUN_ID! / %%a
-    )
-)
-echo.
-
 if defined FAILED_RUN_ID (
     set /p RETRY="  Retry failed workflow? [y/N]: "
     if /i "!RETRY!"=="y" (
@@ -379,8 +368,15 @@ if defined FAILED_RUN_ID (
         )
         echo [OK] Re-run triggered, watching again...
         echo.
-        timeout /t 5 /nobreak >nul
-        goto ci_watch_loop
+        timeout /t 10 /nobreak >nul
+        REM Re-collect runs and watch again
+        gh run list --commit !COMMIT_SHA! --json databaseId --jq ".[].databaseId" > "!RUN_LIST!" 2>nul
+        set RUN_COUNT=0
+        for /f "tokens=*" %%i in ('type "!RUN_LIST!"') do set /a RUN_COUNT+=1
+        set WATCH_IDX=0
+        set ANY_FAILED=0
+        set FAILED_RUN_ID=
+        goto ci_watch_next
     )
 )
 pause

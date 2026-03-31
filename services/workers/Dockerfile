@@ -1,7 +1,7 @@
 # ── Stage 1: deps ────────────────────────────────────────────────────────────
 FROM node:22-slim AS deps
 WORKDIR /app
-RUN npm install -g pnpm
+RUN corepack enable
 
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml ./
 COPY packages/design-tokens/package.json ./packages/design-tokens/
@@ -15,7 +15,7 @@ RUN pnpm install --frozen-lockfile --filter @constchat/workers...
 FROM node:22-slim AS builder
 WORKDIR /app
 RUN apt-get update -y && apt-get install -y openssl && rm -rf /var/lib/apt/lists/*
-RUN npm install -g pnpm
+RUN corepack enable
 
 COPY --from=deps /app ./
 
