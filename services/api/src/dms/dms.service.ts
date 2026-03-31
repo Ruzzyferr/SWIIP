@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { mapMessageForClient } from '../messages/message-serialize.util';
 
 @Injectable()
 export class DMsService {
@@ -396,12 +397,6 @@ export class DMsService {
       take: limit,
     });
 
-    return messages.reverse().map((msg: any) => {
-      if (msg.author) {
-        const { avatarId, ...rest } = msg.author;
-        msg.author = { ...rest, avatar: avatarId ?? null };
-      }
-      return msg;
-    });
+    return messages.reverse().map((msg: any) => mapMessageForClient(msg, userId));
   }
 }

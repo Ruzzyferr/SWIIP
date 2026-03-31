@@ -21,6 +21,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { mapMessageForClient } from './message-serialize.util';
 
 export class CreateMessageDto {
   @ApiProperty({ maxLength: 4000 })
@@ -71,19 +72,6 @@ export class MessagesService {
     private readonly permissionsService: PermissionsService,
     private readonly searchService: SearchService,
   ) {}
-
-  /** Map avatarId → avatar on author/referencedMessage.author for protocol compat */
-  private mapMessage(msg: any) {
-    if (msg?.author) {
-      const { avatarId, ...rest } = msg.author;
-      msg = { ...msg, author: { ...rest, avatar: avatarId ?? null } };
-    }
-    if (msg?.referencedMessage?.author) {
-      const { avatarId, ...rest } = msg.referencedMessage.author;
-      msg = { ...msg, referencedMessage: { ...msg.referencedMessage, author: { ...rest, avatar: avatarId ?? null } } };
-    }
-    return msg;
-  }
 
   private readonly MESSAGE_INCLUDE = {
     author: {
@@ -223,7 +211,7 @@ export class MessagesService {
           timestamp: updated.createdAt,
         }).catch((err) => this.logger.warn({ err }, 'Failed to index message for search'));
 
-        return updated;
+        return mapMessageForClient(updated, userId);
       }
     }
 
@@ -262,7 +250,7 @@ export class MessagesService {
       timestamp: message.createdAt,
     }).catch((err) => this.logger.warn({ err }, 'Failed to index message for search'));
 
-    return this.mapMessage(message);
+    return mapMessageForClient(message, userId);
   }
 
   async getMessages(channelId: string, userId: string, options: GetMessagesDto = {}) {
@@ -295,7 +283,7 @@ export class MessagesService {
       take: limit,
     });
 
-    return messages.reverse().map((m: any) => this.mapMessage(m));
+    return messages.reverse().map((m: any) => mapMessageForClient(m, userId));
   }
 
   async getMessage(messageId: string, channelId: string, userId: string) {
@@ -308,7 +296,7 @@ export class MessagesService {
     });
 
     if (!message) throw new NotFoundException('Message not found');
-    return this.mapMessage(message);
+    return mapMessageForClient(message, userId);
   }
 
   async update(messageId: string, userId: string, dto: UpdateMessageDto) {
@@ -345,7 +333,7 @@ export class MessagesService {
     this.searchService.updateMessageIndex(messageId, dto.content)
       .catch((err) => this.logger.warn({ err }, 'Failed to update message search index'));
 
-    return updated;
+    return mapMessageForClient(updated, userId);
   }
 
   async delete(messageId: string, userId: string, actorId?: string) {

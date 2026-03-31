@@ -16,6 +16,28 @@ import { useFriendsStore } from '@/stores/friends.store';
 import { getGuildMembers, getGuildMember, getGuild } from '@/lib/api/guilds.api';
 import { toastError, toastInfo, toastSuccess } from '@/lib/toast';
 import { playMessageSound, playMentionSound } from '@/lib/sounds';
+import { getPlatformProvider } from '@/lib/platform';
+
+/** Window focus — updated via PlatformProvider (Electron IPC on desktop). */
+const notificationWindowFocused = { current: true };
+
+function isViewingMessageChannel(channelId: string): boolean {
+  const { activeChannelId, activeDMId, activeThreadId } = useUIStore.getState();
+  return (
+    activeChannelId === channelId ||
+    activeDMId === channelId ||
+    activeThreadId === channelId
+  );
+}
+
+/** Discord-like: user should get audio/desktop alert for this channel. */
+function shouldAlertIncomingMessage(channelId: string): boolean {
+  if (typeof document === 'undefined') return true;
+  const viewing = isViewingMessageChannel(channelId);
+  const visible = !document.hidden;
+  const focused = notificationWindowFocused.current;
+  return !(viewing && visible && focused);
+}
 
 /**
  * Wires the singleton GatewayClient events into Zustand stores.
@@ -62,6 +84,12 @@ export function useGatewayBridge() {
     bridged.current = true;
 
     const gw = getGatewayClient();
+
+    notificationWindowFocused.current =
+      typeof document !== 'undefined' ? document.hasFocus() : true;
+    const unsubWindowFocus = getPlatformProvider().onWindowFocusChange((focused) => {
+      notificationWindowFocused.current = focused;
+    });
 
     // Sync access token for API calls
     setAccessToken(accessToken);
@@ -218,14 +246,10 @@ export function useGatewayBridge() {
       // Track lastMessageId on the channel for unread detection
       updateChannel(data.message.channelId, { lastMessageId: data.message.id } as any);
 
-      // Sound + native notification when window is hidden/unfocused (Discord pattern)
+      // Sound + desktop notification (Discord-like: other channel / DM, unfocused, or background tab)
       const currentUserId = useAuthStore.getState().user?.id;
-      const activeChannelId = useUIStore.getState().activeChannelId;
-      if (
-        data.message.author.id !== currentUserId &&
-        (typeof document !== 'undefined' && document.hidden || data.message.channelId !== activeChannelId)
-      ) {
-        // Play sound — mention gets a different sound
+      const chId = data.message.channelId;
+      if (data.message.author.id !== currentUserId && shouldAlertIncomingMessage(chId)) {
         const isMention = data.message.mentions?.some((m: any) => m.id === currentUserId || m === currentUserId);
         if (isMention) {
           playMentionSound();
@@ -235,8 +259,7 @@ export function useGatewayBridge() {
       }
       if (
         data.message.author.id !== currentUserId &&
-        typeof document !== 'undefined' &&
-        document.hidden &&
+        shouldAlertIncomingMessage(chId) &&
         typeof Notification !== 'undefined' &&
         Notification.permission === 'granted'
       ) {
@@ -245,13 +268,16 @@ export function useGatewayBridge() {
           ? data.message.content.slice(0, 100) + '…'
           : data.message.content || '(attachment)';
         try {
-          const n = new Notification(displayName, { body, silent: false });
+          const n = new Notification(displayName, {
+            body,
+            silent: false,
+            tag: `message-${data.message.id}`,
+          });
           n.onclick = () => {
             window.focus();
             n.close();
           };
-          // Auto-close after 5 seconds
-          setTimeout(() => n.close(), 5000);
+          setTimeout(() => n.close(), 8000);
         } catch {
           // Notification API error — ignore
         }
@@ -461,6 +487,7 @@ export function useGatewayBridge() {
 
     return () => {
       bridged.current = false;
+      unsubWindowFocus();
       if (reconnectToastTimeout) clearTimeout(reconnectToastTimeout);
       gw.disconnect();
       gw.removeAllListeners();
