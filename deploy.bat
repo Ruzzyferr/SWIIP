@@ -234,14 +234,21 @@ if !WAIT_TRIES! GEQ 36 (
 set /a WAIT_TRIES+=1
 timeout /t 5 /nobreak >nul
 
-:: Find the run that matches our exact commit SHA
+:: Get the latest run
 set RUN_ID=
-for /f "tokens=1" %%i in ('gh run list --workflow deploy.yml --limit 10 --json databaseId,headSha --jq ".[] | select(.headSha == \"!PUSH_SHA!\") | .databaseId" 2^>nul') do (
-    if not defined RUN_ID set RUN_ID=%%i
-)
+for /f "tokens=1" %%i in ('gh run list --workflow deploy.yml --limit 1 --json databaseId --jq ".[0].databaseId" 2^>nul') do set RUN_ID=%%i
 
 if not defined RUN_ID (
     echo     ...waiting for workflow to start (attempt !WAIT_TRIES!/36)
+    goto ci_poll_start
+)
+
+:: Verify it matches our push commit
+set RUN_SHA=
+for /f "tokens=*" %%s in ('gh run view !RUN_ID! --json headSha --jq ".headSha" 2^>nul') do set RUN_SHA=%%s
+
+if not "!RUN_SHA!"=="!PUSH_SHA!" (
+    echo     ...latest run is for a different commit, waiting (attempt !WAIT_TRIES!/36)
     goto ci_poll_start
 )
 
