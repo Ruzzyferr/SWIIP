@@ -72,18 +72,15 @@ jobs:
   publish-installer:
     runs-on: ubuntu-latest
     needs: build-installer
-    env:
-      # Same names as Build & Deploy (deploy.yml uses appleboy/ssh-action with these).
-      SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
-      SSH_USER: ${{ secrets.SERVER_SSH_USER }}
+    # Same secret scope and SSH stack as Build & Deploy (deploy.yml deploy job).
+    environment: production
     steps:
-      # GitHub does not reliably evaluate secrets.* == '' in step `if:`; use env boolean instead.
       - name: Verify SSH secrets are configured
         env:
           SSH_SECRETS_OK: ${{ secrets.SERVER_SSH_KEY != '' && secrets.SERVER_HOST != '' }}
         run: |
           if [ "$SSH_SECRETS_OK" != "true" ]; then
-            echo '::error::Set SERVER_SSH_KEY and SERVER_HOST (same secrets as the Build & Deploy workflow). Optional: SERVER_SSH_USER (default root), SERVER_SSH_PORT (default 22).'
+            echo '::error::Set SERVER_SSH_KEY and SERVER_HOST (same secrets as the Build & Deploy workflow).'
             exit 1
           fi
 
@@ -103,78 +100,55 @@ jobs:
         run: |
           set -euo pipefail
           source dist/installer-metadata.env
+          VERSION="${VERSION//$'\r'/}"
+          SHA256="${SHA256//$'\r'/}"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "EXPECTED_SHA256=$SHA256" >> "$GITHUB_ENV"
 
-      # Multiline secrets belong in env — interpolating into the shell script breaks on quotes/newlines.
-      - name: Write SSH private key
-        env:
-          SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
+      - name: Stage installer for SCP
         run: |
           set -euo pipefail
-          install -m 700 -d ~/.ssh
-          umask 077
-          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/ci_desktop_release
-          chmod 600 ~/.ssh/ci_desktop_release
-          if ! ssh-keygen -y -f ~/.ssh/ci_desktop_release >/dev/null 2>/tmp/keygen.err; then
-            echo "::error::SERVER_SSH_KEY is not a valid OpenSSH private key (or is corrupted). $(tr '\n' ' ' </tmp/keygen.err)"
-            exit 1
-          fi
-
-      - name: Trust server host key (ssh-keyscan)
-        env:
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-        run: |
-          set -euo pipefail
-          PORT="${SSH_PORT:-22}"
-          if ! ssh-keyscan -o ConnectTimeout=15 -p "$PORT" -H "$SERVER_HOST" >> ~/.ssh/known_hosts 2>/tmp/keyscan.err; then
-            echo "::error::ssh-keyscan failed for SERVER_HOST=$SERVER_HOST port ${PORT} (DNS, firewall, non-standard SSH port, or wrong host). $(tr '\n' ' ' </tmp/keyscan.err)"
-            exit 1
-          fi
+          src=$(ls dist/Swiip-Setup-*.exe | head -n 1)
+          cp -f "$src" "dist/Swiip-Setup-${VERSION}.exe"
 
       - name: Upload installer to production downloads
-        run: |
-          set -euo pipefail
-          PORT="${SSH_PORT:-22}"
-          REMOTE_USER="${SSH_USER:-root}"
-          HOST="${{ secrets.SERVER_HOST }}"
-          INSTALLER_PATH="$(ls dist/Swiip-Setup-*.exe | head -n 1)"
-          scp -i ~/.ssh/ci_desktop_release -o IdentitiesOnly=yes -P "$PORT" "$INSTALLER_PATH" "${REMOTE_USER}@${HOST}:/opt/ConstChat/infra/docker/downloads/Swiip-Setup-${VERSION}.exe"
+        uses: appleboy/scp-action@v0.1.6
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: root
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          source: dist/Swiip-Setup-${{ env.VERSION }}.exe
+          target: /opt/ConstChat/infra/docker/downloads/
 
-      - name: Promote latest installer and generate update manifest
-        run: |
-          set -euo pipefail
-          PORT="${SSH_PORT:-22}"
-          REMOTE_USER="${SSH_USER:-root}"
-          HOST="${{ secrets.SERVER_HOST }}"
-          INSTALLER="Swiip-Setup-${VERSION}.exe"
-          ssh -i ~/.ssh/ci_desktop_release -o IdentitiesOnly=yes -p "$PORT" "${REMOTE_USER}@${HOST}" bash -s <<REMOTE_EOF
+      - name: Promote latest, write latest.yml, verify SHA256
+        uses: appleboy/ssh-action@v1
+        with:
+          host: ${{ secrets.SERVER_HOST }}
+          username: root
+          key: ${{ secrets.SERVER_SSH_KEY }}
+          envs: VERSION,EXPECTED_SHA256
+          script_stop: true
+          script: |
             set -euo pipefail
             cd /opt/ConstChat/infra/docker/downloads
+            INSTALLER="Swiip-Setup-${VERSION}.exe"
             cp -f "${INSTALLER}" Swiip-Setup-latest.exe
-            sha256sum Swiip-Setup-latest.exe | awk '{print \$1}' > Swiip-Setup-latest.exe.sha256
-            SIZE=\$(stat -c%s "${INSTALLER}")
-            SHA512=\$(sha512sum "${INSTALLER}" | awk '{print \$1}')
-            cat > latest.yml <<YML
-          version: ${VERSION}
-          files:
-            - url: Swiip-Setup-${VERSION}.exe
-              sha512: \${SHA512}
-              size: \${SIZE}
-          path: Swiip-Setup-${VERSION}.exe
-          sha512: \${SHA512}
-          releaseDate: $(date -u +%Y-%m-%dT%H:%M:%S.000Z)
-          YML
-          REMOTE_EOF
-
-      - name: Verify remote hash matches build hash
-        run: |
-          set -euo pipefail
-          PORT="${SSH_PORT:-22}"
-          REMOTE_USER="${SSH_USER:-root}"
-          HOST="${{ secrets.SERVER_HOST }}"
-          REMOTE_SHA="$(ssh -i ~/.ssh/ci_desktop_release -o IdentitiesOnly=yes -p "$PORT" "${REMOTE_USER}@${HOST}" "cat /opt/ConstChat/infra/docker/downloads/Swiip-Setup-latest.exe.sha256")"
-          test "$REMOTE_SHA" = "$EXPECTED_SHA256"
+            sha256sum Swiip-Setup-latest.exe | awk '{print $1}' > Swiip-Setup-latest.exe.sha256
+            REMOTE_SHA=$(cat Swiip-Setup-latest.exe.sha256)
+            test "$REMOTE_SHA" = "$EXPECTED_SHA256"
+            SIZE=$(stat -c%s "${INSTALLER}")
+            SHA512=$(sha512sum "${INSTALLER}" | awk '{print $1}')
+            RELEASE_DATE=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+            {
+              echo "version: ${VERSION}"
+              echo "files:"
+              echo "  - url: Swiip-Setup-${VERSION}.exe"
+              echo "    sha512: ${SHA512}"
+              echo "    size: ${SIZE}"
+              echo "path: Swiip-Setup-${VERSION}.exe"
+              echo "sha512: ${SHA512}"
+              echo "releaseDate: ${RELEASE_DATE}"
+            } > latest.yml
 
       - name: Smoke check latest installer URL
         run: |
