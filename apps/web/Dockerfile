@@ -14,7 +14,9 @@ COPY services/gateway/package.json ./services/gateway/package.json
 COPY services/media-signalling/package.json ./services/media-signalling/package.json
 COPY services/workers/package.json ./services/workers/package.json
 
-RUN pnpm install --frozen-lockfile
+# Only install @constchat/web and its graph — avoids Electron (desktop) postinstall
+# hitting GitHub, which fails under some builders (DNS/network) and is unused here.
+RUN pnpm install --frozen-lockfile --filter "@constchat/web..."
 
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_GATEWAY_URL

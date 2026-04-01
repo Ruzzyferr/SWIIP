@@ -8,6 +8,9 @@ on:
       - '.github/workflows/desktop-release.yml'
   workflow_dispatch:
 
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
 jobs:
   build-installer:
     runs-on: windows-latest
@@ -15,18 +18,19 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
+      - uses: pnpm/action-setup@v4
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
 
       - name: Install dependencies
-        working-directory: apps/desktop
-        run: npm install
+        run: pnpm install --frozen-lockfile
 
       - name: Build NSIS installer
-        working-directory: apps/desktop
-        run: npm run build:installer
+        run: pnpm --filter @constchat/desktop run build:installer
 
       - name: Compute installer metadata
         id: metadata
