@@ -18,10 +18,10 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v6
 
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v5
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 22
           cache: pnpm
@@ -75,6 +75,16 @@ jobs:
     env:
       SSH_PORT: ${{ secrets.PROD_SSH_PORT }}
     steps:
+      # GitHub does not reliably evaluate secrets.* == '' in step `if:`; use env boolean instead.
+      - name: Verify SSH secrets are configured
+        env:
+          SSH_SECRETS_OK: ${{ secrets.PROD_SSH_KEY != '' && secrets.PROD_SSH_HOST != '' && secrets.PROD_SSH_USER != '' }}
+        run: |
+          if [ "$SSH_SECRETS_OK" != "true" ]; then
+            echo '::error::Set repository secrets PROD_SSH_KEY (OpenSSH private key), PROD_SSH_HOST, and PROD_SSH_USER under Settings → Secrets and variables → Actions. Optional: PROD_SSH_PORT.'
+            exit 1
+          fi
+
       - name: Download installer artifact
         uses: actions/download-artifact@v4
         with:
@@ -98,9 +108,15 @@ jobs:
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh
-          printf "%s" "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_ed25519
+          # Trailing newline matters for OpenSSH when the secret was pasted without a final \n
+          printf '%s\n' "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          ssh-keyscan -H "${{ secrets.PROD_SSH_HOST }}" >> ~/.ssh/known_hosts
+          HOST="${{ secrets.PROD_SSH_HOST }}"
+          PORT="${SSH_PORT:-22}"
+          if ! ssh-keyscan -o ConnectTimeout=15 -p "$PORT" -H "$HOST" >> ~/.ssh/known_hosts 2>/tmp/keyscan.err; then
+            echo "::error::ssh-keyscan failed for PROD_SSH_HOST port ${PORT} (DNS, firewall blocking GitHub egress, wrong host/port, or use a bastion). $(tr '\n' ' ' </tmp/keyscan.err)"
+            exit 1
+          fi
 
       - name: Upload installer to production downloads
         run: |

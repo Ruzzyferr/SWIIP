@@ -18,6 +18,50 @@ import * as QRCode from 'qrcode';
 import { nanoid } from 'nanoid';
 import { randomInt } from 'crypto';
 import { RegisterDto } from './dto/auth.dto';
+import { Prisma, type User } from '@prisma/client';
+
+const sessionListSelect = {
+  id: true,
+  deviceName: true,
+  deviceOs: true,
+  browser: true,
+  ipAddress: true,
+  lastUsedAt: true,
+  createdAt: true,
+  expiresAt: true,
+} satisfies Prisma.SessionSelect;
+
+export type SessionListItem = Prisma.SessionGetPayload<{ select: typeof sessionListSelect }>;
+
+/** User fields returned to the client after registration (matches create `select`). */
+export type RegisterPublicUser = {
+  id: string;
+  email: string;
+  username: string;
+  discriminator: string;
+  globalName: string | null;
+  avatarId: string | null;
+  flags: bigint;
+  verified: boolean;
+  mfaEnabled: boolean;
+  createdAt: Date;
+};
+
+/** Sanitized user returned to the client after login. */
+export type LoginPublicUser = {
+  id: string;
+  email: string;
+  username: string;
+  discriminator: string;
+  globalName: string | null;
+  avatar: string | null;
+  flags: bigint;
+  verified: boolean;
+  mfaEnabled: boolean;
+  locale: string;
+  premiumType: number;
+  createdAt: Date;
+};
 
 export interface TokenPair {
   accessToken: string;
@@ -57,7 +101,11 @@ export class AuthService {
     private readonly emailService: EmailService,
   ) {}
 
-  async register(dto: RegisterDto): Promise<{ user: any; tokens: TokenPair; sessionId: string }> {
+  async register(dto: RegisterDto): Promise<{
+    user: RegisterPublicUser;
+    tokens: TokenPair;
+    sessionId: string;
+  }> {
     const existingEmail = await this.prisma.user.findUnique({
       where: { email: dto.email },
     });
@@ -173,10 +221,10 @@ export class AuthService {
       ipAddress?: string;
       userAgent?: string;
     },
-  ): Promise<{ user: any; tokens: TokenPair; sessionId: string }> {
+  ): Promise<{ user: LoginPublicUser; tokens: TokenPair; sessionId: string }> {
     await this.checkLoginLockout(email);
 
-    let user: any;
+    let user: User;
     try {
       user = await this.validateUser(email, password);
     } catch (err) {
@@ -347,7 +395,7 @@ export class AuthService {
     this.logger.log(`Revoked ${sessions.length} sessions for user: ${userId}`);
   }
 
-  async validateUser(email: string, password: string): Promise<any> {
+  async validateUser(email: string, password: string): Promise<User> {
     const user = await this.prisma.user.findUnique({
       where: { email },
     });
@@ -577,19 +625,10 @@ export class AuthService {
     return false;
   }
 
-  async getSessions(userId: string): Promise<any[]> {
+  async getSessions(userId: string): Promise<SessionListItem[]> {
     return this.prisma.session.findMany({
       where: { userId, isValid: true },
-      select: {
-        id: true,
-        deviceName: true,
-        deviceOs: true,
-        browser: true,
-        ipAddress: true,
-        lastUsedAt: true,
-        createdAt: true,
-        expiresAt: true,
-      },
+      select: sessionListSelect,
       orderBy: { lastUsedAt: 'desc' },
     });
   }

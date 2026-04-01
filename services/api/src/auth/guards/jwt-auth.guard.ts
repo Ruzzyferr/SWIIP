@@ -2,6 +2,7 @@ import { Injectable, ExecutionContext, UnauthorizedException } from '@nestjs/com
 import { AuthGuard } from '@nestjs/passport';
 import { Reflector } from '@nestjs/core';
 import { IS_PUBLIC_KEY } from '../decorators/public.decorator';
+import type { AuthUser } from '../auth.service';
 
 @Injectable()
 export class JwtAuthGuard extends AuthGuard('jwt') {
@@ -20,10 +21,22 @@ export class JwtAuthGuard extends AuthGuard('jwt') {
     return super.canActivate(context);
   }
 
-  handleRequest(err: any, user: any, info: any) {
-    if (err || !user) {
-      throw err || new UnauthorizedException(info?.message ?? 'Unauthorized');
+  handleRequest<TUser = AuthUser>(
+    err: unknown,
+    user: unknown,
+    info: unknown,
+    _context: ExecutionContext,
+    _status?: unknown,
+  ): TUser {
+    if (err || user == null || user === false) {
+      let msg = 'Unauthorized';
+      if (info && typeof info === 'object' && 'message' in info) {
+        const m = (info as { message?: unknown }).message;
+        if (typeof m === 'string') msg = m;
+      }
+      if (err instanceof Error) throw err;
+      throw new UnauthorizedException(msg);
     }
-    return user;
+    return user as TUser;
   }
 }

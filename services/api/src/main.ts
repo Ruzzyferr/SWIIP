@@ -9,7 +9,12 @@ import fastifyCookie from '@fastify/cookie';
 import helmet from '@fastify/helmet';
 
 // BigInt fields (e.g. permissions flags) must be serializable to JSON
-(BigInt.prototype as any).toJSON = function () { return this.toString(); };
+interface BigIntJSON {
+  toJSON: () => string;
+}
+(BigInt.prototype as unknown as BigIntJSON).toJSON = function toJSON(this: bigint) {
+  return this.toString();
+};
 
 async function bootstrap() {
   const logger = new Logger('Bootstrap');
@@ -30,9 +35,9 @@ async function bootstrap() {
     }),
   );
 
-  await app.register(fastifyCookie as any);
-
-  await app.register(helmet as any, {
+  // Default exports from @fastify/* vs Nest register(): instance types differ slightly; cast is sound at runtime.
+  await app.register(fastifyCookie as unknown as Parameters<NestFastifyApplication['register']>[0]);
+  await app.register(helmet as unknown as Parameters<NestFastifyApplication['register']>[0], {
     contentSecurityPolicy: config.NODE_ENV === 'production' ? {
       directives: {
         defaultSrc: ["'self'"],

@@ -34,6 +34,7 @@ import {
   EnableMFADto,
   DisableMFADto,
 } from './dto/auth.dto';
+import type { FastifyReply, FastifyRequest } from 'fastify';
 
 const AUTH_THROTTLE = { default: { ttl: 60000, limit: 5 } } as const;
 const AUTH_THROTTLE_STRICT = { default: { ttl: 60000, limit: 3 } } as const;
@@ -72,7 +73,7 @@ export class AuthController {
     return 'lax';
   }
 
-  private setRefreshCookie(reply: any, refreshToken: string) {
+  private setRefreshCookie(reply: FastifyReply, refreshToken: string) {
     reply.setCookie(this.refreshCookieName, refreshToken, {
       httpOnly: true,
       secure: this.cookieSecure,
@@ -83,7 +84,7 @@ export class AuthController {
     });
   }
 
-  private clearRefreshCookie(reply: any) {
+  private clearRefreshCookie(reply: FastifyReply) {
     reply.clearCookie(this.refreshCookieName, {
       domain: this.configService.get<string>('AUTH_COOKIE_DOMAIN'),
       path: this.configService.get<string>('AUTH_COOKIE_PATH', '/'),
@@ -99,7 +100,7 @@ export class AuthController {
   @ApiOperation({ summary: 'Register a new account' })
   @ApiResponse({ status: 201, description: 'Account created successfully' })
   @ApiResponse({ status: 409, description: 'Email already registered' })
-  async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) reply: any) {
+  async register(@Body() dto: RegisterDto, @Res({ passthrough: true }) reply: FastifyReply) {
     const result = await this.authService.register(dto);
     this.setRefreshCookie(reply, result.tokens.refreshToken);
     return {
@@ -116,7 +117,11 @@ export class AuthController {
   @ApiOperation({ summary: 'Login with email and password' })
   @ApiResponse({ status: 200, description: 'Logged in successfully' })
   @ApiResponse({ status: 401, description: 'Invalid credentials' })
-  async login(@Body() dto: LoginDto, @Request() req: any, @Res({ passthrough: true }) reply: any) {
+  async login(
+    @Body() dto: LoginDto,
+    @Request() req: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
+  ) {
     const deviceInfo = {
       ipAddress: req.ip,
       userAgent: req.headers?.['user-agent'],
@@ -136,8 +141,8 @@ export class AuthController {
   @ApiOperation({ summary: 'Refresh access token' })
   async refresh(
     @Body() dto: RefreshTokenDto,
-    @Request() req: any,
-    @Res({ passthrough: true }) reply: any,
+    @Request() req: FastifyRequest,
+    @Res({ passthrough: true }) reply: FastifyReply,
   ) {
     const refreshToken = req.cookies?.[this.refreshCookieName] ?? dto.refreshToken;
     const tokens = await this.authService.refreshToken(refreshToken ?? '');
@@ -185,7 +190,7 @@ export class AuthController {
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Logout current session' })
-  async logout(@CurrentUser() user: AuthUser, @Res({ passthrough: true }) reply: any) {
+  async logout(@CurrentUser() user: AuthUser, @Res({ passthrough: true }) reply: FastifyReply) {
     await this.authService.logout(user.sessionId);
     this.clearRefreshCookie(reply);
   }
