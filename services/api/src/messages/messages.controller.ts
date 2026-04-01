@@ -125,7 +125,7 @@ export class MessagesController {
     @Param('messageId') messageId: string,
     @Param('emoji') emoji: string,
     @Param('userId') targetUserId: string,
-    @CurrentUser() user: AuthUser,
+    @CurrentUser() _user: AuthUser,
   ) {
     await this.messagesService.removeReaction(messageId, channelId, targetUserId, decodeURIComponent(emoji));
   }

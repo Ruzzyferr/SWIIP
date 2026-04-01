@@ -87,7 +87,11 @@ export class NotificationsService {
   }
 
   @OnEvent('message.created')
-  async handleMessageCreated(payload: { channelId: string; guildId?: string; message: any }) {
+  async handleMessageCreated(payload: {
+    channelId: string;
+    guildId?: string;
+    message: { content?: string | null; authorId: string };
+  }) {
     if (!payload.message?.content?.includes('@')) return;
 
     const content: string = payload.message.content;

@@ -121,7 +121,7 @@ export class EventPublisherService implements OnModuleInit {
     guildId: string;
     userId: string;
     nick: string | null;
-    avatar: string | null;
+    guildAvatarId: string | null;
     roles: string[];
     joinedAt: Date;
     premiumSince: Date | null;
@@ -142,7 +142,7 @@ export class EventPublisherService implements OnModuleInit {
       guildId: member.guildId,
       userId: member.userId,
       nick: member.nick,
-      avatar: member.avatar,
+      avatar: member.guildAvatarId ?? null,
       roles: member.roles,
       joinedAt: member.joinedAt.toISOString(),
       premiumSince: member.premiumSince?.toISOString() ?? null,
@@ -335,7 +335,7 @@ export class EventPublisherService implements OnModuleInit {
     // Notify the guild about the new member
     await this.publishGuildEvent(payload.guildId, 'GUILD_MEMBER_ADD', {
       guildId: payload.guildId,
-      member: this.toMemberPayload(member as any),
+      member: this.toMemberPayload(member),
     });
     // Notify the user personally so they get the guild in their list.
     // Fetch the full guild object (with channels, roles, categories) so the client
@@ -377,7 +377,22 @@ export class EventPublisherService implements OnModuleInit {
     userId: string;
     member: unknown;
   }): Promise<void> {
-    const incoming = payload.member as any;
+    type MemberUserPatch = {
+      avatar?: string | null;
+      avatarId?: string | null;
+      createdAt?: string | Date;
+      flags?: bigint | number;
+    };
+    type MemberUpdateIncoming = {
+      user?: MemberUserPatch;
+      joinedAt?: string | Date;
+      premiumSince?: string | Date | null;
+      pending?: boolean;
+      deaf?: boolean;
+      mute?: boolean;
+    } & Record<string, unknown>;
+
+    const incoming = payload.member as MemberUpdateIncoming;
     const normalized = incoming?.user
       ? {
           ...incoming,

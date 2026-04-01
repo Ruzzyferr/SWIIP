@@ -6,6 +6,7 @@ import {
   ForbiddenException,
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
+import { Prisma, UserStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import {
@@ -59,7 +60,7 @@ export class UsersService {
 
     // Anonymize the user record instead of hard-deleting so message history is preserved
     const deletedTag = `deleted_user_${userId.slice(0, 8)}`;
-    await this.prisma.$transaction(async (tx: any) => {
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       // Remove all sessions
       await tx.session.deleteMany({ where: { userId } });
 
@@ -68,7 +69,7 @@ export class UsersService {
 
       // Remove relationships (friends, blocks, pending)
       await tx.userRelationship.deleteMany({
-        where: { OR: [{ userId }, { targetId: userId }] },
+        where: { OR: [{ requesterId: userId }, { targetId: userId }] },
       });
 
       // Remove DM participations
@@ -90,7 +91,7 @@ export class UsersService {
           bio: null,
           mfaEnabled: false,
           mfaSecret: null,
-          backupCodes: [],
+          mfaBackupCodes: [],
           verified: false,
         },
       });
@@ -208,7 +209,7 @@ export class UsersService {
     return { id: result.id, banner: result.bannerId };
   }
 
-  private mapUserFields(user: any) {
+  private mapUserFields(user: { avatarId?: string | null; bannerId?: string | null } & Record<string, unknown>) {
     const { avatarId, bannerId, ...rest } = user;
     return {
       ...rest,
@@ -267,7 +268,7 @@ export class UsersService {
       },
     });
 
-    return members.map((m: any) => ({
+    return members.map((m) => ({
       ...m.guild,
       nick: m.nick,
       roles: m.roles,
@@ -290,7 +291,7 @@ export class UsersService {
       },
     });
 
-    return relationships.map((r: any) => {
+    return relationships.map((r) => {
       const friend = r.requesterId === userId ? r.target : r.requester;
       return this.mapUserFields(friend);
     });
@@ -304,7 +305,7 @@ export class UsersService {
       include: { target: { select: this.PUBLIC_SELECT } },
     });
 
-    return rows.map((r: any) => ({
+    return rows.map((r) => ({
       id: r.id,
       type: r.type,
       user: this.mapUserFields(r.target),
@@ -471,10 +472,10 @@ export class UsersService {
       }),
     ]);
 
-    const userGuildIds = new Set(userGuilds.map((m: any) => m.guildId));
+    const userGuildIds = new Set(userGuilds.map((m) => m.guildId));
     const mutualIds = targetGuilds
-      .map((m: any) => m.guildId)
-      .filter((id: string) => userGuildIds.has(id));
+      .map((m) => m.guildId)
+      .filter((id) => userGuildIds.has(id));
 
     return this.prisma.guild.findMany({
       where: { id: { in: mutualIds } },
@@ -484,6 +485,14 @@ export class UsersService {
 
   async getPresence(userIds: string[]) {
     if (userIds.length === 0) return [];
+
+    type PresenceSnapshot = {
+      userId: string;
+      status: UserStatus;
+      customStatusText: string | null;
+      customStatusEmoji: string | null;
+      lastSeenAt: Date | null;
+    };
 
     const presences = await this.prisma.presenceState.findMany({
       where: { userId: { in: userIds } },
@@ -496,8 +505,18 @@ export class UsersService {
       },
     });
 
-    // Check Redis for more recent presence updates (gateway stores real-time status here)
-    const presenceMap = new Map(presences.map((p: any) => [p.userId, p]));
+    const presenceMap = new Map<string, PresenceSnapshot>(
+      presences.map((p) => [
+        p.userId,
+        {
+          userId: p.userId,
+          status: p.status,
+          customStatusText: p.customStatusText,
+          customStatusEmoji: p.customStatusEmoji,
+          lastSeenAt: p.lastSeenAt,
+        },
+      ]),
+    );
 
     const client = this.redis.getClient();
     const pipeline = client.pipeline();
@@ -509,12 +528,20 @@ export class UsersService {
       for (let i = 0; i < userIds.length; i++) {
         const [err, raw] = results[i] as [Error | null, Record<string, string>];
         if (!err && raw && raw['status']) {
-          const statusMap: Record<string, string> = {
-            online: 'ONLINE', idle: 'IDLE', dnd: 'DND', offline: 'OFFLINE', invisible: 'INVISIBLE',
+          const statusMap: Record<string, UserStatus> = {
+            online: 'ONLINE',
+            idle: 'IDLE',
+            dnd: 'DND',
+            offline: 'OFFLINE',
+            invisible: 'INVISIBLE',
           };
-          presenceMap.set(userIds[i]!, {
-            userId: userIds[i],
-            status: statusMap[raw['status']] ?? raw['status'],
+          const uid = userIds[i]!;
+          const redisKey = raw['status'];
+          const status =
+            statusMap[redisKey] ?? (redisKey.toUpperCase() as UserStatus);
+          presenceMap.set(uid, {
+            userId: uid,
+            status,
             customStatusText: raw['customStatus'] || null,
             customStatusEmoji: null,
             lastSeenAt: raw['updatedAt'] ? new Date(parseInt(raw['updatedAt'], 10)) : null,

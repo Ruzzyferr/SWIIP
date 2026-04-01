@@ -9,17 +9,34 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import {
-  IsString,
-  IsOptional,
-  MaxLength,
-  IsInt,
-  Min,
-  Max,
-  IsBoolean,
-} from 'class-validator';
+import { IsString, IsOptional, MaxLength, IsInt, IsBoolean } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { Permissions } from '../permissions/permissions.service';
+import { Prisma } from '@prisma/client';
+
+/** Guild member rows whose `user` includes avatar fields for API mapping. */
+type GuildMemberWithUserForList = Prisma.GuildMemberGetPayload<{
+  include: {
+    user: {
+      select: {
+        id: true;
+        username: true;
+        discriminator: true;
+        globalName: true;
+        avatarId: true;
+        flags: true;
+        isBot: true;
+      };
+    };
+  };
+}>;
+
+type MemberUserForMap = {
+  avatarId: string | null;
+  bannerId?: string | null;
+} & Record<string, unknown>;
+
+type MemberRowForMap = { user?: MemberUserForMap | null } & Record<string, unknown>;
 
 export class CreateGuildDto {
   @ApiProperty() @IsString() @MaxLength(100) name: string;
@@ -60,16 +77,21 @@ export class GuildsService {
   ) {}
 
   /** Map avatarId → avatar on a user sub-object for protocol compatibility */
-  private mapMemberUser(member: any) {
-    if (member?.user) {
-      const { avatarId, bannerId, ...rest } = member.user;
-      member = { ...member, user: { ...rest, avatar: avatarId ?? null, ...(bannerId !== undefined ? { banner: bannerId ?? null } : {}) } };
-    }
-    return member;
+  private mapMemberUser<T extends MemberRowForMap>(member: T): T {
+    if (!member.user) return member;
+    const { avatarId, bannerId, ...rest } = member.user;
+    return {
+      ...member,
+      user: {
+        ...rest,
+        avatar: avatarId ?? null,
+        ...(bannerId !== undefined ? { banner: bannerId ?? null } : {}),
+      },
+    } as T;
   }
 
   async create(userId: string, dto: CreateGuildDto) {
-    const guild = await this.prisma.$transaction(async (tx: any) => {
+    const guild = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const newGuild = await tx.guild.create({
         data: {
           name: dto.name,
@@ -229,7 +251,7 @@ export class GuildsService {
         guildId,
         actorId: userId,
         action: 'GUILD_UPDATE',
-        changes: dto as any,
+        changes: dto as Prisma.InputJsonValue,
       },
     });
 
@@ -279,7 +301,9 @@ export class GuildsService {
       },
       take: limit,
       orderBy: { userId: 'asc' },
-    }).then((members: any[]) => members.map((m) => this.mapMemberUser(m)));
+    }).then((members: GuildMemberWithUserForList[]) =>
+      members.map((m) => this.mapMemberUser(m)),
+    );
   }
 
   async getMember(guildId: string, userId: string) {
@@ -304,7 +328,7 @@ export class GuildsService {
     return this.mapMemberUser(member);
   }
 
-  async addMember(guildId: string, userId: string, inviteCode?: string) {
+  async addMember(guildId: string, userId: string, _inviteCode?: string) {
     const guild = await this.prisma.guild.findUnique({ where: { id: guildId } });
     if (!guild) throw new NotFoundException('Guild not found');
 
@@ -317,7 +341,7 @@ export class GuildsService {
       where: { guildId, name: '@everyone' },
     });
 
-    const member = await this.prisma.$transaction(async (tx: any) => {
+    const member = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const newMember = await tx.guildMember.create({
         data: {
           guildId,
@@ -348,7 +372,7 @@ export class GuildsService {
     });
     if (!targetMember) throw new NotFoundException('Member not found');
 
-    await this.prisma.$transaction(async (tx: any) => {
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.guildMember.delete({
         where: { guildId_userId: { guildId, userId: targetId } },
       });
@@ -409,7 +433,7 @@ export class GuildsService {
         targetId,
         targetType: 'USER',
         action: 'MEMBER_UPDATE',
-        changes: dto as any,
+        changes: dto as Prisma.InputJsonValue,
       },
     });
 
@@ -424,7 +448,7 @@ export class GuildsService {
     actorId: string,
     targetId: string,
     reason?: string,
-    deleteMessageDays = 0,
+    _deleteMessageDays = 0,
   ) {
     const guild = await this.prisma.guild.findUnique({ where: { id: guildId } });
     if (!guild) throw new NotFoundException('Guild not found');
@@ -435,7 +459,7 @@ export class GuildsService {
     });
     if (existingBan) throw new ConflictException('User is already banned');
 
-    await this.prisma.$transaction(async (tx: any) => {
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const memberExists = await tx.guildMember.findUnique({
         where: { guildId_userId: { guildId, userId: targetId } },
       });
@@ -548,7 +572,7 @@ export class GuildsService {
     });
     if (!member) throw new NotFoundException('Not a member of this guild');
 
-    await this.prisma.$transaction(async (tx: any) => {
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.guildMember.delete({
         where: { guildId_userId: { guildId, userId } },
       });
@@ -572,7 +596,7 @@ export class GuildsService {
     });
     if (!newOwnerMember) throw new NotFoundException('New owner is not a member of this guild');
 
-    await this.prisma.$transaction(async (tx: any) => {
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.guild.update({
         where: { id: guildId },
         data: { ownerId: newOwnerId },

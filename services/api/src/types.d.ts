@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any -- ambient shims for packages without accurate typings */
 declare module 'meilisearch' {
   export class MeiliSearch {
     constructor(config: { host: string; apiKey?: string });

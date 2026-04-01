@@ -1,5 +1,5 @@
 import { Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { MeiliSearch, SearchResponse } from 'meilisearch';
+import { MeiliSearch } from 'meilisearch';
 import { ConfigService } from '@nestjs/config';
 
 export interface MessageSearchResult {
@@ -10,6 +10,13 @@ export interface MessageSearchResult {
   authorUsername: string;
   content: string;
   timestamp: string;
+}
+
+export interface UserSearchHit {
+  id: string;
+  username?: string;
+  globalName?: string;
+  guildId?: string;
 }
 
 export interface SearchFilters {
@@ -150,9 +157,9 @@ export class SearchService implements OnModuleInit {
     }
   }
 
-  async searchUsers(guildId: string, query: string, limit = 10): Promise<any[]> {
+  async searchUsers(guildId: string, query: string, limit = 10): Promise<UserSearchHit[]> {
     try {
-      const result = await this.client.index('users').search(query, {
+      const result = await this.client.index('users').search<UserSearchHit>(query, {
         filter: `guildId = "${guildId.replace(/"/g, '')}"`,
         limit,
       });

@@ -12,7 +12,20 @@ import {
   HttpStatus,
 } from '@nestjs/common';
 import { ApiTags, ApiBearerAuth, ApiOperation } from '@nestjs/swagger';
-import { ModerationService, CreateModerationActionDto } from './moderation.service';
+import { ModerationActionType } from '@prisma/client';
+import {
+  ModerationService,
+  CreateModerationActionDto,
+  CreateAutomodRuleDto,
+  UpdateAutomodRuleDto,
+} from './moderation.service';
+
+function parseModerationActionType(v: string | undefined): ModerationActionType | undefined {
+  if (v === undefined || v === '') return undefined;
+  return (Object.values(ModerationActionType) as string[]).includes(v)
+    ? (v as ModerationActionType)
+    : undefined;
+}
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { AuthUser } from '../auth/auth.service';
@@ -47,7 +60,7 @@ export class ModerationController {
     return this.moderationService.getActions(guildId, {
       targetId,
       actorId,
-      type: type as any,
+      type: parseModerationActionType(type),
       limit,
     });
   }
@@ -87,7 +100,7 @@ export class ModerationController {
   async createAutomodRule(
     @Param('guildId') guildId: string,
     @CurrentUser() user: AuthUser,
-    @Body() dto: any,
+    @Body() dto: CreateAutomodRuleDto,
   ) {
     return this.moderationService.createAutomodRule(guildId, user.userId, dto);
   }
@@ -98,7 +111,7 @@ export class ModerationController {
     @Param('guildId') guildId: string,
     @Param('ruleId') ruleId: string,
     @CurrentUser() user: AuthUser,
-    @Body() dto: any,
+    @Body() dto: UpdateAutomodRuleDto,
   ) {
     return this.moderationService.updateAutomodRule(ruleId, guildId, user.userId, dto);
   }

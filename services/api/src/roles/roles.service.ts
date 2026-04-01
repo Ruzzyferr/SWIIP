@@ -5,6 +5,7 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
+import { Prisma, type Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PermissionsService, Permissions } from '../permissions/permissions.service';
@@ -104,7 +105,7 @@ export class RolesService {
   }
 
   /** Map Prisma Role (permissionsInteger) → RolePayload (permissions) */
-  private serializeRole(role: any) {
+  private serializeRole(role: Role) {
     const { permissionsInteger, ...rest } = role;
     return { ...rest, permissions: (permissionsInteger ?? 0n).toString() };
   }
@@ -189,7 +190,7 @@ export class RolesService {
         targetId: roleId,
         targetType: 'ROLE',
         action: 'ROLE_UPDATE',
-        changes: dto as any,
+        changes: dto as Prisma.InputJsonValue,
       },
     });
 
@@ -252,7 +253,7 @@ export class RolesService {
       where: { guildId },
       orderBy: { position: 'asc' },
     });
-    return reordered.map((r: any) => this.serializeRole(r));
+    return reordered.map((r) => this.serializeRole(r));
   }
 
   async addMemberRole(guildId: string, memberId: string, roleId: string, actorId: string) {
@@ -291,7 +292,7 @@ export class RolesService {
         targetId: memberId,
         targetType: 'USER',
         action: 'MEMBER_ROLE_UPDATE',
-        changes: { added: [roleId] } as any,
+        changes: { added: [roleId] } as Prisma.InputJsonValue,
       },
     });
 
@@ -330,7 +331,7 @@ export class RolesService {
         targetId: memberId,
         targetType: 'USER',
         action: 'MEMBER_ROLE_UPDATE',
-        changes: { removed: [roleId] } as any,
+        changes: { removed: [roleId] } as Prisma.InputJsonValue,
       },
     });
 
@@ -342,7 +343,7 @@ export class RolesService {
       where: { guildId },
       orderBy: { position: 'asc' },
     });
-    return roles.map((r: any) => this.serializeRole(r));
+    return roles.map((r) => this.serializeRole(r));
   }
 
   async computePermissions(userId: string, guildId: string, channelId?: string): Promise<string> {

@@ -9,8 +9,7 @@ import sharp from 'sharp';
 import { nanoid } from 'nanoid';
 import * as https from 'https';
 import * as http from 'http';
-import * as url from 'url';
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from '@aws-sdk/client-s3';
+import { S3Client, PutObjectCommand } from '@aws-sdk/client-s3';
 import { getSignedUrl as awsGetSignedUrl } from '@aws-sdk/s3-request-presigner';
 
 export interface ProcessImageOptions {

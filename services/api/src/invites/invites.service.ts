@@ -1,12 +1,6 @@
-import {
-  Injectable,
-  NotFoundException,
-  ForbiddenException,
-  BadRequestException,
-  ConflictException,
-  Logger,
-} from '@nestjs/common';
+import { Injectable, NotFoundException, ForbiddenException, BadRequestException, Logger } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
+import { Prisma } from '@prisma/client';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { nanoid } from 'nanoid';
 import { IsOptional, IsInt, IsBoolean, Min } from 'class-validator';
@@ -167,7 +161,7 @@ export class InvitesService {
       where: { guildId: invite.guildId, name: '@everyone' },
     });
 
-    await this.prisma.$transaction(async (tx: any) => {
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.guildMember.create({
         data: {
           guildId: invite.guildId,
@@ -216,7 +210,7 @@ export class InvitesService {
     return { message: 'Invite revoked' };
   }
 
-  async getGuildInvites(guildId: string, actorId: string) {
+  async getGuildInvites(guildId: string, _actorId: string) {
     return this.prisma.invite.findMany({
       where: { guildId },
       include: {

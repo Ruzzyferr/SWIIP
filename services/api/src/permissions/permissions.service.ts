@@ -169,7 +169,7 @@ export class PermissionsService {
       select: { id: true, permissionsInteger: true, name: true },
     });
 
-    const everyoneRole = roles.find((r: any) => r.name === '@everyone') ?? null;
+    const everyoneRole = roles.find((r) => r.name === '@everyone') ?? null;
     const basePerms = this.computeBasePermissions(
       member.roles,
       roles,
@@ -188,12 +188,7 @@ export class PermissionsService {
       basePerms,
       member.roles,
       userId,
-      overwrites.map((o: any) => ({
-        targetId: o.targetId,
-        targetType: o.targetType,
-        allow: o.allow,
-        deny: o.deny,
-      })),
+      overwrites,
       guildId,
     );
   }

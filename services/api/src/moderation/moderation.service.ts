@@ -7,25 +7,44 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PermissionsService, Permissions } from '../permissions/permissions.service';
-// ModerationActionType enum matches the Prisma schema; defined locally until prisma generate is run.
-type ModerationActionType = 'TIMEOUT' | 'KICK' | 'BAN' | 'SOFTBAN' | 'WARN' | 'MUTE';
-const ModerationActionType: Record<ModerationActionType, ModerationActionType> = {
-  TIMEOUT: 'TIMEOUT', KICK: 'KICK', BAN: 'BAN', SOFTBAN: 'SOFTBAN', WARN: 'WARN', MUTE: 'MUTE',
-};
+import {
+  ModerationActionType,
+  AutomodTriggerType,
+  AuditLogAction,
+  Prisma,
+} from '@prisma/client';
 import {
   IsString,
   IsOptional,
   IsEnum,
-  IsInt,
-  Min,
+  IsObject,
+  IsArray,
 } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 
 export class CreateModerationActionDto {
-  @ApiProperty({ enum: ModerationActionType }) @IsEnum(ModerationActionType) type: ModerationActionType;
-  @ApiProperty() @IsString() targetId: string;
+  @ApiProperty({ enum: ModerationActionType }) @IsEnum(ModerationActionType) type!: ModerationActionType;
+  @ApiProperty() @IsString() targetId!: string;
   @ApiPropertyOptional() @IsOptional() @IsString() reason?: string;
   @ApiPropertyOptional({ description: 'ISO datetime for TIMEOUT expiry' }) @IsOptional() @IsString() expiresAt?: string;
+}
+
+export class CreateAutomodRuleDto {
+  @ApiProperty() @IsString() name!: string;
+  @ApiProperty({ enum: AutomodTriggerType }) @IsEnum(AutomodTriggerType) triggerType!: AutomodTriggerType;
+  @ApiProperty() @IsObject() triggerMetadata!: Record<string, unknown>;
+  @ApiProperty() @IsObject() actions!: Record<string, unknown>;
+  @ApiPropertyOptional() @IsOptional() @IsArray() @IsString({ each: true }) exemptRoles?: string[];
+  @ApiPropertyOptional() @IsOptional() @IsArray() @IsString({ each: true }) exemptChannels?: string[];
+}
+
+export class UpdateAutomodRuleDto {
+  @ApiPropertyOptional() @IsOptional() @IsString() name?: string;
+  @ApiPropertyOptional({ enum: AutomodTriggerType }) @IsOptional() @IsEnum(AutomodTriggerType) triggerType?: AutomodTriggerType;
+  @ApiPropertyOptional() @IsOptional() @IsObject() triggerMetadata?: Record<string, unknown>;
+  @ApiPropertyOptional() @IsOptional() @IsObject() actions?: Record<string, unknown>;
+  @ApiPropertyOptional() @IsOptional() @IsArray() @IsString({ each: true }) exemptRoles?: string[];
+  @ApiPropertyOptional() @IsOptional() @IsArray() @IsString({ each: true }) exemptChannels?: string[];
 }
 
 @Injectable()
@@ -144,7 +163,7 @@ export class ModerationService {
     });
   }
 
-  async revokeAction(actionId: string, guildId: string, actorId: string) {
+  async revokeAction(actionId: string, guildId: string, _actorId: string) {
     const action = await this.prisma.moderationAction.findFirst({
       where: { id: actionId, guildId },
     });
@@ -177,11 +196,17 @@ export class ModerationService {
   ) {
     const limit = Math.min(filters.limit ?? 50, 100);
 
+    const auditAction =
+      filters.action &&
+      (Object.values(AuditLogAction) as string[]).includes(filters.action)
+        ? (filters.action as AuditLogAction)
+        : undefined;
+
     return this.prisma.auditLog.findMany({
       where: {
         guildId,
         ...(filters.actorId && { actorId: filters.actorId }),
-        ...(filters.action && { action: filters.action as any }),
+        ...(auditAction && { action: auditAction }),
         ...(filters.before && { id: { lt: filters.before } }),
       },
       include: {
@@ -200,18 +225,7 @@ export class ModerationService {
     });
   }
 
-  async createAutomodRule(
-    guildId: string,
-    actorId: string,
-    dto: {
-      name: string;
-      triggerType: string;
-      triggerMetadata: object;
-      actions: object;
-      exemptRoles?: string[];
-      exemptChannels?: string[];
-    },
-  ) {
+  async createAutomodRule(guildId: string, actorId: string, dto: CreateAutomodRuleDto) {
     const perms = await this.permissionsService.computePermissionsForUser(actorId, guildId);
     if (!this.permissionsService.isAdministrator(perms)) {
       throw new ForbiddenException('Only administrators can manage automod rules');
@@ -221,9 +235,9 @@ export class ModerationService {
       data: {
         guildId,
         name: dto.name,
-        triggerType: dto.triggerType as any,
-        triggerMetadata: dto.triggerMetadata,
-        actions: dto.actions,
+        triggerType: dto.triggerType,
+        triggerMetadata: dto.triggerMetadata as Prisma.InputJsonValue,
+        actions: dto.actions as Prisma.InputJsonValue,
         exemptRoles: dto.exemptRoles ?? [],
         exemptChannels: dto.exemptChannels ?? [],
       },
@@ -249,7 +263,7 @@ export class ModerationService {
     });
   }
 
-  async updateAutomodRule(ruleId: string, guildId: string, actorId: string, dto: any) {
+  async updateAutomodRule(ruleId: string, guildId: string, actorId: string, dto: UpdateAutomodRuleDto) {
     const rule = await this.prisma.automodRule.findFirst({ where: { id: ruleId, guildId } });
     if (!rule) throw new NotFoundException('Automod rule not found');
 
@@ -258,9 +272,20 @@ export class ModerationService {
       throw new ForbiddenException('Only administrators can manage automod rules');
     }
 
+    const data: Prisma.AutomodRuleUpdateInput = {
+      ...(dto.name !== undefined && { name: dto.name }),
+      ...(dto.triggerType !== undefined && { triggerType: dto.triggerType }),
+      ...(dto.triggerMetadata !== undefined && {
+        triggerMetadata: dto.triggerMetadata as Prisma.InputJsonValue,
+      }),
+      ...(dto.actions !== undefined && { actions: dto.actions as Prisma.InputJsonValue }),
+      ...(dto.exemptRoles !== undefined && { exemptRoles: dto.exemptRoles }),
+      ...(dto.exemptChannels !== undefined && { exemptChannels: dto.exemptChannels }),
+    };
+
     return this.prisma.automodRule.update({
       where: { id: ruleId },
-      data: dto,
+      data,
     });
   }
 

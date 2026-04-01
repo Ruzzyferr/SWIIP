@@ -8,7 +8,8 @@ import { timingSafeEqual } from 'crypto';
 import { PrismaService } from '../prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { PermissionsService, Permissions } from '../permissions/permissions.service';
-import { IsString, IsOptional, IsEnum, MaxLength } from 'class-validator';
+import { Prisma } from '@prisma/client';
+import { IsString, IsOptional, MaxLength } from 'class-validator';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 // WebhookType enum matches the Prisma schema; defined locally until prisma generate is run.
 type WebhookType = 'INCOMING' | 'CHANNEL_FOLLOWER';
@@ -136,7 +137,7 @@ export class WebhooksService {
     });
   }
 
-  async getWebhook(webhookId: string, actorId?: string) {
+  async getWebhook(webhookId: string, _actorId?: string) {
     const webhook = await this.prisma.webhook.findUnique({
       where: { id: webhookId },
       select: {
@@ -208,7 +209,7 @@ export class WebhooksService {
         targetId: webhookId,
         targetType: 'WEBHOOK',
         action: 'WEBHOOK_UPDATE',
-        changes: dto as any,
+        changes: dto as Prisma.InputJsonValue,
       },
     });
 

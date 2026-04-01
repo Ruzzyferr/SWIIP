@@ -8,6 +8,7 @@
     "start": "node dist/main",
     "typecheck": "prisma generate && tsc --noEmit",
     "lint": "eslint src --ext .ts",
+    "lint:strict": "eslint src --ext .ts --max-warnings 0",
     "test": "jest --config jest.config.ts",
     "test:integration": "jest --config jest.config.ts --runInBand",
     "db:generate": "prisma generate",

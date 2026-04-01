@@ -118,7 +118,7 @@ export class UsersController {
 
   @Get('users/:id')
   @ApiOperation({ summary: 'Get user by ID' })
-  async getUser(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+  async getUser(@Param('id') id: string, @CurrentUser() _user: AuthUser) {
     return this.usersService.findByIdPublic(id);
   }
 

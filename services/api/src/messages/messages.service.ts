@@ -22,6 +22,7 @@ import {
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { mapMessageForClient } from './message-serialize.util';
+import { Prisma } from '@prisma/client';
 
 export class CreateMessageDto {
   @ApiProperty({ maxLength: 4000 })
@@ -258,7 +259,7 @@ export class MessagesService {
     if (!canView) throw new ForbiddenException('Cannot view this channel');
 
     const limit = Math.min(options.limit ?? 50, 100);
-    const where: any = { channelId, deletedAt: null };
+    const where: Prisma.MessageWhereInput = { channelId, deletedAt: null };
 
     if (options.before) {
       where.id = { lt: options.before };
@@ -283,7 +284,7 @@ export class MessagesService {
       take: limit,
     });
 
-    return messages.reverse().map((m: any) => mapMessageForClient(m, userId));
+    return messages.reverse().map((m) => mapMessageForClient(m, userId));
   }
 
   async getMessage(messageId: string, channelId: string, userId: string) {
@@ -414,7 +415,7 @@ export class MessagesService {
           targetId: channelId,
           targetType: 'CHANNEL',
           action: 'MESSAGE_BULK_DELETE',
-          options: { count: messageIds.length } as any,
+          options: { count: messageIds.length } as Prisma.InputJsonValue,
         },
       });
     }
@@ -469,7 +470,7 @@ export class MessagesService {
 
     this.eventEmitter.emit('reaction.added', {
       channelId,
-      guildId: (message as any).channel?.guildId ?? undefined,
+      guildId: message.channel?.guildId ?? undefined,
       messageId,
       userId,
       emoji: { id: emojiId ?? null, name: emojiName },
@@ -529,7 +530,7 @@ export class MessagesService {
       },
     });
 
-    return reactions.map((r: any) => {
+    return reactions.map((r) => {
       const { avatarId, ...rest } = r.user;
       return { ...rest, avatar: avatarId ?? null };
     });

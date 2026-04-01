@@ -10,6 +10,7 @@ import {
 } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { timingSafeEqual } from 'crypto';
+import { UserStatus } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { RedisService } from '../redis/redis.service';
 
@@ -79,7 +80,7 @@ export class InternalController {
     if (!user) throw new NotFoundException('User not found');
 
     // Map avatarId/bannerId to avatar/banner for protocol compatibility
-    const { avatarId: userAvatarId, bannerId: userBannerId, ...userRest } = user as any;
+    const { avatarId: userAvatarId, bannerId: userBannerId, ...userRest } = user;
     const mappedUser = { ...userRest, avatar: userAvatarId ?? null, banner: userBannerId ?? null };
 
     const memberships = await this.prisma.guildMember.findMany({
@@ -94,15 +95,13 @@ export class InternalController {
       },
     });
 
-    const guilds = memberships.map((m: any) => {
+    const guilds = memberships.map((m) => {
       const guild = m.guild;
-      if (guild.roles) {
-        guild.roles = guild.roles.map((r: any) => {
-          const { permissionsInteger, ...rest } = r;
-          return { ...rest, permissions: (permissionsInteger ?? 0n).toString() };
-        });
-      }
-      return guild;
+      const roles = guild.roles?.map((r) => {
+        const { permissionsInteger, ...rest } = r;
+        return { ...rest, permissions: (permissionsInteger ?? 0n).toString() };
+      });
+      return { ...guild, roles };
     });
 
     const dmParticipants = await this.prisma.dMParticipant.findMany({
@@ -130,12 +129,12 @@ export class InternalController {
       take: 50,
     });
 
-    const dms = dmParticipants.map((p: any) => {
+    const dms = dmParticipants.map((p) => {
       const conv = p.conversation;
       const { participants, ...convRest } = conv;
       return {
         ...convRest,
-        recipients: (participants ?? []).map((part: any) => {
+        recipients: (participants ?? []).map((part) => {
           const u = part.user;
           if (!u) return part;
           const { avatarId, ...rest } = u;
@@ -161,7 +160,7 @@ export class InternalController {
         where: { requesterId: userId, type: 'FRIEND' },
         select: { targetId: true },
       });
-      const friendIds = friends.map((f: any) => f.targetId);
+      const friendIds = friends.map((f) => f.targetId);
       const client = this.redis.getClient();
       const friendKey = `swiip:user_friends:${userId}`;
       if (friendIds.length > 0) {
@@ -206,7 +205,7 @@ export class InternalController {
       where: { guildId },
       select: { userId: true },
     });
-    return { memberIds: members.map((m: any) => m.userId) };
+    return { memberIds: members.map((m) => m.userId) };
   }
 
   @Get('guilds/:guildId/members')
@@ -230,12 +229,10 @@ export class InternalController {
       },
       take: 1000,
     });
-    const mapped = members.map((m: any) => {
-      if (m.user) {
-        const { avatarId, ...rest } = m.user;
-        m.user = { ...rest, avatar: avatarId ?? null };
-      }
-      return m;
+    const mapped = members.map((m) => {
+      if (!m.user) return m;
+      const { avatarId, ...rest } = m.user;
+      return { ...m, user: { ...rest, avatar: avatarId ?? null } };
     });
     return { members: mapped };
   }
@@ -278,19 +275,19 @@ export class InternalController {
       offline: 'OFFLINE',
       invisible: 'INVISIBLE',
     };
-    const dbStatus = statusMap[body.status] ?? 'ONLINE';
+    const dbStatus = (statusMap[body.status] ?? 'ONLINE') as UserStatus;
 
     await this.prisma.presenceState.upsert({
       where: { userId },
       create: {
         userId,
-        status: dbStatus as any,
+        status: dbStatus,
         customStatusText: body.customStatusText ?? null,
         customStatusEmoji: body.customStatusEmoji ?? null,
         lastSeenAt: new Date(),
       },
       update: {
-        status: dbStatus as any,
+        status: dbStatus,
         customStatusText: body.customStatusText ?? null,
         customStatusEmoji: body.customStatusEmoji ?? null,
         lastSeenAt: new Date(),
