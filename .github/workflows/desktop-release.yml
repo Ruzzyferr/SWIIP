@@ -106,17 +106,29 @@ jobs:
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "EXPECTED_SHA256=$SHA256" >> "$GITHUB_ENV"
 
-      - name: Prepare SSH key
+      # Multiline secrets belong in env — interpolating into the shell script breaks on quotes/newlines.
+      - name: Write SSH private key
+        env:
+          SSH_PRIVATE_KEY: ${{ secrets.SERVER_SSH_KEY }}
         run: |
           set -euo pipefail
           install -m 700 -d ~/.ssh
-          # Trailing newline matters for OpenSSH when the secret was pasted without a final \n
-          printf '%s\n' "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_ed25519
-          chmod 600 ~/.ssh/id_ed25519
-          HOST="${{ secrets.SERVER_HOST }}"
+          umask 077
+          printf '%s\n' "$SSH_PRIVATE_KEY" > ~/.ssh/ci_desktop_release
+          chmod 600 ~/.ssh/ci_desktop_release
+          if ! ssh-keygen -y -f ~/.ssh/ci_desktop_release >/dev/null 2>/tmp/keygen.err; then
+            echo "::error::SERVER_SSH_KEY is not a valid OpenSSH private key (or is corrupted). $(tr '\n' ' ' </tmp/keygen.err)"
+            exit 1
+          fi
+
+      - name: Trust server host key (ssh-keyscan)
+        env:
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+        run: |
+          set -euo pipefail
           PORT="${SSH_PORT:-22}"
-          if ! ssh-keyscan -o ConnectTimeout=15 -p "$PORT" -H "$HOST" >> ~/.ssh/known_hosts 2>/tmp/keyscan.err; then
-            echo "::error::ssh-keyscan failed for SERVER_HOST port ${PORT} (DNS, firewall, or wrong host/port). $(tr '\n' ' ' </tmp/keyscan.err)"
+          if ! ssh-keyscan -o ConnectTimeout=15 -p "$PORT" -H "$SERVER_HOST" >> ~/.ssh/known_hosts 2>/tmp/keyscan.err; then
+            echo "::error::ssh-keyscan failed for SERVER_HOST=$SERVER_HOST port ${PORT} (DNS, firewall, non-standard SSH port, or wrong host). $(tr '\n' ' ' </tmp/keyscan.err)"
             exit 1
           fi
 
@@ -127,7 +139,7 @@ jobs:
           REMOTE_USER="${SSH_USER:-root}"
           HOST="${{ secrets.SERVER_HOST }}"
           INSTALLER_PATH="$(ls dist/Swiip-Setup-*.exe | head -n 1)"
-          scp -P "$PORT" "$INSTALLER_PATH" "${REMOTE_USER}@${HOST}:/opt/ConstChat/infra/docker/downloads/Swiip-Setup-${VERSION}.exe"
+          scp -i ~/.ssh/ci_desktop_release -o IdentitiesOnly=yes -P "$PORT" "$INSTALLER_PATH" "${REMOTE_USER}@${HOST}:/opt/ConstChat/infra/docker/downloads/Swiip-Setup-${VERSION}.exe"
 
       - name: Promote latest installer and generate update manifest
         run: |
@@ -136,7 +148,7 @@ jobs:
           REMOTE_USER="${SSH_USER:-root}"
           HOST="${{ secrets.SERVER_HOST }}"
           INSTALLER="Swiip-Setup-${VERSION}.exe"
-          ssh -p "$PORT" "${REMOTE_USER}@${HOST}" bash -s <<REMOTE_EOF
+          ssh -i ~/.ssh/ci_desktop_release -o IdentitiesOnly=yes -p "$PORT" "${REMOTE_USER}@${HOST}" bash -s <<REMOTE_EOF
             set -euo pipefail
             cd /opt/ConstChat/infra/docker/downloads
             cp -f "${INSTALLER}" Swiip-Setup-latest.exe
@@ -161,7 +173,7 @@ jobs:
           PORT="${SSH_PORT:-22}"
           REMOTE_USER="${SSH_USER:-root}"
           HOST="${{ secrets.SERVER_HOST }}"
-          REMOTE_SHA="$(ssh -p "$PORT" "${REMOTE_USER}@${HOST}" "cat /opt/ConstChat/infra/docker/downloads/Swiip-Setup-latest.exe.sha256")"
+          REMOTE_SHA="$(ssh -i ~/.ssh/ci_desktop_release -o IdentitiesOnly=yes -p "$PORT" "${REMOTE_USER}@${HOST}" "cat /opt/ConstChat/infra/docker/downloads/Swiip-Setup-latest.exe.sha256")"
           test "$REMOTE_SHA" = "$EXPECTED_SHA256"
 
       - name: Smoke check latest installer URL
