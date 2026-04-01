@@ -1,0 +1,55 @@
+{
+  "expo": {
+    "name": "Swiip",
+    "slug": "swiip",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "scheme": "swiip",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#090B0B"
+    },
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "app.swiip.mobile",
+      "infoPlist": {
+        "NSMicrophoneUsageDescription": "Swiip needs microphone access for voice channels",
+        "NSCameraUsageDescription": "Swiip needs camera access for video calls"
+      }
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#090B0B"
+      },
+      "package": "app.swiip.mobile",
+      "permissions": [
+        "RECORD_AUDIO",
+        "CAMERA"
+      ]
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-font",
+      "expo-localization",
+      [
+        "expo-notifications",
+        {
+          "icon": "./assets/notification-icon.png",
+          "color": "#10B981"
+        }
+      ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": ""
+      },
+      "apiUrl": "https://swiip.app/api",
+      "gatewayUrl": "wss://swiip.app/gateway"
+    }
+  }
+}

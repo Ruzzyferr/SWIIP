@@ -28,7 +28,10 @@
       "@constchat/design-tokens": ["./packages/design-tokens/src/index.ts"],
       "@constchat/protocol": ["./packages/protocol/src/index.ts"],
       "@constchat/config": ["./packages/config/src/index.ts"],
-      "@constchat/ui-primitives": ["./packages/ui-primitives/src/index.ts"]
+      "@constchat/ui-primitives": ["./packages/ui-primitives/src/index.ts"],
+      "@constchat/shared": ["./packages/shared/src/index.ts"],
+      "@constchat/shared/stores": ["./packages/shared/src/stores/index.ts"],
+      "@constchat/shared/api": ["./packages/shared/src/api/index.ts"]
     }
   },
   "exclude": ["node_modules", "dist", "build", ".next", "coverage"]
