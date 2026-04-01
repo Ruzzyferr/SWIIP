@@ -1,21 +1,14 @@
-import React, { createContext, useContext, useEffect, useState } from 'react';
-import { apiClient, loadStoredToken, setTokens, clearTokens } from '@/lib/api';
+import React, { createContext, useContext, useEffect, useCallback } from 'react';
+import * as SecureStore from 'expo-secure-store';
+import { apiClient, setTokens, clearTokens, loadStoredToken } from '@/lib/api';
+import { useAuthStore } from '@/lib/stores';
+import { useGatewayBridge } from '@/hooks/useGatewayBridge';
+import type { UserPayload } from '@constchat/protocol';
 
-interface User {
-  id: string;
-  username: string;
-  displayName: string;
-  avatar: string | null;
-  email: string;
-}
-
-interface AuthState {
-  user: User | null;
+interface AuthContextType {
+  user: UserPayload | null;
   isAuthenticated: boolean;
   isLoading: boolean;
-}
-
-interface AuthContextType extends AuthState {
   login: (email: string, password: string) => Promise<void>;
   register: (email: string, username: string, password: string) => Promise<void>;
   logout: () => Promise<void>;
@@ -24,53 +17,62 @@ interface AuthContextType extends AuthState {
 const AuthContext = createContext<AuthContextType | null>(null);
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [state, setState] = useState<AuthState>({
-    user: null,
-    isAuthenticated: false,
-    isLoading: true,
-  });
+  const user = useAuthStore((s) => s.user);
+  const isAuthenticated = useAuthStore((s) => s.isAuthenticated);
+  const isLoading = useAuthStore((s) => s.isLoading);
+  const storeSetUser = useAuthStore((s) => s.setUser);
+  const storeSetTokens = useAuthStore((s) => s.setTokens);
+  const storeLogout = useAuthStore((s) => s.logout);
+  const storeSetLoading = useAuthStore((s) => s.setLoading);
 
+  // Wire gateway events to stores when authenticated
+  useGatewayBridge();
+
+  // Restore session on mount
   useEffect(() => {
     (async () => {
+      storeSetLoading(true);
       const token = await loadStoredToken();
       if (token) {
         try {
+          storeSetTokens(token);
           const { data } = await apiClient.get('/users/@me');
-          setState({ user: data, isAuthenticated: true, isLoading: false });
+          storeSetUser(data);
         } catch {
           await clearTokens();
-          setState({ user: null, isAuthenticated: false, isLoading: false });
+          storeLogout();
         }
-      } else {
-        setState({ user: null, isAuthenticated: false, isLoading: false });
       }
+      storeSetLoading(false);
     })();
   }, []);
 
-  const login = async (email: string, password: string) => {
+  const login = useCallback(async (email: string, password: string) => {
     const { data } = await apiClient.post('/auth/login', { email, password });
     await setTokens(data.accessToken, data.refreshToken);
-    setState({ user: data.user, isAuthenticated: true, isLoading: false });
-  };
+    storeSetTokens(data.accessToken);
+    storeSetUser(data.user);
+  }, [storeSetTokens, storeSetUser]);
 
-  const register = async (email: string, username: string, password: string) => {
+  const register = useCallback(async (email: string, username: string, password: string) => {
     const { data } = await apiClient.post('/auth/register', { email, username, password });
     await setTokens(data.accessToken, data.refreshToken);
-    setState({ user: data.user, isAuthenticated: true, isLoading: false });
-  };
+    storeSetTokens(data.accessToken);
+    storeSetUser(data.user);
+  }, [storeSetTokens, storeSetUser]);
 
-  const logout = async () => {
+  const logout = useCallback(async () => {
     try {
       await apiClient.post('/auth/logout');
     } catch {
       // Ignore logout API errors
     }
     await clearTokens();
-    setState({ user: null, isAuthenticated: false, isLoading: false });
-  };
+    storeLogout();
+  }, [storeLogout]);
 
   return (
-    <AuthContext.Provider value={{ ...state, login, register, logout }}>
+    <AuthContext.Provider value={{ user, isAuthenticated, isLoading, login, register, logout }}>
       {children}
     </AuthContext.Provider>
   );

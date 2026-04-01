@@ -135,6 +135,16 @@ function createWindow() {
   // Load the web app
   mainWindow.loadURL(WEB_URL);
 
+  // After the UI loads, run one more update check so UpdateBanner listeners are registered
+  // before any IPC (avoids missing events; complements the 30-minute background poll).
+  if (!isDev) {
+    mainWindow.webContents.once('did-finish-load', () => {
+      setTimeout(() => {
+        autoUpdater.checkForUpdates().catch(() => {});
+      }, 2500);
+    });
+  }
+
   // Handle external links — open in system browser
   mainWindow.webContents.setWindowOpenHandler(({ url }) => {
     if (url.startsWith('http')) {
@@ -278,6 +288,7 @@ function setupAppMenu() {
 
 // ── Splash Screen (Discord-style update check on startup) ────────────────
 function createSplashWindow() {
+  const splashIcon = path.join(__dirname, '..', 'build', 'icon.png');
   splashWindow = new BrowserWindow({
     width: 300,
     height: 350,
@@ -288,107 +299,14 @@ function createSplashWindow() {
     transparent: true,
     skipTaskbar: true,
     backgroundColor: '#00000000',
+    icon: splashIcon,
     webPreferences: {
       contextIsolation: true,
       nodeIntegration: false,
     },
   });
 
-  const splashHTML = `<!DOCTYPE html>
-<html><head><meta charset="utf-8"><style>
-  * { margin: 0; padding: 0; box-sizing: border-box; }
-  body {
-    background: #090B0B;
-    color: #F5F7F6;
-    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    height: 100vh;
-    border-radius: 12px;
-    overflow: hidden;
-    -webkit-app-region: drag;
-    user-select: none;
-  }
-  .logo {
-    width: 80px; height: 80px;
-    margin-bottom: 24px;
-    border-radius: 20px;
-    background: linear-gradient(135deg, #10B981, #34D399);
-    display: flex; align-items: center; justify-content: center;
-    font-size: 36px; font-weight: 700; color: #fff;
-    box-shadow: 0 8px 32px rgba(16, 185, 129, 0.3);
-  }
-  .app-name {
-    font-size: 22px; font-weight: 700;
-    margin-bottom: 32px;
-    background: linear-gradient(135deg, #6EE7B7, #34D399);
-    -webkit-background-clip: text;
-    -webkit-text-fill-color: transparent;
-  }
-  .status {
-    font-size: 12px;
-    color: #788682;
-    margin-bottom: 16px;
-    min-height: 16px;
-    transition: opacity 0.3s;
-  }
-  .progress-container {
-    width: 200px; height: 4px;
-    background: #181E1D;
-    border-radius: 2px;
-    overflow: hidden;
-  }
-  .progress-bar {
-    height: 100%;
-    background: linear-gradient(90deg, #10B981, #34D399);
-    border-radius: 2px;
-    width: 0%;
-    transition: width 0.3s ease;
-  }
-  .progress-bar.indeterminate {
-    width: 40%;
-    animation: indeterminate 1.5s ease-in-out infinite;
-  }
-  @keyframes indeterminate {
-    0% { transform: translateX(-100%); }
-    100% { transform: translateX(500%); }
-  }
-  .spinner {
-    width: 24px; height: 24px;
-    border: 2.5px solid #181E1D;
-    border-top: 2.5px solid #34D399;
-    border-radius: 50%;
-    animation: spin 0.8s linear infinite;
-    margin-bottom: 16px;
-  }
-  @keyframes spin { to { transform: rotate(360deg); } }
-</style></head>
-<body>
-  <div class="logo">S</div>
-  <div class="app-name">Swiip</div>
-  <div class="spinner" id="spinner"></div>
-  <div class="status" id="status">Checking for updates...</div>
-  <div class="progress-container">
-    <div class="progress-bar indeterminate" id="progress"></div>
-  </div>
-  <script>
-    window.updateSplash = function(data) {
-      const status = document.getElementById('status');
-      const progress = document.getElementById('progress');
-      const spinner = document.getElementById('spinner');
-      if (data.status) status.textContent = data.status;
-      if (data.percent !== undefined) {
-        progress.classList.remove('indeterminate');
-        progress.style.width = data.percent + '%';
-      }
-      if (data.hideSpinner) spinner.style.display = 'none';
-    };
-  </script>
-</body></html>`;
-
-  splashWindow.loadURL('data:text/html;charset=utf-8,' + encodeURIComponent(splashHTML));
+  splashWindow.loadFile(path.join(__dirname, 'splash.html'));
 
   splashWindow.on('closed', () => {
     splashWindow = null;
@@ -469,14 +387,15 @@ function checkForUpdatesOnStartup() {
     autoUpdater.on('error', (err) => {
       clearTimeout(timeout);
       console.error('[AutoUpdater] Startup error:', err.message);
-      sendToSplash({ status: 'Starting...', hideSpinner: true });
+      sendToSplash({ status: 'Could not check for updates — starting...', hideSpinner: true });
       setTimeout(finish, 500);
     });
 
     autoUpdater.checkForUpdates().catch((err) => {
       clearTimeout(timeout);
       console.error('[AutoUpdater] Startup check failed:', err.message);
-      finish();
+      sendToSplash({ status: 'Could not check for updates — starting...', hideSpinner: true });
+      setTimeout(finish, 500);
     });
   });
 }

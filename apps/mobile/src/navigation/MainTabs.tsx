@@ -22,8 +22,8 @@ export type MainTabParamList = {
 
 export type HomeStackParamList = {
   GuildList: undefined;
-  ChannelList: { guildId: string };
-  ChannelChat: { channelId: string; guildId: string; channelName: string };
+  ChannelList: { guildId: string; guildName?: string };
+  ChannelChat: { channelId: string; channelName: string };
 };
 
 export type DMStackParamList = {
@@ -62,7 +62,7 @@ function HomeStackScreen() {
       <HomeStack.Screen
         name="ChannelList"
         component={ChannelListScreen}
-        options={{ title: 'Kanallar' }}
+        options={({ route }) => ({ title: route.params.guildName ?? 'Kanallar' })}
       />
       <HomeStack.Screen
         name="ChannelChat"

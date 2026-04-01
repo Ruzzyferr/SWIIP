@@ -1,4 +1,4 @@
-import { colors, typography, radius, motion } from '@constchat/design-tokens/tokens';
+import { colors, typography, radius, motion } from '@constchat/design-tokens';
 
 /**
  * React Native compatible spacing values (numeric, no 'px' suffix).

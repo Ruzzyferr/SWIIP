@@ -5,16 +5,17 @@ import { colors, spacing, fontSize, borderRadius } from '@/lib/theme';
 
 export function ProfileScreen() {
   const { user, logout } = useAuth();
+  const displayName = user?.globalName ?? user?.username ?? 'Kullanıcı';
 
   return (
     <View style={styles.container}>
       <View style={styles.avatarContainer}>
         <View style={styles.avatar}>
           <Text style={styles.avatarText}>
-            {user?.displayName?.charAt(0).toUpperCase() ?? '?'}
+            {displayName.charAt(0).toUpperCase()}
           </Text>
         </View>
-        <Text style={styles.displayName}>{user?.displayName ?? 'Kullanıcı'}</Text>
+        <Text style={styles.displayName}>{displayName}</Text>
         <Text style={styles.username}>@{user?.username ?? 'bilinmiyor'}</Text>
       </View>
 

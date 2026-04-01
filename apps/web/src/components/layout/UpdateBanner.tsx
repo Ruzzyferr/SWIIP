@@ -20,22 +20,28 @@ export function UpdateBanner() {
     const w = window as any;
     if (!w.constchat?.onUpdateAvailable) return;
 
-    w.constchat.onUpdateAvailable((data: { version: string }) => {
+    const offAvail = w.constchat.onUpdateAvailable((data: { version: string }) => {
       setInfo((prev) => ({ ...prev, version: data.version }));
-      setState('downloading'); // autoDownload is true, so it starts immediately
+      setState('downloading'); // autoDownload is true, download starts immediately
       setDismissed(false);
     });
 
-    w.constchat.onUpdateDownloadProgress((data: { percent: number }) => {
+    const offProg = w.constchat.onUpdateDownloadProgress((data: { percent: number }) => {
       setInfo((prev) => ({ ...prev, percent: data.percent }));
       setState('downloading');
     });
 
-    w.constchat.onUpdateDownloaded((data: { version: string }) => {
+    const offDone = w.constchat.onUpdateDownloaded((data: { version: string }) => {
       setInfo((prev) => ({ ...prev, version: data.version, percent: 100 }));
       setState('ready');
       setDismissed(false);
     });
+
+    return () => {
+      offAvail?.();
+      offProg?.();
+      offDone?.();
+    };
   }, []);
 
   const handleRestart = () => {
@@ -68,7 +74,9 @@ export function UpdateBanner() {
             <>
               <Download size={14} className="animate-bounce" />
               <span>
-                Updating to v{info.version}... {info.percent}%
+                {info.version
+                  ? `Güncelleme indiriliyor — v${info.version} — %${info.percent}`
+                  : `Güncelleme indiriliyor… %${info.percent}`}
               </span>
               <div
                 className="w-24 h-1.5 rounded-full overflow-hidden"
@@ -88,7 +96,11 @@ export function UpdateBanner() {
           {state === 'ready' && (
             <>
               <CheckCircle size={14} />
-              <span>Update v{info.version} ready!</span>
+              <span>
+                {info.version
+                  ? `Güncelleme hazır — v${info.version} — yeniden başlatın`
+                  : 'Güncelleme hazır — yeniden başlatın'}
+              </span>
               <button
                 onClick={handleRestart}
                 className="flex items-center gap-1.5 px-3 py-1 rounded-md text-xs font-semibold transition-colors"
@@ -97,7 +109,7 @@ export function UpdateBanner() {
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.2)'; }}
               >
                 <RefreshCw size={12} />
-                Restart Now
+                Yeniden başlat
               </button>
             </>
           )}

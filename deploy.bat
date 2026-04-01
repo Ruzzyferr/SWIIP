@@ -65,6 +65,27 @@ echo ============================================================
 echo   STEP: Desktop App Build
 echo ============================================================
 echo.
+
+pushd "%~dp0apps\desktop"
+for /f "delims=" %%V in ('node -e "console.log(require(\"./package.json\").version)"') do set "CUR_DESKTOP_VER=%%V"
+echo   Şu anki sürüm: !CUR_DESKTOP_VER!
+echo.
+set "NEW_DESKTOP_VER="
+set /p NEW_DESKTOP_VER="  Sürümü kaç yapmak istersiniz? (Enter = değiştirme, örnek 0.2.0): "
+if not "!NEW_DESKTOP_VER!"=="" (
+  echo [*] package.json sürümü güncelleniyor: !NEW_DESKTOP_VER!
+  call npm version !NEW_DESKTOP_VER! --no-git-tag-version
+  if errorlevel 1 (
+    echo [!] Sürüm güncellenemedi. Geçerli semver girin ^(ör. 0.2.0, 1.0.0-beta.1^).
+    popd
+    goto desktop_fail
+  )
+  for /f "delims=" %%W in ('node -e "console.log(require(\"./package.json\").version)"') do set "CUR_DESKTOP_VER=%%W"
+  echo [OK] Yeni sürüm: !CUR_DESKTOP_VER!
+)
+popd
+
+echo.
 echo [*] Building desktop installer (with web bundle)...
 
 REM Build Next.js standalone inside Docker to avoid Windows symlink issues
@@ -104,6 +125,16 @@ if not exist "%~dp0apps\web\public" mkdir "%~dp0apps\web\public"
 docker cp swiip-web-extract:/app/apps/web/public/. "%~dp0apps\web\public"
 docker rm swiip-web-extract
 echo [OK] Web app built via Docker
+
+echo [*] Regenerating apps\desktop\build\icon.ico from PNG layers (Windows PE embedding)...
+pushd "%~dp0apps\desktop"
+call node scripts\generate-icon-ico.mjs
+if errorlevel 1 (
+  echo [!] generate-icon-ico failed
+  popd
+  goto desktop_fail
+)
+popd
 
 set "BDIR=C:\tmp\swiip-build"
 if exist "%BDIR%" rmdir /s /q "%BDIR%"
@@ -148,6 +179,15 @@ for %%f in (dist\*.yml) do (
 
 cd /d "%~dp0"
 rmdir /s /q "%BDIR%" 2>nul
+
+echo [*] Verifying public update feed (https://swiip.app/downloads/latest.yml^)...
+pushd "%~dp0apps\desktop"
+call node scripts\verify-update-endpoint.mjs
+if errorlevel 1 (
+  echo [!] Update feed check failed — confirm latest.yml and the versioned installer exist and match.
+)
+popd
+
 echo [OK] Installer published
 echo.
 goto git_step

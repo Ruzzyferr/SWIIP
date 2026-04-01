@@ -1,6 +1,6 @@
 {
   "name": "@constchat/desktop",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "description": "Swiip Desktop Application",
   "main": "src/main.js",
@@ -8,10 +8,13 @@
     "start": "electron .",
     "dev": "electron . --dev",
     "prebuild:web": "cd ../web && npm run build && node -e \"const fs=require('fs');const path=require('path');const src=path.join('.','.next','standalone');const dest=path.join('..','desktop','web-bundle');if(fs.existsSync(dest))fs.rmSync(dest,{recursive:true});fs.cpSync(src,dest,{recursive:true});fs.cpSync(path.join('.','.next','static'),path.join(dest,'apps','web','.next','static'),{recursive:true});fs.cpSync(path.join('.','public'),path.join(dest,'apps','web','public'),{recursive:true});console.log('Web bundle copied to desktop/web-bundle')\"",
-    "build": "npm run prebuild:web && electron-builder --win --publish never",
-    "build:nobundle": "electron-builder --win --publish never",
-    "build:installer": "npm run prebuild:web && electron-builder --win nsis --publish never",
-    "build:portable": "npm run prebuild:web && electron-builder --win portable --publish never"
+    "generate:ico": "node scripts/generate-icon-ico.mjs",
+    "build": "npm run prebuild:web && npm run generate:ico && electron-builder --win --publish never",
+    "build:nobundle": "npm run generate:ico && electron-builder --win --publish never",
+    "build:installer": "npm run prebuild:web && npm run generate:ico && electron-builder --win nsis --publish never",
+    "build:portable": "npm run prebuild:web && npm run generate:ico && electron-builder --win portable --publish never",
+    "verify:win-icon": "node scripts/verify-win-exe-icon.mjs",
+    "verify:update-server": "node scripts/verify-update-endpoint.mjs"
   },
   "dependencies": {
     "electron-store": "^8.2.0",

@@ -1,6 +1,7 @@
-import React from 'react';
+import React, { useMemo } from 'react';
 import { View, Text, StyleSheet, FlatList, TouchableOpacity } from 'react-native';
 import { colors, spacing, fontSize, borderRadius } from '@/lib/theme';
+import { useGuildsStore } from '@/lib/stores';
 import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import type { HomeStackParamList } from '@/navigation/MainTabs';
 
@@ -9,8 +10,15 @@ type Props = {
 };
 
 export function GuildListScreen({ navigation }: Props) {
-  // TODO: Connect to guilds store
-  const guilds: { id: string; name: string; icon: string | null }[] = [];
+  const guildsMap = useGuildsStore((s) => s.guilds);
+  const guildOrder = useGuildsStore((s) => s.guildOrder);
+
+  const guilds = useMemo(() => {
+    if (guildOrder.length > 0) {
+      return guildOrder.map((id) => guildsMap[id]).filter(Boolean);
+    }
+    return Object.values(guildsMap);
+  }, [guildsMap, guildOrder]);
 
   return (
     <View style={styles.container}>
@@ -34,7 +42,7 @@ export function GuildListScreen({ navigation }: Props) {
             <TouchableOpacity
               style={styles.guildItem}
               activeOpacity={0.7}
-              onPress={() => navigation.navigate('ChannelList', { guildId: item.id })}
+              onPress={() => navigation.navigate('ChannelList', { guildId: item.id, guildName: item.name })}
             >
               <View style={styles.guildIcon}>
                 <Text style={styles.guildIconText}>
