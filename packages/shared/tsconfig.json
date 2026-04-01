@@ -7,7 +7,11 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "exactOptionalPropertyTypes": false,
-    "lib": ["ES2022", "DOM"]
+    "lib": ["ES2022", "DOM"],
+    "paths": {
+      "@constchat/protocol": ["../protocol/dist/index.d.ts"],
+      "@constchat/design-tokens": ["../design-tokens/dist/index.d.ts"]
+    }
   },
   "include": ["src"]
 }
