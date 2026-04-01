@@ -109,7 +109,8 @@ jobs:
         run: |
           set -euo pipefail
           src=$(ls dist/Swiip-Setup-*.exe | head -n 1)
-          cp -f "$src" "dist/Swiip-Setup-${VERSION}.exe"
+          dest="dist/Swiip-Setup-${VERSION}.exe"
+          if [ "$src" != "$dest" ]; then cp -f "$src" "$dest"; fi
 
       - name: Upload installer to production downloads
         uses: appleboy/scp-action@v0.1.6
