@@ -215,10 +215,10 @@ export function UserProfilePopup() {
             )}
 
             {/* Action buttons */}
-            <div className="flex gap-2 mt-4">
+            <div className="flex flex-col sm:flex-row flex-wrap gap-2 mt-4">
               <button
                 onClick={handleSendDM}
-                className="flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors"
+                className="w-full sm:flex-1 flex items-center justify-center gap-2 py-2 rounded-lg text-sm font-medium transition-colors"
                 style={{
                   background: 'var(--color-accent-primary)',
                   color: '#fff',

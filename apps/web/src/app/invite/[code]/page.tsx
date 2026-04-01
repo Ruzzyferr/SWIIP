@@ -93,14 +93,14 @@ export default function InvitePage() {
 
   return (
     <div
-      className="min-h-screen flex items-center justify-center"
+      className="min-h-[100dvh] flex flex-col items-center justify-start py-8 px-3 sm:px-4 sm:justify-center sm:py-12 overflow-x-hidden"
       style={{ background: 'var(--color-surface-base)' }}
     >
       <motion.div
         initial={{ opacity: 0, scale: 0.95 }}
         animate={{ opacity: 1, scale: 1 }}
         transition={{ duration: 0.3 }}
-        className="w-full max-w-[400px] mx-4 rounded-2xl p-8 text-center"
+        className="w-full max-w-[400px] mx-auto rounded-2xl p-6 sm:p-8 text-center"
         style={{
           background: 'var(--color-surface-elevated)',
           border: '1px solid var(--color-border-subtle)',

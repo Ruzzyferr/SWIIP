@@ -134,7 +134,7 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
         initial={{ opacity: 0 }}
         animate={{ opacity: 1 }}
         exit={{ opacity: 0 }}
-        className="fixed inset-0 z-50 flex items-start justify-center pt-[15vh]"
+        className="fixed inset-0 z-50 flex items-start justify-center pt-[8vh] sm:pt-[15vh] px-2 sm:px-4"
         style={{ background: 'rgba(0, 0, 0, 0.6)' }}
         onClick={onClose}
       >
@@ -143,7 +143,7 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
           animate={{ opacity: 1, y: 0, scale: 1 }}
           exit={{ opacity: 0, y: -10, scale: 0.98 }}
           transition={{ duration: 0.15 }}
-          className="w-full max-w-lg rounded-xl overflow-hidden"
+          className="w-full max-w-[min(100%,32rem)] rounded-xl overflow-hidden max-h-[min(75dvh,560px)] flex flex-col"
           style={{
             background: 'var(--color-surface-floating)',
             border: '1px solid var(--color-border-subtle)',
@@ -163,7 +163,7 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder={isDMMode ? 'Search in conversation...' : 'Search messages...'}
-              className="flex-1 bg-transparent text-sm outline-none"
+              className="flex-1 min-w-0 bg-transparent text-sm outline-none"
               style={{ color: 'var(--color-text-primary)' }}
               autoFocus
             />
@@ -178,7 +178,7 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
           </div>
 
           {/* Results */}
-          <div className="max-h-[50vh] overflow-y-auto scroll-thin">
+          <div className="flex-1 min-h-0 max-h-[min(50dvh,360px)] sm:max-h-[50vh] overflow-y-auto scroll-thin">
             {query.trim() && !loading && results.length === 0 && (
               <div className="py-8 text-center">
                 <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
@@ -255,7 +255,7 @@ export function SearchModal({ open, onClose }: SearchModalProps) {
                     { filter: 'before:', desc: 'date', example: 'before:2025-01-01' },
                     { filter: 'after:', desc: 'date', example: 'after:2025-01-01' },
                   ].map(({ filter, desc, example }) => (
-                    <div key={filter} className="flex items-center gap-2 text-xs">
+                    <div key={filter} className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs">
                       <code
                         className="px-1.5 py-0.5 rounded font-mono"
                         style={{ background: 'var(--color-surface-raised)', color: 'var(--color-accent-primary)' }}

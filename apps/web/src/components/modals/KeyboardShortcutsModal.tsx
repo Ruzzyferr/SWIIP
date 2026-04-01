@@ -53,12 +53,12 @@ export function KeyboardShortcutsModal({ open, onClose }: KeyboardShortcutsModal
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
+      className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-2 sm:p-4"
       style={{ background: 'rgba(0,0,0,0.6)' }}
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div
-        className="rounded-xl w-full max-w-lg max-h-[80vh] overflow-y-auto"
+        className="rounded-t-xl sm:rounded-xl w-full max-w-[min(100%,32rem)] max-h-[min(88dvh,640px)] overflow-y-auto"
         style={{
           background: 'var(--color-surface-elevated)',
           border: '1px solid var(--color-border-subtle)',

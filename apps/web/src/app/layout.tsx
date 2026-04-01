@@ -43,7 +43,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
 
   return (
     <html lang={locale} className={inter.variable}>
-      <body className="bg-surface-base text-text-primary antialiased overflow-hidden">
+      <body className="bg-surface-base text-text-primary antialiased overflow-x-hidden overflow-y-auto min-h-[100dvh]">
         <NextIntlClientProvider locale={locale} messages={messages}>
           {children}
         </NextIntlClientProvider>

@@ -126,6 +126,7 @@ function PendingFriendBadge() {
 export function DMConversationList() {
   const router = useRouter();
   const pathname = usePathname();
+  const setMobileNavOpen = useUIStore((s) => s.setMobileNavOpen);
   const conversations = useDMsStore((s) => s.conversations);
   const setConversations = useDMsStore((s) => s.setConversations);
   const removeConversation = useDMsStore((s) => s.removeConversation);
@@ -148,12 +149,14 @@ export function DMConversationList() {
     : null;
 
   const handleDMClick = (dmId: string) => {
+    setMobileNavOpen(false);
     router.push(`/channels/@me/${dmId}`);
   };
 
   const handleCloseDM = (dmId: string) => {
     removeConversation(dmId);
     if (activeDMId === dmId) {
+      setMobileNavOpen(false);
       router.push('/channels/@me');
     }
   };
@@ -162,7 +165,10 @@ export function DMConversationList() {
     <div className="space-y-1">
       {/* Friends button */}
       <button
-        onClick={() => router.push('/channels/@me')}
+        onClick={() => {
+          setMobileNavOpen(false);
+          router.push('/channels/@me');
+        }}
         className="w-full flex items-center gap-2.5 px-2 py-1.5 rounded-md transition-colors text-left"
         style={{
           background: !activeDMId && pathname === '/channels/@me'

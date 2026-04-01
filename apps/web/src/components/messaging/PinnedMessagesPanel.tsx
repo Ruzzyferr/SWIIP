@@ -40,10 +40,9 @@ export function PinnedMessagesPanel({ channelId, onClose }: PinnedMessagesPanelP
       animate={{ opacity: 1, y: 0, scale: 1 }}
       exit={{ opacity: 0, y: -8, scale: 0.97 }}
       transition={{ duration: 0.15 }}
-      className="absolute right-2 top-12 z-30 rounded-xl overflow-hidden"
+      className="absolute left-2 right-2 sm:left-auto sm:right-2 top-12 z-30 rounded-xl overflow-hidden max-w-[min(100%,28rem)] sm:max-w-none sm:w-[26rem] mx-auto sm:mx-0"
       style={{
-        width: 420,
-        maxHeight: 500,
+        maxHeight: 'min(500px, 70dvh)',
         background: 'var(--color-surface-floating)',
         border: '1px solid var(--color-border-subtle)',
         boxShadow: 'var(--shadow-xl)',

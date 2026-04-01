@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   Mic,
   MicOff,
@@ -356,7 +356,12 @@ function ParticipantTile({
 // Adaptive grid layout calculator (Discord-style)
 // ---------------------------------------------------------------------------
 
-function getGridLayout(count: number): { cols: number; rows: number } {
+function getGridLayout(count: number, narrow: boolean): { cols: number; rows: number } {
+  if (narrow) {
+    if (count <= 1) return { cols: 1, rows: 1 };
+    if (count <= 2) return { cols: 2, rows: 1 };
+    return { cols: 2, rows: Math.ceil(count / 2) };
+  }
   if (count <= 1) return { cols: 1, rows: 1 };
   if (count <= 2) return { cols: 2, rows: 1 };
   if (count <= 4) return { cols: 2, rows: 2 };
@@ -410,6 +415,15 @@ function VoiceRoomContent({
   const watchingStreams = useVoiceStore((s) => s.watchingStreams);
   const setWatchingStream = useVoiceStore((s) => s.setWatchingStream);
 
+  const [narrow, setNarrow] = useState(false);
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const sync = () => setNarrow(mq.matches);
+    sync();
+    mq.addEventListener('change', sync);
+    return () => mq.removeEventListener('change', sync);
+  }, []);
+
   if (participants.length === 0) return null;
 
   // ── SPOTLIGHT MODE: Someone is screen sharing ──
@@ -419,11 +433,17 @@ function VoiceRoomContent({
     const unwatchedSharers = screenSharers.filter((s) => watchingStreams[s.userId] === false);
 
     // Calculate screen share grid layout — supports any number of sharers
-    const screenGridCols = watchedSharers.length <= 1 ? 1 : watchedSharers.length <= 4 ? 2 : 3;
+    const screenGridCols = narrow
+      ? 1
+      : watchedSharers.length <= 1
+        ? 1
+        : watchedSharers.length <= 4
+          ? 2
+          : 3;
 
     return (
       <LayoutGroup>
-        <div className="flex-1 flex flex-col gap-3 w-full max-w-6xl min-h-0">
+        <div className="flex-1 flex flex-col gap-3 w-full max-w-6xl min-h-0 mx-auto px-1 sm:px-2">
           {/* "Not watching" banners for unwatched streams */}
           {unwatchedSharers.map((sharer) => {
             const sharerMember = members?.[sharer.userId];
@@ -438,13 +458,13 @@ function VoiceRoomContent({
                 initial={{ opacity: 0, height: 0 }}
                 animate={{ opacity: 1, height: 'auto' }}
                 exit={{ opacity: 0, height: 0 }}
-                className="flex items-center justify-between rounded-lg px-4 py-2 shrink-0"
+                className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between rounded-lg px-3 sm:px-4 py-2 shrink-0"
                 style={{
                   background: 'var(--color-surface-overlay)',
                   border: '1px solid var(--color-border-subtle)',
                 }}
               >
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2 min-w-0">
                   <Monitor size={14} style={{ color: 'var(--color-text-secondary)' }} />
                   <span className="text-sm" style={{ color: 'var(--color-text-primary)' }}>
                     <strong>{sharerName}</strong> is sharing their screen
@@ -458,7 +478,7 @@ function VoiceRoomContent({
                 </div>
                 <button
                   onClick={() => setWatchingStream(sharer.userId, true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors"
+                  className="flex items-center justify-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-colors w-full sm:w-auto shrink-0"
                   style={{
                     background: 'var(--color-brand-default)',
                     color: '#fff',
@@ -581,7 +601,7 @@ function VoiceRoomContent({
                       initial="hidden"
                       animate="visible"
                       exit="exit"
-                      style={{ width: 200, flexShrink: 0 }}
+                      style={{ width: narrow ? 148 : 200, flexShrink: 0 }}
                     >
                       <VideoTile
                         participantId={p.userId}
@@ -626,14 +646,15 @@ function VoiceRoomContent({
       (p) => !p.selfVideo && !videoTracks[p.userId]?.camera,
     );
 
-    const { cols } = getGridLayout(videoParticipants.length);
+    const { cols: rawCols } = getGridLayout(videoParticipants.length, narrow);
+    const cols = narrow ? 1 : rawCols;
 
     return (
       <LayoutGroup>
-        <div className="flex-1 flex flex-col gap-3 w-full max-w-5xl min-h-0">
+        <div className="flex-1 flex flex-col gap-3 w-full max-w-5xl min-h-0 px-1 sm:px-0">
           {/* Video grid */}
           <div
-            className="flex-1 flex flex-wrap gap-3 min-h-0 justify-center items-center content-center"
+            className="flex-1 flex flex-wrap gap-2 sm:gap-3 min-h-0 justify-center items-center content-center"
           >
             <AnimatePresence mode="popLayout">
               {videoParticipants.map((p) => {
@@ -653,10 +674,18 @@ function VoiceRoomContent({
                     initial="hidden"
                     animate="visible"
                     exit="exit"
-                    style={{
-                      width: `calc(${100 / cols}% - ${((cols - 1) * 12) / cols}px)`,
-                      aspectRatio: '16 / 9',
-                    }}
+                    style={
+                      narrow
+                        ? {
+                            width: '100%',
+                            maxWidth: 'min(100%, 720px)',
+                            aspectRatio: '16 / 9',
+                          }
+                        : {
+                            width: `calc(${100 / cols}% - ${((cols - 1) * 12) / cols}px)`,
+                            aspectRatio: '16 / 9',
+                          }
+                    }
                   >
                     <VideoTile
                       participantId={p.userId}
@@ -698,21 +727,28 @@ function VoiceRoomContent({
   }
 
   // ── AUDIO-ONLY MODE: No video, just avatars in a flex grid ──
-  const { cols } = getGridLayout(participants.length);
-  const tileWidth = 180;
+  const { cols } = getGridLayout(participants.length, narrow);
+  const tileWidth = narrow ? 148 : 180;
 
   return (
     <LayoutGroup>
       <div
-        className="flex flex-wrap gap-4 justify-center"
+        className="flex flex-wrap gap-3 sm:gap-4 justify-center px-2 w-full max-w-4xl mx-auto"
         style={{
-          maxWidth: cols * (tileWidth + 16),
-          width: '100%',
+          maxWidth: narrow ? '100%' : cols * (tileWidth + 16),
         }}
       >
         <AnimatePresence mode="popLayout">
           {participants.map((p) => (
-            <div key={p.userId} style={{ width: tileWidth, flexShrink: 0 }}>
+            <div
+              key={p.userId}
+              className="min-w-0"
+              style={{
+                width: narrow ? `calc((100% - ${(cols - 1) * 12}px) / ${cols})` : tileWidth,
+                maxWidth: narrow ? 180 : tileWidth,
+                flexShrink: 0,
+              }}
+            >
               <ParticipantTile
                 participant={p}
                 guildId={guildId}
@@ -856,9 +892,9 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
       style={{ background: 'var(--color-surface-base)', position: 'relative', paddingBottom: 80 }}
     >
       {/* Room Header */}
-      <div className="flex items-center justify-between px-6 py-4 w-full shrink-0">
-        <div className="flex items-center gap-3">
-          <h2 className="text-xl font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+      <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between px-4 sm:px-6 py-3 sm:py-4 w-full shrink-0 min-w-0">
+        <div className="flex items-center gap-2 sm:gap-3 min-w-0">
+          <h2 className="text-lg sm:text-xl font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>
             {channel?.name || 'Voice Channel'}
           </h2>
           {participants.length > 0 && (
@@ -872,8 +908,8 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
             </span>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+        <div className="flex items-center gap-2 shrink-0">
+          <span className="text-[11px] sm:text-xs whitespace-nowrap" style={{ color: 'var(--color-text-tertiary)' }}>
             {isInThisChannel ? 'Connected' : `${participants.length} participant${participants.length !== 1 ? 's' : ''}`}
             {channel?.userLimit ? ` / ${channel.userLimit}` : ''}
           </span>
@@ -950,9 +986,9 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
       </div>
 
       {/* Floating Control Bar */}
-      <div className="absolute bottom-6 left-1/2 -translate-x-1/2 z-10">
+      <div className="absolute bottom-3 sm:bottom-6 left-1/2 -translate-x-1/2 z-10 w-[min(100%,calc(100vw-1rem))] max-w-lg flex justify-center px-1">
         {!isInThisChannel ? (
-          <div className="flex items-center px-4 py-3 rounded-2xl"
+          <div className="flex items-center justify-center px-3 sm:px-4 py-2.5 sm:py-3 rounded-2xl w-full sm:w-auto"
             style={{
               background: 'var(--glass-bg)',
               backdropFilter: 'blur(var(--glass-blur))',
@@ -979,7 +1015,7 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
           </div>
         ) : (
           <motion.div
-            className="flex items-center gap-2 px-4 py-3 rounded-2xl"
+            className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 px-2 sm:px-4 py-2.5 sm:py-3 rounded-2xl w-full sm:w-auto"
             style={{
               background: 'var(--glass-bg)',
               backdropFilter: 'blur(var(--glass-blur))',

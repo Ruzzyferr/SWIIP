@@ -211,7 +211,7 @@ export function FeatureShowcase({ features, sectionTitle, sectionSubtitle }: Fea
 
   return (
     <div className="max-w-6xl mx-auto">
-      <div className="text-center mb-16">
+      <div className="text-center mb-10 sm:mb-14">
         <h2
           className="text-3xl md:text-4xl font-bold mb-4"
           style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.03em' }}
@@ -223,14 +223,14 @@ export function FeatureShowcase({ features, sectionTitle, sectionSubtitle }: Fea
         </p>
       </div>
 
-      <div className="grid lg:grid-cols-2 gap-12 items-center">
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-start">
         {/* Feature list */}
         <div className="space-y-2">
           {features.map((f, i) => (
             <motion.button
               key={i}
               onClick={() => setActive(i)}
-              className="w-full text-left p-4 rounded-xl transition-all duration-200 flex items-start gap-4"
+              className="w-full text-left p-3 sm:p-4 rounded-xl transition-all duration-200 flex items-start gap-3 sm:gap-4"
               style={{
                 background: active === i ? 'var(--ambient-primary-subtle, rgba(16,185,129,0.08))' : 'transparent',
                 border: `1px solid ${active === i ? 'rgba(var(--ambient-rgb, 16, 185, 129), 0.15)' : 'transparent'}`,

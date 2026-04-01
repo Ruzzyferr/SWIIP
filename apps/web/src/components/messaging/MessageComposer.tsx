@@ -577,7 +577,7 @@ export function MessageComposer({
 
   return (
     <div
-      className="px-4 pb-4 pt-2 flex-shrink-0"
+      className="px-2 sm:px-4 pb-3 sm:pb-4 pt-2 flex-shrink-0 min-w-0"
       {...getRootProps()}
     >
       <input {...getInputProps()} />
@@ -904,14 +904,14 @@ export function MessageComposer({
 
         {/* Formatting hints */}
         <div
-          className="flex items-center gap-3 px-3 pb-1.5"
+          className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3 px-2 sm:px-3 pb-1.5"
           style={{ color: 'var(--color-text-disabled)' }}
         >
-          <span className="text-xs">
+          <span className="text-[10px] sm:text-xs hidden sm:inline">
             <kbd className="font-mono">Enter</kbd> {t('hints.send')} ·{' '}
             <kbd className="font-mono">Shift+Enter</kbd> {t('hints.newLine')}
           </span>
-          <div className="flex items-center gap-1 ml-auto">
+          <div className="flex items-center gap-1 sm:ml-auto">
             <Tooltip content={t('formatting.bold')} placement="top">
               <button
                 onClick={() => wrapSelection('**')}

@@ -96,7 +96,7 @@ const sections = [
 
 export default function PrivacyPage() {
   return (
-    <div className="relative min-h-screen" style={{ background: 'var(--color-bg-base)' }}>
+    <div className="relative min-h-[100dvh] overflow-x-hidden" style={{ background: 'var(--color-bg-base)' }}>
       {/* Atmospheric orbs */}
       <div aria-hidden="true" className="pointer-events-none fixed inset-0 overflow-hidden">
         <div
@@ -117,7 +117,7 @@ export default function PrivacyPage() {
         variants={containerVariants}
         initial="hidden"
         animate="visible"
-        className="relative z-10 max-w-2xl mx-auto px-5 py-12"
+        className="relative z-10 max-w-2xl mx-auto px-4 sm:px-5 py-8 sm:py-12"
       >
         {/* Back link */}
         <motion.div variants={itemVariants} className="mb-8">
@@ -148,7 +148,7 @@ export default function PrivacyPage() {
             </span>
           </div>
           <h1
-            className="text-3xl font-bold tracking-tight"
+            className="text-2xl sm:text-3xl font-bold tracking-tight"
             style={{ color: 'var(--color-text-primary)', letterSpacing: '-0.03em' }}
           >
             Gizlilik Politikası & KVKK Aydınlatma Metni
@@ -161,7 +161,7 @@ export default function PrivacyPage() {
         {/* Content */}
         <motion.div
           variants={itemVariants}
-          className="rounded-2xl p-6 space-y-6"
+          className="rounded-2xl p-4 sm:p-6 space-y-4 sm:space-y-6"
           style={{
             background: 'var(--glass-bg)',
             backdropFilter: 'blur(var(--glass-blur))',

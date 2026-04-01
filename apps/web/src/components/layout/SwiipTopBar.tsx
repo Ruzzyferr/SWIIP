@@ -61,7 +61,7 @@ function ServerSwitcher() {
     <div className="relative" ref={dropdownRef}>
       <motion.button
         onClick={() => setOpen((v) => !v)}
-        className="flex items-center gap-2 px-3 py-1.5 rounded-xl"
+        className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 py-1.5 rounded-xl shrink-0 max-w-[min(100%,11rem)] sm:max-w-none"
         whileHover={{ backgroundColor: 'rgba(255,255,255,0.06)' }}
         whileTap={{ scale: 0.97 }}
         transition={spring}
@@ -88,7 +88,7 @@ function ServerSwitcher() {
           )}
         </div>
 
-        <span className="text-sm font-semibold truncate max-w-[140px]">
+        <span className="text-sm font-semibold truncate max-w-[92px] sm:max-w-[140px]">
           {activeGuild?.name ?? 'Direct Messages'}
         </span>
 
@@ -509,7 +509,7 @@ export function SwiipTopBar() {
 
   return (
     <header
-      className="flex items-center gap-2 px-3 h-12 flex-shrink-0 relative z-20"
+      className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 h-12 flex-shrink-0 relative z-20 min-w-0"
       style={{
         background: 'rgba(12, 16, 18, 0.8)',
         backdropFilter: 'blur(24px)',

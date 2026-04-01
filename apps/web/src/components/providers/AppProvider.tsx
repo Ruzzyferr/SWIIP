@@ -127,7 +127,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
   if (!ready || isLoading) {
     return (
       <div
-        className="flex items-center justify-center h-screen w-screen"
+        className="flex items-center justify-center min-h-[100dvh] w-full max-w-[100dvw] px-4"
         style={{ background: 'var(--color-surface-base)' }}
       >
         <div className="flex flex-col items-center gap-4">

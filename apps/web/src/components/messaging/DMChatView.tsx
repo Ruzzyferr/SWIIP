@@ -118,21 +118,21 @@ export function DMChatView({ conversationId }: DMChatViewProps) {
           </span>
         </div>
 
-        <div className="flex items-center gap-1" style={{ color: 'var(--color-text-secondary)' }}>
+        <div className="flex items-center gap-0.5 sm:gap-1 shrink-0" style={{ color: 'var(--color-text-secondary)' }}>
           <Tooltip content="Start Voice Call" placement="bottom">
-            <button className="p-2 rounded-md transition-colors">
-              <Phone size={18} />
+            <button className="p-1.5 sm:p-2 rounded-md transition-colors" aria-label="Start voice call">
+              <Phone size={16} className="sm:w-[18px] sm:h-[18px]" />
             </button>
           </Tooltip>
           <Tooltip content="Start Video Call" placement="bottom">
-            <button className="p-2 rounded-md transition-colors">
-              <Video size={18} />
+            <button className="p-1.5 sm:p-2 rounded-md transition-colors" aria-label="Start video call">
+              <Video size={16} className="sm:w-[18px] sm:h-[18px]" />
             </button>
           </Tooltip>
           {isGroup && (
             <Tooltip content="Add Members" placement="bottom">
-              <button className="p-2 rounded-md transition-colors">
-                <UserPlus size={18} />
+              <button className="p-1.5 sm:p-2 rounded-md transition-colors" aria-label="Add members">
+                <UserPlus size={16} className="sm:w-[18px] sm:h-[18px]" />
               </button>
             </Tooltip>
           )}

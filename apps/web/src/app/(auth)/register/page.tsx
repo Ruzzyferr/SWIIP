@@ -193,7 +193,7 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden py-8" style={{ background: 'var(--color-surface-base)' }}>
+    <div className="relative min-h-[100dvh] flex flex-col items-center justify-start py-6 px-3 sm:px-4 sm:justify-center sm:py-10 overflow-x-hidden" style={{ background: 'var(--color-surface-base)' }}>
       {/* Animated mesh gradient background */}
       <MeshGradient intensity="medium" />
 

@@ -3,7 +3,7 @@
 import { useEffect, useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { motion, useScroll, useTransform, useInView } from 'framer-motion';
+import { motion, useInView } from 'framer-motion';
 import { useAuthStore } from '@/stores/auth.store';
 import { ArrowRight, Download, Globe, MessageCircle, Mic, Users, Shield, Zap, Monitor } from 'lucide-react';
 import { useTranslations } from 'next-intl';
@@ -40,11 +40,6 @@ export default function LandingPage() {
   const token = useAuthStore((s) => s.accessToken);
   const [mounted, setMounted] = useState(false);
 
-  const scrollRef = useRef<HTMLDivElement>(null!);
-  const { scrollYProgress } = useScroll({ container: scrollRef });
-  const heroOpacity = useTransform(scrollYProgress, [0, 0.18], [1, 0]);
-  const heroScale = useTransform(scrollYProgress, [0, 0.18], [1, 0.96]);
-
   useEffect(() => {
     setMounted(true);
     if (token) {
@@ -68,7 +63,7 @@ export default function LandingPage() {
   ];
 
   return (
-    <div ref={scrollRef} className="h-screen overflow-y-auto" style={{ background: 'var(--color-surface-base)' }}>
+    <div className="min-h-[100dvh] overflow-x-hidden" style={{ background: 'var(--color-surface-base)' }}>
       <ParticleBackground />
 
       {/* ---- Navigation ---- */}
@@ -84,22 +79,22 @@ export default function LandingPage() {
         animate={{ y: 0 }}
         transition={{ ...spring, delay: 0.1 }}
       >
-        <div className="max-w-7xl mx-auto px-6 lg:px-8 h-16 flex items-center justify-between">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 h-14 sm:h-16 flex items-center justify-between gap-3">
           <motion.div
-            className="flex items-center gap-3"
+            className="flex items-center gap-2 sm:gap-3 min-w-0"
             whileHover={{ scale: 1.02 }}
             transition={spring}
           >
-            <Image src="/logo.png" alt="Swiip" width={40} height={40} className="rounded-xl" />
-            <span className="text-lg font-bold tracking-tight" style={{ color: 'var(--color-text-primary)' }}>
+            <Image src="/logo.png" alt="Swiip" width={40} height={40} className="rounded-xl w-9 h-9 sm:w-10 sm:h-10" />
+            <span className="text-base sm:text-lg font-bold tracking-tight truncate" style={{ color: 'var(--color-text-primary)' }}>
               Swiip
             </span>
           </motion.div>
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-1.5 sm:gap-3 shrink-0">
             <MagneticButton
               as="a"
               href="/login"
-              className="px-4 py-2 text-sm font-medium rounded-lg"
+              className="px-2.5 py-2 sm:px-4 text-xs sm:text-sm font-medium rounded-lg"
               style={{ color: 'var(--color-text-secondary)', background: 'transparent' }}
               strength={0.2}
             >
@@ -108,11 +103,12 @@ export default function LandingPage() {
             <MagneticButton
               as="a"
               href="/register"
-              className="btn-premium gradient-border"
+              className="btn-premium gradient-border text-xs sm:text-sm !px-3 sm:!px-4 !py-2 inline-flex items-center gap-1.5"
               strength={0.25}
             >
-              {t('cta.button')}
-              <ArrowRight size={14} />
+              <span className="max-[360px]:hidden">{t('cta.button')}</span>
+              <span className="hidden max-[360px]:inline">{t('cta.button').split(' ')[0]}</span>
+              <ArrowRight size={14} className="shrink-0" />
             </MagneticButton>
           </div>
         </div>
@@ -120,12 +116,19 @@ export default function LandingPage() {
 
       {/* ---- Hero ---- */}
       <motion.section
-        className="relative pt-20 sm:pt-32 pb-10 sm:pb-20 px-6 lg:px-8 overflow-hidden"
-        style={{ zIndex: 1, opacity: heroOpacity, scale: heroScale }}
+        className="relative z-[1] pt-[4.5rem] sm:pt-24 pb-8 sm:pb-14 px-4 sm:px-6 lg:px-8 overflow-hidden"
       >
+        <div
+          className="pointer-events-none absolute inset-0 -z-10 opacity-90"
+          aria-hidden
+          style={{
+            background:
+              'radial-gradient(ellipse 80% 55% at 50% -10%, rgba(16,185,129,0.14), transparent 55%), radial-gradient(ellipse 60% 40% at 100% 20%, rgba(16,185,129,0.06), transparent 50%), radial-gradient(ellipse 50% 35% at 0% 60%, rgba(52,211,153,0.05), transparent 45%)',
+          }}
+        />
         <div className="relative max-w-5xl mx-auto">
-          {/* Two-column hero */}
-          <div className="grid lg:grid-cols-2 gap-12 lg:gap-16 items-center">
+          {/* Two-column hero — top-aligned */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 xl:gap-16 items-start">
             {/* Left: Text */}
             <div>
               {/* Beta badge */}
@@ -148,7 +151,7 @@ export default function LandingPage() {
               <div
                 className="font-extrabold leading-[1.05] mb-4 sm:mb-6"
                 style={{
-                  fontSize: 'clamp(36px, 5vw, 56px)',
+                  fontSize: 'clamp(1.75rem, 5vw + 0.5rem, 3.5rem)',
                   letterSpacing: '-0.04em',
                   color: 'var(--color-text-primary)',
                 }}
@@ -161,7 +164,7 @@ export default function LandingPage() {
                 className="text-base lg:text-lg max-w-md mb-6 sm:mb-10 leading-relaxed"
                 style={{ color: 'var(--color-text-secondary)' }}
               >
-                <WordStagger text={t('hero.subtitle')} delay={0.8} />
+                <WordStagger text={t('hero.subtitle')} delay={0.35} />
               </div>
 
               {/* CTA Buttons */}
@@ -206,7 +209,7 @@ export default function LandingPage() {
 
             {/* Right: App Preview Mockup */}
             <motion.div
-              className="relative hidden lg:block"
+              className="relative w-full max-w-xl mx-auto lg:max-w-none lg:mx-0"
               initial={{ opacity: 0, x: 40, rotateY: -8 }}
               animate={{ opacity: 1, x: 0, rotateY: 0 }}
               transition={{ ...spring, delay: 0.6, duration: 1 }}
@@ -240,7 +243,7 @@ export default function LandingPage() {
                 </div>
 
                 {/* Mock app content */}
-                <div className="flex" style={{ minHeight: 280 }}>
+                <div className="flex" style={{ minHeight: 220 }}>
                   {/* Sidebar */}
                   <div className="w-14 flex-shrink-0 flex flex-col items-center gap-2 py-3" style={{ background: 'rgba(8,12,14,0.9)', borderRight: '1px solid rgba(255,255,255,0.04)' }}>
                     <div className="w-9 h-9 rounded-xl" style={{ background: 'rgba(16,185,129,0.15)' }}>
@@ -336,7 +339,7 @@ export default function LandingPage() {
       </motion.section>
 
       {/* ---- Interactive Feature Showcase ---- */}
-      <AnimatedSection className="relative py-24 px-6 lg:px-8">
+      <AnimatedSection className="relative pt-6 sm:pt-10 pb-16 sm:pb-24 px-4 sm:px-6 lg:px-8">
         <FeatureShowcase
           features={features}
           sectionTitle={t('cta.title')}
@@ -345,9 +348,9 @@ export default function LandingPage() {
       </AnimatedSection>
 
       {/* ---- Stats ---- */}
-      <AnimatedSection className="relative py-16 px-6 lg:px-8">
+      <AnimatedSection className="relative py-10 sm:py-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-5xl mx-auto">
-          <div className="grid grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-4 sm:gap-6">
             {[
               { value: '50ms', label: 'Latency' },
               { value: 'TLS', label: 'Encrypted' },
@@ -355,7 +358,7 @@ export default function LandingPage() {
             ].map((stat, i) => (
               <motion.div
                 key={i}
-                className="text-center p-8 rounded-2xl relative overflow-hidden"
+                className="text-center p-6 sm:p-8 rounded-2xl relative overflow-hidden"
                 style={{
                   background: 'rgba(255,255,255,0.02)',
                   border: '1px solid rgba(255,255,255,0.04)',
@@ -387,9 +390,9 @@ export default function LandingPage() {
       </AnimatedSection>
 
       {/* ---- CTA Banner ---- */}
-      <AnimatedSection className="relative py-24 px-6 lg:px-8">
+      <AnimatedSection className="relative py-14 sm:py-24 px-4 sm:px-6 lg:px-8">
         <motion.div
-          className="max-w-4xl mx-auto text-center p-14 rounded-3xl relative overflow-hidden"
+          className="max-w-4xl mx-auto text-center p-8 sm:p-12 md:p-14 rounded-3xl relative overflow-hidden"
           style={{
             background: 'rgba(16,185,129,0.04)',
             border: '1px solid rgba(16,185,129,0.1)',
@@ -425,7 +428,7 @@ export default function LandingPage() {
       </AnimatedSection>
 
       {/* ---- Footer ---- */}
-      <footer className="relative py-8 px-6 lg:px-8" style={{ zIndex: 1 }}>
+      <footer className="relative py-8 px-4 sm:px-6 lg:px-8" style={{ zIndex: 1 }}>
         <div className="h-px w-full mb-8" style={{
           background: 'linear-gradient(90deg, transparent, rgba(16,185,129,0.3), transparent)',
         }} />

@@ -38,12 +38,11 @@ export function ThreadPanel() {
 
   return (
     <div
-      className="flex flex-col h-full"
+      className="flex flex-col h-full fixed inset-0 z-40 w-full sm:relative sm:inset-auto sm:z-auto sm:w-[min(380px,100vw)] sm:max-w-[min(380px,46vw)] shrink-0 pb-[env(safe-area-inset-bottom)] sm:pb-0"
       style={{
-        width: 380,
-        flexShrink: 0,
         background: 'var(--color-surface-elevated)',
         borderLeft: '1px solid var(--color-border-subtle)',
+        boxShadow: 'var(--shadow-xl)',
       }}
     >
       {/* Header */}

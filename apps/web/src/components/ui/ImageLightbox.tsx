@@ -58,13 +58,13 @@ export function ImageLightbox({ images, initialIndex = 0, onClose }: ImageLightb
       >
         {/* Toolbar */}
         <div
-          className="absolute top-0 left-0 right-0 flex items-center justify-between px-4 py-3 z-10"
+          className="absolute top-0 left-0 right-0 flex flex-wrap items-center justify-between gap-2 px-3 sm:px-4 py-2 sm:py-3 z-10 pt-[max(0.5rem,env(safe-area-inset-top))]"
           onClick={(e) => e.stopPropagation()}
         >
-          <span className="text-sm font-medium text-white/80 truncate max-w-md">
+          <span className="text-xs sm:text-sm font-medium text-white/80 truncate max-w-[min(100%,20rem)] order-2 sm:order-1 basis-full sm:basis-auto sm:max-w-md">
             {currentImage?.name ?? `Image ${currentIndex + 1} of ${images.length}`}
           </span>
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1 sm:gap-2 order-1 sm:order-2 ml-auto">
             <button
               onClick={() => setZoom((z) => Math.min(5, z + 0.5))}
               className="w-8 h-8 rounded-lg flex items-center justify-center text-white/70 hover:text-white hover:bg-white/10 transition-colors"
@@ -105,7 +105,7 @@ export function ImageLightbox({ images, initialIndex = 0, onClose }: ImageLightb
             initial={{ opacity: 0, scale: 0.95 }}
             animate={{ opacity: 1, scale: 1 }}
             transition={{ duration: 0.15 }}
-            className="max-w-[90vw] max-h-[85vh] select-none"
+            className="max-w-[calc(100vw-1rem)] sm:max-w-[90vw] max-h-[min(85dvh,85vh)] px-2 select-none"
             onClick={(e) => e.stopPropagation()}
             onWheel={handleWheel}
           >
@@ -113,7 +113,7 @@ export function ImageLightbox({ images, initialIndex = 0, onClose }: ImageLightb
             <img
               src={currentImage.url}
               alt={currentImage.name ?? 'Image'}
-              className="max-w-full max-h-[85vh] object-contain rounded-lg"
+              className="max-w-full max-h-[min(85dvh,85vh)] object-contain rounded-lg"
               style={{ transform: `scale(${zoom})`, transition: 'transform 0.1s ease' }}
               draggable={false}
             />

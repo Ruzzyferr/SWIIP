@@ -28,10 +28,10 @@ interface ModalProps {
 }
 
 const sizeClasses = {
-  sm: 'max-w-sm',
-  md: 'max-w-lg',
-  lg: 'max-w-2xl',
-  xl: 'max-w-4xl',
+  sm: 'max-w-[min(100vw-1.5rem,24rem)] sm:max-w-sm',
+  md: 'max-w-[min(100vw-1.5rem,32rem)] sm:max-w-lg',
+  lg: 'max-w-[min(100vw-1.5rem,42rem)] sm:max-w-2xl',
+  xl: 'max-w-[min(100vw-1.5rem,56rem)] sm:max-w-4xl',
 };
 
 const backdropVariants = {
@@ -145,7 +145,7 @@ export function Modal({
     <AnimatePresence>
       {open && (
         <div
-          className="fixed inset-0 flex items-center justify-center p-4"
+          className="fixed inset-0 flex items-end justify-center p-0 pb-[env(safe-area-inset-bottom)] sm:items-center sm:p-4"
           style={{ zIndex: 'var(--z-modal)' }}
           onKeyDown={handleKeyDown}
         >
@@ -176,7 +176,10 @@ export function Modal({
             aria-labelledby={title ? 'modal-title' : undefined}
             aria-describedby={description ? 'modal-description' : undefined}
             tabIndex={-1}
-            className={cn('relative w-full rounded-2xl outline-none noise-texture overflow-hidden', sizeClasses[size])}
+            className={cn(
+              'relative w-full max-h-[min(92dvh,900px)] overflow-y-auto overflow-x-hidden rounded-t-2xl sm:rounded-2xl outline-none noise-texture',
+              sizeClasses[size],
+            )}
             style={{
               background: 'var(--glass-bg)',
               backdropFilter: 'blur(30px)',
@@ -188,7 +191,7 @@ export function Modal({
           >
             {/* Header */}
             {(title || showClose) && (
-              <div className="flex items-start justify-between p-5 pb-4">
+              <div className="flex items-start justify-between p-4 pb-3 sm:p-5 sm:pb-4 gap-2">
                 <div>
                   {title && (
                     <h2
@@ -234,7 +237,7 @@ export function Modal({
             )}
 
             {/* Content */}
-            <div className={cn('px-5 pb-5', !(title || showClose) && 'pt-5')}>
+            <div className={cn('px-4 pb-4 sm:px-5 sm:pb-5', !(title || showClose) && 'pt-4 sm:pt-5')}>
               {children}
             </div>
           </motion.div>

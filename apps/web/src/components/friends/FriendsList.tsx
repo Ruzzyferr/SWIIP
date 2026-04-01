@@ -83,7 +83,7 @@ function AddFriendForm() {
       <p className="text-sm mb-4" style={{ color: 'var(--color-text-secondary)' }}>
         You can add friends with their username and discriminator.
       </p>
-      <form onSubmit={handleSubmit} className="flex gap-2">
+      <form onSubmit={handleSubmit} className="flex flex-col sm:flex-row gap-2">
         <div className="relative flex-1">
           <input
             value={input}
@@ -543,31 +543,32 @@ export function FriendsList() {
     <div className="flex flex-col h-full" style={{ background: 'var(--color-surface-base)' }}>
       {/* Header */}
       <div
-        className="flex items-center gap-4 px-4 h-12 flex-shrink-0"
+        className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4 h-12 flex-shrink-0 min-w-0"
         style={{ borderBottom: '1px solid var(--color-border-subtle)' }}
       >
-        {/* Mobile hamburger */}
+        {/* Mobile hamburger — opens DM conversation drawer */}
         <button
           onClick={toggleMobileNav}
-          className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-fast md:hidden"
+          className="w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-fast md:hidden shrink-0"
           style={{ color: 'var(--color-text-secondary)' }}
-          aria-label="Open channels menu"
+          aria-label="Open conversations menu"
         >
           <Menu size={18} />
         </button>
 
-        <div className="flex items-center gap-2" style={{ color: 'var(--color-text-primary)' }}>
-          <Users size={20} />
-          <span className="font-semibold text-sm">{t('title')}</span>
+        <div className="flex items-center gap-2 shrink-0" style={{ color: 'var(--color-text-primary)' }}>
+          <Users size={18} className="sm:w-5 sm:h-5 shrink-0" />
+          <span className="font-semibold text-sm whitespace-nowrap">{t('title')}</span>
         </div>
 
-        <div className="h-5 w-px mx-1" style={{ background: 'var(--color-border-default)' }} />
+        <div className="h-5 w-px shrink-0 hidden sm:block" style={{ background: 'var(--color-border-default)' }} />
 
+        <div className="flex flex-1 min-w-0 items-center gap-1 overflow-x-auto scroll-thin pb-0.5 -mr-1 pr-1">
         {tabs.map((tab) => (
           <button
             key={tab.id}
             onClick={() => { setActiveTab(tab.id); setSearchQuery(''); }}
-            className="px-3 py-1 rounded text-sm font-medium transition-colors relative"
+            className="px-2.5 sm:px-3 py-1 rounded text-sm font-medium transition-colors relative shrink-0"
             style={{
               background: activeTab === tab.id ? 'var(--color-surface-overlay)' : 'transparent',
               color: activeTab === tab.id
@@ -592,7 +593,7 @@ export function FriendsList() {
 
         <button
           onClick={() => setActiveTab('add')}
-          className="px-3 py-1 rounded text-sm font-medium transition-colors"
+          className="px-2.5 sm:px-3 py-1 rounded text-sm font-medium transition-colors shrink-0 whitespace-nowrap"
           style={{
             background: activeTab === 'add' ? 'transparent' : 'var(--color-success-default)',
             color: activeTab === 'add' ? 'var(--color-success-default)' : '#fff',
@@ -601,6 +602,7 @@ export function FriendsList() {
         >
           {t('addFriend')}
         </button>
+        </div>
       </div>
 
       {/* Add friend form */}

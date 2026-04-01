@@ -90,14 +90,14 @@ export default function VerifyEmailPage() {
 
   if (!hydrated || !user) {
     return (
-      <div className="flex items-center justify-center h-screen w-screen" style={{ background: 'var(--color-surface-base)' }}>
+      <div className="flex items-center justify-center min-h-[100dvh] w-full max-w-[100dvw]" style={{ background: 'var(--color-surface-base)' }}>
         <Spinner size={32} />
       </div>
     );
   }
 
   return (
-    <div className="relative min-h-screen flex items-center justify-center overflow-hidden bg-surface-base py-8">
+    <div className="relative min-h-[100dvh] flex flex-col items-center justify-start py-8 px-3 sm:px-4 sm:justify-center sm:py-10 overflow-x-hidden bg-surface-base">
       <div aria-hidden="true" className="pointer-events-none absolute inset-0">
         <div
           className="absolute -top-20 -right-20 w-[500px] h-[500px] rounded-full"

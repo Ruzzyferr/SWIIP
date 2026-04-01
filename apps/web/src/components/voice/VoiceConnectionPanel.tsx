@@ -188,7 +188,7 @@ export function VoiceConnectionPanel() {
       </div>
 
       {/* Controls */}
-      <div className="flex items-center justify-center gap-1.5 relative">
+      <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 relative max-w-full">
         <Tooltip content={selfMuted ? t('unmute') : t('mute')} placement="top">
           <button
             onClick={toggleMute}

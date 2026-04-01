@@ -46,7 +46,7 @@ export function UserPanel() {
 
   return (
     <div
-      className="flex items-center gap-3 px-4"
+      className="flex items-center gap-2 sm:gap-3 px-2 sm:px-4"
       style={{
         minHeight: '48px',
         paddingBottom: 'max(0px, env(safe-area-inset-bottom))',

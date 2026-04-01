@@ -1,6 +1,7 @@
 'use client';
 
 import { type ReactNode, useEffect, useState } from 'react';
+import { AnimatePresence, motion } from 'framer-motion';
 import { AppProvider } from '@/components/providers/AppProvider';
 import { SwiipTopBar } from '@/components/layout/SwiipTopBar';
 import { ModalRoot } from '@/components/modals/ModalRoot';
@@ -23,6 +24,10 @@ import { Toaster } from 'sonner';
 export default function AppLayout({ children }: { children: ReactNode }) {
   const [isDesktop, setIsDesktop] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
+
+  const isMobileNavOpen = useUIStore((s) => s.isMobileNavOpen);
+  const setMobileNavOpen = useUIStore((s) => s.setMobileNavOpen);
+  const setMemberSidebarOpen = useUIStore((s) => s.setMemberSidebarOpen);
 
   // Ambient Adaptive Theming
   const activeGuildId = useUIStore((s) => s.activeGuildId);
@@ -47,9 +52,23 @@ export default function AppLayout({ children }: { children: ReactNode }) {
     setIsDesktop(!!(window as any).constchat?.platform);
   }, []);
 
+  // Narrow viewports: hide member sidebar by default; DM list uses overlay drawer (isMobileNavOpen).
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const mq = window.matchMedia('(max-width: 767px)');
+    const apply = () => {
+      if (mq.matches) {
+        setMemberSidebarOpen(false);
+      }
+    };
+    apply();
+    mq.addEventListener('change', apply);
+    return () => mq.removeEventListener('change', apply);
+  }, [setMemberSidebarOpen]);
+
   return (
     <AppProvider>
-      <div className="flex flex-col h-screen w-screen overflow-hidden" style={{ background: 'var(--color-surface-base)' }}>
+      <div className="flex flex-col h-[100dvh] w-full min-w-0 max-w-[100dvw] overflow-hidden" style={{ background: 'var(--color-surface-base)' }}>
         <DesktopTitleBar />
         {isDesktop && <div className="shrink-0" style={{ height: 32 }} />}
         {isDesktop && <UpdateBanner />}
@@ -92,17 +111,51 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
           <ErrorBoundary fallbackTitle="Something went wrong">
             <div className="flex-1 flex min-w-0 overflow-hidden h-full" style={{ position: 'relative' }}>
-              {/* DM conversation sidebar — visible when in DM mode */}
+              {/* DM conversation list — desktop column; mobile slide-over (toggled from Friends / DM header) */}
               {isDMMode && (
-                <div
-                  className="w-60 shrink-0 overflow-y-auto h-full p-2"
-                  style={{
-                    background: 'rgba(10, 14, 16, 0.6)',
-                    borderRight: '1px solid rgba(255,255,255,0.04)',
-                  }}
-                >
-                  <DMConversationList />
-                </div>
+                <>
+                  <aside
+                    className="hidden md:flex w-60 shrink-0 flex-col overflow-y-auto h-full p-2 scroll-thin"
+                    style={{
+                      background: 'rgba(10, 14, 16, 0.6)',
+                      borderRight: '1px solid rgba(255,255,255,0.04)',
+                    }}
+                  >
+                    <DMConversationList />
+                  </aside>
+                  <AnimatePresence>
+                    {isMobileNavOpen && (
+                      <>
+                        <motion.div
+                          key="dm-backdrop"
+                          role="presentation"
+                          aria-hidden
+                          initial={{ opacity: 0 }}
+                          animate={{ opacity: 1 }}
+                          exit={{ opacity: 0 }}
+                          transition={{ duration: 0.15 }}
+                          className="fixed inset-0 z-[55] bg-black/55 md:hidden"
+                          onClick={() => setMobileNavOpen(false)}
+                        />
+                        <motion.aside
+                          key="dm-drawer"
+                          initial={{ x: '-105%' }}
+                          animate={{ x: 0 }}
+                          exit={{ x: '-105%' }}
+                          transition={{ type: 'spring', stiffness: 420, damping: 38 }}
+                          className="fixed inset-y-0 left-0 z-[60] flex w-[min(280px,88vw)] flex-col overflow-y-auto p-2 md:hidden scroll-thin"
+                          style={{
+                            background: 'rgba(10, 14, 16, 0.98)',
+                            borderRight: '1px solid rgba(255,255,255,0.06)',
+                            boxShadow: '8px 0 40px rgba(0,0,0,0.45)',
+                          }}
+                        >
+                          <DMConversationList />
+                        </motion.aside>
+                      </>
+                    )}
+                  </AnimatePresence>
+                </>
               )}
               {children}
             </div>
@@ -143,8 +196,11 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
       <Toaster
         theme="dark"
-        position="bottom-right"
+        position="bottom-center"
         toastOptions={{
+          classNames: {
+            toast: '!max-w-[min(100vw-2rem,380px)] sm:!max-w-[380px]',
+          },
           style: {
             background: 'rgba(18, 22, 22, 0.85)',
             color: 'var(--color-text-primary)',
