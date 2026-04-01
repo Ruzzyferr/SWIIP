@@ -48,7 +48,7 @@ jobs:
           "sha256=$sha" | Out-File -FilePath $env:GITHUB_OUTPUT -Append
 
       - name: Upload installer artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: desktop-installer
           path: ${{ steps.metadata.outputs.artifact_path }}
@@ -63,7 +63,7 @@ jobs:
           "@
           $content | Out-File -FilePath "installer-metadata.env" -Encoding ascii
       - name: Upload metadata artifact file
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: desktop-installer-metadata
           path: installer-metadata.env
@@ -73,26 +73,28 @@ jobs:
     runs-on: ubuntu-latest
     needs: build-installer
     env:
-      SSH_PORT: ${{ secrets.PROD_SSH_PORT }}
+      # Same names as Build & Deploy (deploy.yml uses appleboy/ssh-action with these).
+      SSH_PORT: ${{ secrets.SERVER_SSH_PORT }}
+      SSH_USER: ${{ secrets.SERVER_SSH_USER }}
     steps:
       # GitHub does not reliably evaluate secrets.* == '' in step `if:`; use env boolean instead.
       - name: Verify SSH secrets are configured
         env:
-          SSH_SECRETS_OK: ${{ secrets.PROD_SSH_KEY != '' && secrets.PROD_SSH_HOST != '' && secrets.PROD_SSH_USER != '' }}
+          SSH_SECRETS_OK: ${{ secrets.SERVER_SSH_KEY != '' && secrets.SERVER_HOST != '' }}
         run: |
           if [ "$SSH_SECRETS_OK" != "true" ]; then
-            echo '::error::Set repository secrets PROD_SSH_KEY (OpenSSH private key), PROD_SSH_HOST, and PROD_SSH_USER under Settings → Secrets and variables → Actions. Optional: PROD_SSH_PORT.'
+            echo '::error::Set SERVER_SSH_KEY and SERVER_HOST (same secrets as the Build & Deploy workflow). Optional: SERVER_SSH_USER (default root), SERVER_SSH_PORT (default 22).'
             exit 1
           fi
 
       - name: Download installer artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: desktop-installer
           path: dist
 
       - name: Download metadata artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: desktop-installer-metadata
           path: dist
@@ -109,12 +111,12 @@ jobs:
           set -euo pipefail
           install -m 700 -d ~/.ssh
           # Trailing newline matters for OpenSSH when the secret was pasted without a final \n
-          printf '%s\n' "${{ secrets.PROD_SSH_KEY }}" > ~/.ssh/id_ed25519
+          printf '%s\n' "${{ secrets.SERVER_SSH_KEY }}" > ~/.ssh/id_ed25519
           chmod 600 ~/.ssh/id_ed25519
-          HOST="${{ secrets.PROD_SSH_HOST }}"
+          HOST="${{ secrets.SERVER_HOST }}"
           PORT="${SSH_PORT:-22}"
           if ! ssh-keyscan -o ConnectTimeout=15 -p "$PORT" -H "$HOST" >> ~/.ssh/known_hosts 2>/tmp/keyscan.err; then
-            echo "::error::ssh-keyscan failed for PROD_SSH_HOST port ${PORT} (DNS, firewall blocking GitHub egress, wrong host/port, or use a bastion). $(tr '\n' ' ' </tmp/keyscan.err)"
+            echo "::error::ssh-keyscan failed for SERVER_HOST port ${PORT} (DNS, firewall, or wrong host/port). $(tr '\n' ' ' </tmp/keyscan.err)"
             exit 1
           fi
 
@@ -122,15 +124,19 @@ jobs:
         run: |
           set -euo pipefail
           PORT="${SSH_PORT:-22}"
+          REMOTE_USER="${SSH_USER:-root}"
+          HOST="${{ secrets.SERVER_HOST }}"
           INSTALLER_PATH="$(ls dist/Swiip-Setup-*.exe | head -n 1)"
-          scp -P "$PORT" "$INSTALLER_PATH" "${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}:/opt/ConstChat/infra/docker/downloads/Swiip-Setup-${VERSION}.exe"
+          scp -P "$PORT" "$INSTALLER_PATH" "${REMOTE_USER}@${HOST}:/opt/ConstChat/infra/docker/downloads/Swiip-Setup-${VERSION}.exe"
 
       - name: Promote latest installer and generate update manifest
         run: |
           set -euo pipefail
           PORT="${SSH_PORT:-22}"
+          REMOTE_USER="${SSH_USER:-root}"
+          HOST="${{ secrets.SERVER_HOST }}"
           INSTALLER="Swiip-Setup-${VERSION}.exe"
-          ssh -p "$PORT" "${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}" bash -s <<REMOTE_EOF
+          ssh -p "$PORT" "${REMOTE_USER}@${HOST}" bash -s <<REMOTE_EOF
             set -euo pipefail
             cd /opt/ConstChat/infra/docker/downloads
             cp -f "${INSTALLER}" Swiip-Setup-latest.exe
@@ -153,7 +159,9 @@ jobs:
         run: |
           set -euo pipefail
           PORT="${SSH_PORT:-22}"
-          REMOTE_SHA="$(ssh -p "$PORT" "${{ secrets.PROD_SSH_USER }}@${{ secrets.PROD_SSH_HOST }}" "cat /opt/ConstChat/infra/docker/downloads/Swiip-Setup-latest.exe.sha256")"
+          REMOTE_USER="${SSH_USER:-root}"
+          HOST="${{ secrets.SERVER_HOST }}"
+          REMOTE_SHA="$(ssh -p "$PORT" "${REMOTE_USER}@${HOST}" "cat /opt/ConstChat/infra/docker/downloads/Swiip-Setup-latest.exe.sha256")"
           test "$REMOTE_SHA" = "$EXPECTED_SHA256"
 
       - name: Smoke check latest installer URL

@@ -9,6 +9,76 @@ import {
 import { PrismaService } from '../prisma/prisma.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { mapMessageForClient } from '../messages/message-serialize.util';
+import { Prisma } from '@prisma/client';
+
+/** Participant row as loaded for DM payload shaping (user subset varies by query). */
+type DMParticipantForPayload = {
+  userId: string;
+  user?: {
+    id: string;
+    username: string;
+    discriminator: string;
+    globalName: string | null;
+    avatarId: string | null;
+    flags?: bigint;
+  } | null;
+};
+
+type DMConversationForPayload = {
+  id: string;
+  type: string;
+  name: string | null;
+  ownerId?: string | null;
+  updatedAt?: Date;
+  createdAt?: Date;
+  participants?: DMParticipantForPayload[];
+  [key: string]: unknown;
+};
+
+type RecipientPublic = Omit<NonNullable<DMParticipantForPayload['user']>, 'avatarId' | 'flags'> & {
+  avatar: string | null;
+};
+
+type RecipientsResult = Array<DMParticipantForPayload | RecipientPublic>;
+
+const participationListInclude = {
+  conversation: {
+    include: {
+      participants: {
+        where: { leftAt: null },
+        include: {
+          user: {
+            select: {
+              id: true,
+              username: true,
+              discriminator: true,
+              globalName: true,
+              avatarId: true,
+            },
+          },
+        },
+      },
+    },
+  },
+} satisfies Prisma.DMParticipantInclude;
+
+type DMParticipationListRow = Prisma.DMParticipantGetPayload<{ include: typeof participationListInclude }>;
+
+type DMChannelMessageRow = Prisma.MessageGetPayload<{
+  include: {
+    author: {
+      select: {
+        id: true;
+        username: true;
+        discriminator: true;
+        globalName: true;
+        avatarId: true;
+      };
+    };
+    attachments: true;
+    reactions: true;
+  };
+}>;
 
 @Injectable()
 export class DMsService {
@@ -38,17 +108,17 @@ export class DMsService {
   }
 
   /** Map participants array to recipients (UserPayload[]) with avatar/banner fields */
-  private toRecipients(participants: any[]): any[] {
-    return participants.map((p: any) => {
+  private toRecipients(participants: DMParticipantForPayload[]): RecipientsResult {
+    return participants.map((p) => {
       const u = p.user;
       if (!u) return p;
-      const { avatarId, ...rest } = u;
+      const { avatarId, flags: _flags, ...rest } = u;
       return { ...rest, avatar: avatarId ?? null };
     });
   }
 
   /** Transform a raw conversation record into DMChannelPayload shape */
-  private toDMPayload(conv: any): any {
+  private toDMPayload(conv: DMConversationForPayload): Omit<DMConversationForPayload, 'participants'> & { recipients: RecipientsResult } {
     const { participants, ...rest } = conv;
     return {
       ...rest,
@@ -90,7 +160,7 @@ export class DMsService {
     });
 
     if (existingConversation) {
-      const participantIds = existingConversation.participants.map((p: any) => p.userId);
+      const participantIds = existingConversation.participants.map((p) => p.userId);
       if (participantIds.includes(userId) && participantIds.includes(targetId)) {
         // Backfill Channel record for pre-existing DM conversations
         await this.ensureChannelRecord(existingConversation.id, 'DM');
@@ -99,7 +169,7 @@ export class DMsService {
     }
 
     // Create new DM conversation + a matching Channel record so messages/ack work
-    const conversation = await this.prisma.$transaction(async (tx: any) => {
+    const conversation = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const conv = await tx.dMConversation.create({
         data: {
           type: 'DM',
@@ -158,7 +228,7 @@ export class DMsService {
       throw new BadRequestException(`Group DMs are limited to ${this.MAX_GROUP_DM_MEMBERS} members`);
     }
 
-    const conversation = await this.prisma.$transaction(async (tx: any) => {
+    const conversation = await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       const conv = await tx.dMConversation.create({
         data: {
           type: 'GROUP_DM',
@@ -217,7 +287,7 @@ export class DMsService {
       throw new BadRequestException('Not a group DM');
     }
 
-    const isParticipant = conversation.participants.some((p: any) => p.userId === userId);
+    const isParticipant = conversation.participants.some((p) => p.userId === userId);
     if (!isParticipant) throw new ForbiddenException('Not a participant in this conversation');
 
     const activeParticipantCount = conversation.participants.length;
@@ -225,7 +295,7 @@ export class DMsService {
       throw new BadRequestException(`Group DMs are limited to ${this.MAX_GROUP_DM_MEMBERS} members`);
     }
 
-    const alreadyMember = conversation.participants.some((p: any) => p.userId === targetId);
+    const alreadyMember = conversation.participants.some((p) => p.userId === targetId);
     if (alreadyMember) throw new ConflictException('User is already in this conversation');
 
     const participant = await this.prisma.dMParticipant.upsert({
@@ -267,9 +337,7 @@ export class DMsService {
 
     // If owner left, transfer ownership
     if (targetId === conversation.ownerId) {
-      const remaining = conversation.participants.filter(
-        (p: any) => p.userId !== targetId,
-      );
+      const remaining = conversation.participants.filter((p) => p.userId !== targetId);
       if (remaining.length > 0) {
         await this.prisma.dMConversation.update({
           where: { id: conversationId },
@@ -285,40 +353,18 @@ export class DMsService {
   async getDMConversations(userId: string) {
     const participations = await this.prisma.dMParticipant.findMany({
       where: { userId, leftAt: null },
-      include: {
-        conversation: {
-          include: {
-            participants: {
-              where: { leftAt: null },
-              include: {
-                user: {
-                  select: {
-                    id: true,
-                    username: true,
-                    discriminator: true,
-                    globalName: true,
-                    avatarId: true,
-                  },
-                },
-              },
-            },
-          },
-        },
-      },
+      include: participationListInclude,
       orderBy: { conversation: { updatedAt: 'desc' } },
     });
 
     // Backfill Channel records for pre-existing DM conversations
     await Promise.all(
-      participations.map((p: any) =>
+      participations.map((p: DMParticipationListRow) =>
         this.ensureChannelRecord(p.conversation.id, p.conversation.type, p.conversation.name ?? undefined),
       ),
     );
 
-    return participations.map((p: any) => {
-      const conv = p.conversation;
-      return this.toDMPayload(conv);
-    });
+    return participations.map((p: DMParticipationListRow) => this.toDMPayload(p.conversation as DMConversationForPayload));
   }
 
   async getDMChannel(conversationId: string, userId: string) {
@@ -397,6 +443,6 @@ export class DMsService {
       take: limit,
     });
 
-    return messages.reverse().map((msg: any) => mapMessageForClient(msg, userId));
+    return messages.reverse().map((msg: DMChannelMessageRow) => mapMessageForClient(msg, userId));
   }
 }

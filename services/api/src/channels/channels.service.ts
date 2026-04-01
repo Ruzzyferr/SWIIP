@@ -27,6 +27,8 @@ const ChannelType: Record<ChannelType, ChannelType> = {
   GROUP_DM: 'GROUP_DM', ANNOUNCEMENT: 'ANNOUNCEMENT', STAGE: 'STAGE', FORUM: 'FORUM', THREAD: 'THREAD',
 };
 import { nanoid } from 'nanoid';
+import { Prisma } from '@prisma/client';
+import type { Channel } from '@prisma/client';
 
 export class CreateChannelDto {
   @ApiProperty() @IsString() @MaxLength(100) name: string;
@@ -147,7 +149,7 @@ export class ChannelsService {
           targetId: channelId,
           targetType: 'CHANNEL',
           action: 'CHANNEL_UPDATE',
-          changes: dto as any,
+          changes: dto as Prisma.InputJsonValue,
         },
       });
     }
@@ -240,7 +242,7 @@ export class ChannelsService {
     });
 
     const visibleChannels = await Promise.all(
-      channels.map(async (channel: any) => {
+      channels.map(async (channel: Channel) => {
         const canView = await this.permissionsService.canViewChannel(userId, channel.id);
         return canView ? channel : null;
       }),
@@ -354,7 +356,7 @@ export class ChannelsService {
     return invite;
   }
 
-  async getChannelInvites(channelId: string, userId: string) {
+  async getChannelInvites(channelId: string, _userId: string) {
     return this.prisma.invite.findMany({
       where: { channelId },
       include: {
@@ -409,7 +411,7 @@ export class ChannelsService {
       orderBy: { createdAt: 'desc' },
     });
 
-    return pins.map((p: any) => p.message);
+    return pins.map((p) => p.message);
   }
 
   async pinMessage(channelId: string, messageId: string, userId: string) {
@@ -426,7 +428,7 @@ export class ChannelsService {
       throw new BadRequestException('Maximum of 50 pins per channel');
     }
 
-    await this.prisma.$transaction(async (tx: any) => {
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.pin.create({
         data: { messageId, channelId, pinnedById: userId },
       });
@@ -463,7 +465,7 @@ export class ChannelsService {
 
     const channel = await this.prisma.channel.findUnique({ where: { id: channelId } });
 
-    await this.prisma.$transaction(async (tx: any) => {
+    await this.prisma.$transaction(async (tx: Prisma.TransactionClient) => {
       await tx.pin.delete({
         where: { messageId_channelId: { messageId, channelId } },
       });
