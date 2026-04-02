@@ -120,6 +120,7 @@ jobs:
           key: ${{ secrets.SERVER_SSH_KEY }}
           source: dist/Swiip-Setup-${{ env.VERSION }}.exe
           target: /opt/ConstChat/infra/docker/downloads/
+          strip_components: 1
 
       - name: Promote latest, write latest.yml, verify SHA256
         uses: appleboy/ssh-action@v1
