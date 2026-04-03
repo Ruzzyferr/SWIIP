@@ -133,9 +133,9 @@ export function SettingsOverlay() {
     <AnimatePresence>
       {isOpen && (
         <motion.div
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          exit={{ opacity: 0 }}
+          initial={{ opacity: 0, pointerEvents: 'none' }}
+          animate={{ opacity: 1, pointerEvents: 'auto' }}
+          exit={{ opacity: 0, pointerEvents: 'none' }}
           transition={{ duration: 0.15 }}
           className="fixed inset-0 flex flex-col md:flex-row min-h-0"
           style={{
