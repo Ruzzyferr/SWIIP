@@ -287,12 +287,14 @@ export function useLiveKitRoom() {
         const ctx = new AudioContext();
         const source = ctx.createMediaStreamSource(new MediaStream([micTrack]));
         const analyser = ctx.createAnalyser();
-        analyser.fftSize = 512;
-        analyser.smoothingTimeConstant = 0.3;
+        analyser.fftSize = 256;
+        analyser.smoothingTimeConstant = 0.1; // Low smoothing for fast response
         source.connect(analyser);
         vadContextRef.current = ctx;
 
-        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        // Use time-domain (waveform) data — much more sensitive than frequency data
+        // for voice detection. Measures peak amplitude directly.
+        const dataArray = new Uint8Array(analyser.fftSize);
         let wasSpeaking = false;
         let silenceStart = 0;
         const SILENCE_DEBOUNCE_MS = 150; // Short debounce to prevent flicker
@@ -313,27 +315,25 @@ export function useLiveKitRoom() {
             return;
           }
 
-          analyser.getByteFrequencyData(dataArray);
+          // Time-domain data: each byte is amplitude (128 = silence, 0/255 = peak)
+          analyser.getByteTimeDomainData(dataArray);
 
-          // Calculate RMS-like average of frequency bins (skip bin 0 = DC offset)
-          let sum = 0;
-          for (let i = 1; i < dataArray.length; i++) {
-            sum += dataArray[i]!;
+          // Calculate peak deviation from silence (128)
+          let peak = 0;
+          for (let i = 0; i < dataArray.length; i++) {
+            const deviation = Math.abs(dataArray[i]! - 128);
+            if (deviation > peak) peak = deviation;
           }
-          const avg = sum / (dataArray.length - 1); // 0-255 range
-          const level = (avg / 255) * 100; // Normalize to 0-100
+          // Normalize: 0 = silence, 100 = max amplitude
+          const level = (peak / 128) * 100;
 
-          // Get threshold: -1 = automatic (use default low threshold for responsiveness)
+          // Get threshold: -1 = automatic (use low default for responsiveness)
           const settings = storeState.settings;
           const threshold = settings.voiceActivityThreshold === -1
-            ? 8  // Low default for responsive detection
+            ? 3  // Very low default — normal speech at arm's length triggers ~5-15
             : settings.voiceActivityThreshold;
 
-          // Also factor in input volume — lower input volume means higher effective threshold
-          const inputVol = settings.inputVolume / 100;
-          const adjustedLevel = level * inputVol;
-
-          const isSpeaking = adjustedLevel > threshold;
+          const isSpeaking = level > threshold;
 
           if (isSpeaking) {
             silenceStart = 0;
@@ -528,10 +528,21 @@ export function useLiveKitRoom() {
     // which is wired via pipeline.onTransition() — see below.
 
     // Connection quality monitoring + adaptive video quality
+    const qualityToNumber = (q: string | number): number => {
+      if (typeof q === 'number') return q;
+      switch (q) {
+        case 'excellent': return 3;
+        case 'good':      return 2;
+        case 'poor':      return 1;
+        case 'lost':      return 0;
+        default:          return 0; // 'unknown' or unexpected
+      }
+    };
+
     room.on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
       if (!participant.isLocal) return;
-      // ConnectionQuality enum: 0=LOST, 1=POOR, 2=GOOD, 3=EXCELLENT
-      const q = quality as unknown as number;
+      // ConnectionQuality is a string enum in livekit-client v2+: 'excellent'|'good'|'poor'|'lost'|'unknown'
+      const q = qualityToNumber(quality as unknown as string);
       setConnectionQuality(q);
 
       // Adaptive video: reduce resolution on poor connection (Discord behaviour)
