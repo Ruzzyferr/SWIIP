@@ -14,7 +14,7 @@ import { Track, type AudioProcessorOptions, type TrackProcessor } from 'livekit-
  * Default gain multiplier to compensate for RNNoise signal attenuation.
  * RNNoise suppresses noise by reducing overall amplitude — this restores it.
  */
-const RNNOISE_COMPENSATION_GAIN = 1.8;
+const RNNOISE_COMPENSATION_GAIN = 2.2;
 
 export class RnnoiseProcessor implements TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> {
   name = 'rnnoise-noise-suppressor';

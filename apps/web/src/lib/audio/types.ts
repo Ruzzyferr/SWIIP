@@ -65,8 +65,8 @@ export const AUDIO_MODE_POLICY: Record<AudioPlatform, Record<AudioMode, AudioCon
     enhanced: {
       echoCancellation: true,
       noiseSuppression: false,
-      autoGainControl: true,
-      rationale: 'Browser Enhanced: NS off because RNNoise handles NS — stacking browser NS causes artifacts. AGC on to normalize volume after RNNoise attenuation (AGC=off caused low voice volume). EC stays on because RNNoise does NOT handle echo cancellation.',
+      autoGainControl: false,
+      rationale: 'Browser Enhanced: NS off because RNNoise handles NS — stacking browser NS causes artifacts. AGC off: browser AGC runs at getUserMedia time (before RNNoise), distorting the signal RNNoise depends on for noise detection. Low-voice issue compensated by RNNOISE_COMPENSATION_GAIN. EC stays on because RNNoise does NOT handle echo cancellation.',
     },
   },
   desktop: {
@@ -85,8 +85,8 @@ export const AUDIO_MODE_POLICY: Record<AudioPlatform, Record<AudioMode, AudioCon
     enhanced: {
       echoCancellation: true,
       noiseSuppression: false,
-      autoGainControl: true,
-      rationale: 'Desktop Enhanced: NS off because RNNoise handles NS. AGC on to normalize volume after RNNoise attenuation (AGC=off caused low voice volume). EC on because RNNoise does NOT handle echo cancellation.',
+      autoGainControl: false,
+      rationale: 'Desktop Enhanced: NS off because RNNoise handles NS. AGC off: browser AGC runs at getUserMedia time (before RNNoise), distorting the signal RNNoise depends on for noise detection. Low-voice issue compensated by RNNOISE_COMPENSATION_GAIN. EC on because RNNoise does NOT handle echo cancellation.',
     },
   },
 };

@@ -1,9 +1,10 @@
 'use client';
 
-import { useMemo, useState, useCallback } from 'react';
+import { useMemo, useState, useCallback, Fragment } from 'react';
 import { Virtuoso } from 'react-virtuoso';
 import { motion } from 'framer-motion';
 import { Avatar } from '@/components/ui/Avatar';
+import { ContextMenu, type ContextMenuItem } from '@/components/ui/ContextMenu';
 import { MemberContextMenu } from '@/components/menus/MemberContextMenu';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { usePresenceStore } from '@/stores/presence.store';
@@ -96,8 +97,11 @@ function VoiceContextPanel({ channelId, guildId }: { channelId: string; guildId:
   const connectionState = useVoiceStore((s) => s.connectionState);
   const effectiveAudioMode = useVoiceStore((s) => s.effectiveAudioMode);
   const currentChannelId = useVoiceStore((s) => s.currentChannelId);
+  const userVolumes = useVoiceStore((s) => s.userVolumes);
+  const setUserVolume = useVoiceStore((s) => s.setUserVolume);
   const members = useGuildsStore((s) => s.members[guildId] ?? {});
   const getPresence = usePresenceStore((s) => s.getPresence);
+  const currentUserId = useAuthStore((s) => s.user?.id);
 
   const isConnected = connectionState === 'connected' && currentChannelId === channelId;
 
@@ -137,8 +141,33 @@ function VoiceContextPanel({ channelId, guildId }: { channelId: string; guildId:
             const member = members[p.userId];
             const displayName = member?.nick ?? member?.user?.globalName ?? member?.user?.username ?? p.userId;
             const status = getPresence(p.userId);
-            return (
-              <div key={p.userId} className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg transition-colors" style={{ background: 'transparent' }}
+            const isSelf = p.userId === currentUserId;
+            const contextItems: ContextMenuItem[] = isSelf ? [] : [
+              { type: 'label', label: displayName },
+              { type: 'separator' },
+              {
+                type: 'custom',
+                customContent: (
+                  <div className="px-3 py-1.5">
+                    <p className="text-xs mb-1.5" style={{ color: 'var(--color-text-tertiary)' }}>Volume</p>
+                    <div className="flex items-center gap-2">
+                      <Volume2 size={12} style={{ color: 'var(--color-text-tertiary)' }} />
+                      <input
+                        type="range" min={0} max={200} step={1}
+                        value={userVolumes[p.userId] ?? 100}
+                        onChange={(e) => setUserVolume(p.userId, Number(e.target.value))}
+                        className="flex-1 h-1 cursor-pointer"
+                      />
+                      <span className="text-xs w-8 text-right" style={{ color: 'var(--color-text-secondary)' }}>
+                        {userVolumes[p.userId] ?? 100}%
+                      </span>
+                    </div>
+                  </div>
+                ),
+              },
+            ];
+            const row = (
+              <div className="flex items-center gap-2.5 px-2 py-1.5 rounded-lg transition-colors" style={{ background: 'transparent' }}
                 onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
                 onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
               >
@@ -175,6 +204,11 @@ function VoiceContextPanel({ channelId, guildId }: { channelId: string; guildId:
                   )}
                 </div>
               </div>
+            );
+            return isSelf ? (
+              <Fragment key={p.userId}>{row}</Fragment>
+            ) : (
+              <ContextMenu key={p.userId} items={contextItems}>{row}</ContextMenu>
             );
           })}
           {participants.length === 0 && (
