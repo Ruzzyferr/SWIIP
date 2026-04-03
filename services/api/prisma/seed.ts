@@ -359,7 +359,7 @@ async function main() {
     { authorId: alice.id, content: 'Frontend stack: Next.js 14, Tailwind CSS, Zustand for state, Framer Motion for animations.', mins: 80 },
     { authorId: charlie.id, content: 'How are we handling WebSocket connections? Is there a retry mechanism?', mins: 70 },
     { authorId: alice.id, content: 'Yes - the GatewayClient handles reconnection with exponential backoff (max 10 attempts). It also supports RESUME to replay missed events.', mins: 65 },
-    { authorId: bob.id, content: 'Nice! The event architecture feels very Discord-like. HELLO -> IDENTIFY -> READY flow is clean.', mins: 50 },
+    { authorId: bob.id, content: 'Nice! The event architecture feels very clean. HELLO -> IDENTIFY -> READY flow is clean.', mins: 50 },
     { authorId: alice.id, content: 'Voice is handled by a separate media-signalling service that manages LiveKit rooms and issues tokens.', mins: 40 },
     { authorId: charlie.id, content: 'What about rate limiting? Do we have per-endpoint throttling?', mins: 25 },
     { authorId: alice.id, content: 'Global throttle is 100 requests per 60 seconds. Per-endpoint granularity is on the roadmap.', mins: 20 },

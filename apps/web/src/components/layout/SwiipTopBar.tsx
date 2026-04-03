@@ -24,6 +24,7 @@ import { Tooltip } from '@/components/ui/Tooltip';
 const SearchModal = dynamic(() => import('@/components/search/SearchModal').then(m => ({ default: m.SearchModal })), { ssr: false });
 import { useGuildsStore } from '@/stores/guilds.store';
 import { useUIStore } from '@/stores/ui.store';
+import { useVoiceStore } from '@/stores/voice.store';
 import { useTranslations } from 'next-intl';
 import { ChannelType, type ChannelPayload, type GuildPayload } from '@constchat/protocol';
 
@@ -244,12 +245,22 @@ function getChannelIcon(type: ChannelType) {
 // Maximum visible tabs before showing overflow menu
 const MAX_VISIBLE_TABS = 12;
 
+/** Count voice participants for a channel from the participants map */
+function getVoiceCount(participants: Record<string, unknown>, channelId: string): number {
+  let count = 0;
+  for (const key in participants) {
+    if (key.startsWith(channelId + ':')) count++;
+  }
+  return count;
+}
+
 function ChannelTabs() {
   const router = useRouter();
   const channels = useGuildsStore((s) => s.channels);
   const activeGuildId = useUIStore((s) => s.activeGuildId);
   const activeChannelId = useUIStore((s) => s.activeChannelId);
   const setActiveChannel = useUIStore((s) => s.setActiveChannel);
+  const participants = useVoiceStore((s) => s.participants);
   const [overflowOpen, setOverflowOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const overflowRef = useRef<HTMLDivElement>(null);
@@ -364,6 +375,15 @@ function ChannelTabs() {
           >
             {getChannelIcon(ch.type)}
             <span>{ch.name}</span>
+            {ch.type === ChannelType.VOICE && (() => {
+              const count = getVoiceCount(participants, ch.id);
+              return count > 0 ? (
+                <span className="flex items-center gap-1 ml-0.5">
+                  <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-status-online)' }} />
+                  <span className="text-[10px] tabular-nums" style={{ color: 'var(--color-text-tertiary)' }}>{count}</span>
+                </span>
+              ) : null;
+            })()}
           </motion.button>
         );
       })}
@@ -468,6 +488,15 @@ function ChannelTabs() {
                                 {getChannelIcon(ch.type)}
                               </span>
                               <span className="flex-1 text-left truncate font-medium">{ch.name}</span>
+                              {ch.type === ChannelType.VOICE && (() => {
+                                const count = getVoiceCount(participants, ch.id);
+                                return count > 0 ? (
+                                  <span className="flex items-center gap-1 shrink-0">
+                                    <span className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--color-status-online)' }} />
+                                    <span className="text-[10px] tabular-nums" style={{ color: 'var(--color-text-tertiary)' }}>{count}</span>
+                                  </span>
+                                ) : null;
+                              })()}
                               {isActive && (
                                 <div className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ background: 'var(--color-accent-primary)' }} />
                               )}

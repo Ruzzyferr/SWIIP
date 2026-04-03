@@ -3,6 +3,7 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { motion, AnimatePresence } from 'framer-motion';
+import { X, MessageCircle } from 'lucide-react';
 import { MemberSidebar } from '@/components/layout/MemberSidebar';
 import { MessageList } from '@/components/messaging/MessageList';
 import { MessageComposer } from '@/components/messaging/MessageComposer';
@@ -28,6 +29,8 @@ export default function ChannelPage() {
   const setActiveGuild = useUIStore((s) => s.setActiveGuild);
   const setActiveChannel = useUIStore((s) => s.setActiveChannel);
   const isMemberSidebarOpen = useUIStore((s) => s.isMemberSidebarOpen);
+  const isVoiceChatOpen = useUIStore((s) => s.isVoiceChatOpen);
+  const setVoiceChatOpen = useUIStore((s) => s.setVoiceChatOpen);
   const updateMessage = useMessagesStore((s) => s.updateMessage);
 
   const [replyTo, setReplyTo] = useState<MessagePayload | null>(null);
@@ -76,6 +79,16 @@ export default function ChannelPage() {
     });
     return unsub;
   }, [channelId]);
+
+  // Close voice chat drawer on Escape
+  useEffect(() => {
+    if (!isVoiceChatOpen) return;
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setVoiceChatOpen(false);
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [isVoiceChatOpen, setVoiceChatOpen]);
 
   const handleReply = useCallback((message: MessagePayload) => {
     setReplyTo(message);
@@ -131,9 +144,68 @@ export default function ChannelPage() {
         )}
       </div>
 
-      {/* Member sidebar — slide-over drawer */}
+      {/* Voice chat drawer — slide-in from right */}
       <AnimatePresence>
-        {isMemberSidebarOpen && (
+        {isVoiceChannel && isVoiceChatOpen && (
+          <motion.div
+            initial={{ x: '100%', opacity: 0 }}
+            animate={{ x: 0, opacity: 1 }}
+            exit={{ x: '100%', opacity: 0 }}
+            transition={spring}
+            className="absolute right-0 top-0 bottom-0 z-20 flex flex-col"
+            style={{
+              width: 'min(380px, 80vw)',
+              background: 'rgba(10, 14, 16, 0.95)',
+              backdropFilter: 'blur(30px)',
+              WebkitBackdropFilter: 'blur(30px)',
+              borderLeft: '1px solid rgba(255,255,255,0.06)',
+              boxShadow: '-8px 0 40px rgba(0,0,0,0.5)',
+            }}
+          >
+            {/* Chat header */}
+            <div
+              className="flex items-center gap-2 px-4 py-3 shrink-0"
+              style={{ borderBottom: '1px solid rgba(255,255,255,0.06)' }}
+            >
+              <MessageCircle size={14} style={{ color: 'var(--color-text-tertiary)' }} />
+              <span className="text-sm font-medium flex-1 truncate" style={{ color: 'var(--color-text-primary)' }}>
+                {channel?.name ?? 'Chat'}
+              </span>
+              <button
+                onClick={() => setVoiceChatOpen(false)}
+                className="w-7 h-7 rounded-lg flex items-center justify-center transition-colors"
+                style={{ color: 'var(--color-text-tertiary)' }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.06)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+              >
+                <X size={14} />
+              </button>
+            </div>
+            {/* Message list */}
+            <div className="flex-1 overflow-hidden flex flex-col min-h-0">
+              <MessageList
+                channelId={channelId}
+                onReply={handleReply}
+              />
+            </div>
+            <TypingIndicator channelId={channelId} guildId={guildId} />
+            <MessageComposer
+              channelId={channelId}
+              channelName={channel?.name ?? 'channel'}
+              replyTo={replyTo}
+              editingMessage={editingMessage}
+              onClearReply={() => setReplyTo(null)}
+              onClearEdit={() => setEditingMessage(null)}
+              onEditSubmit={handleEditSubmit}
+              onStartEdit={setEditingMessage}
+            />
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Member sidebar — slide-over drawer (hidden when voice chat is open) */}
+      <AnimatePresence>
+        {isMemberSidebarOpen && !isVoiceChatOpen && (
           <motion.div
             initial={{ x: '100%', opacity: 0 }}
             animate={{ x: 0, opacity: 1 }}

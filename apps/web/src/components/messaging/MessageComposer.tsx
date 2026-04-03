@@ -316,7 +316,7 @@ export function MessageComposer({
 
     setSending(true);
 
-    // Optimistic send: add a pending message immediately (Discord pattern)
+    // Optimistic send: add a pending message immediately (optimistic update pattern)
     const user = useAuthStore.getState().user;
     const pendingId = `pending-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
     const removeMessage = useMessagesStore.getState().removeMessage;

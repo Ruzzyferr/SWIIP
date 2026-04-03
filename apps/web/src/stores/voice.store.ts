@@ -60,7 +60,7 @@ interface VoiceState {
   // Local user controls
   selfMuted: boolean;
   selfDeafened: boolean;
-  /** Was the user manually muted before deafening? Used to restore mute state on un-deafen (Discord behavior). */
+  /** Was the user manually muted before deafening? Used to restore mute state on un-deafen (standard deafen behavior). */
   _mutedBeforeDeafen: boolean;
   cameraEnabled: boolean;
   screenShareEnabled: boolean;
@@ -221,7 +221,7 @@ export const useVoiceStore = create<VoiceState>()(
       set((state) => {
         state.selfDeafened = deafened;
         if (deafened) {
-          // Save mute state before deafening — restore on un-deafen (Discord behavior)
+          // Save mute state before deafening — restore on un-deafen (standard deafen behavior)
           state._mutedBeforeDeafen = state.selfMuted;
           state.selfMuted = true;
         } else {

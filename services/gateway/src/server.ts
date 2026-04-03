@@ -336,7 +336,7 @@ export class GatewayServer {
   }
 
   /**
-   * Executes one heartbeat cycle (Discord pattern — server-driven):
+   * Executes one heartbeat cycle (server-driven heartbeat):
    *  1. Verifies the previous cycle was acknowledged.
    *  2. Marks the session as expecting ACK.
    *  3. Sends an explicit HEARTBEAT request to the client (op: 1).
@@ -358,7 +358,7 @@ export class GatewayServer {
     // Mark as waiting for next acknowledgement
     session.heartbeatAcked = false;
 
-    // Send explicit heartbeat request to the client (Discord pattern).
+    // Send explicit heartbeat request to the client (server-initiated heartbeat pattern).
     // The client responds immediately with OpCode.HEARTBEAT + its sequence,
     // which sets heartbeatAcked = true via handleHeartbeat().
     // This eliminates the timing race where the client's independent heartbeat
@@ -406,7 +406,7 @@ export class GatewayServer {
    * a disconnect so the client can RESUME. After this window, the session
    * keys are evicted by Redis TTL and the client must re-IDENTIFY.
    *
-   * 5 minutes matches the typical reconnect window in Discord-like protocols.
+   * 5 minutes matches the typical reconnect window in real-time WebSocket protocols.
    */
   private static readonly SESSION_RESUME_WINDOW_SEC = 300;
 

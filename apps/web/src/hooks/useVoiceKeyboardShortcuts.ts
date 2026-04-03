@@ -11,7 +11,7 @@ import { getPlatformProvider } from '@/lib/platform';
  *
  * On desktop (Electron), modifier shortcuts (Ctrl+Shift+M/D/H/G) are registered
  * as global shortcuts via Electron's globalShortcut module — they work even when
- * the window is unfocused, just like Discord.
+ * the window is unfocused, even when the window is unfocused.
  *
  * PTT on desktop: when app is focused, uses keydown/keyup for proper hold-to-talk.
  * When unfocused, global shortcut acts as toggle (Electron limitation: no keyup event).

@@ -12,14 +12,17 @@ import {
   VideoOff,
   Monitor,
   MonitorOff,
+  ArrowUpRight,
 } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { Tooltip } from '@/components/ui/Tooltip';
 import { useVoiceStore } from '@/stores/voice.store';
 import { useGuildsStore } from '@/stores/guilds.store';
+import { useUIStore } from '@/stores/ui.store';
 import { useVoiceActions } from '@/hooks/useVoiceActions';
 import { useTranslations } from 'next-intl';
 
-/** Discord-style signal bars (4 bars, colored by quality level) */
+/** Signal quality bars (4 bars, colored by quality level) */
 function ConnectionQualityBars({ quality }: { quality: number }) {
   // quality: 0=LOST, 1=POOR, 2=GOOD, 3=EXCELLENT
   const color =
@@ -63,8 +66,10 @@ function ConnectionQualityBars({ quality }: { quality: number }) {
  */
 export function VoiceConnectionPanel() {
   const t = useTranslations('voice');
+  const router = useRouter();
   const connectionState = useVoiceStore((s) => s.connectionState);
   const currentChannelId = useVoiceStore((s) => s.currentChannelId);
+  const currentGuildId = useVoiceStore((s) => s.currentGuildId);
   const selfMuted = useVoiceStore((s) => s.selfMuted);
   const selfDeafened = useVoiceStore((s) => s.selfDeafened);
   const cameraEnabled = useVoiceStore((s) => s.cameraEnabled);
@@ -72,10 +77,19 @@ export function VoiceConnectionPanel() {
   const error = useVoiceStore((s) => s.error);
   const connectionQuality = useVoiceStore((s) => s.connectionQuality);
   const aloneTimeout = useVoiceStore((s) => s.aloneTimeout);
+  const activeChannelId = useUIStore((s) => s.activeChannelId);
   const channel = useGuildsStore((s) =>
     currentChannelId ? s.channels[currentChannelId] : null
   );
   const { leaveVoiceChannel, toggleMute, toggleDeafen, toggleCamera, toggleScreenShare } = useVoiceActions();
+
+  // Can navigate back to voice channel if user is viewing a different page
+  const canNavigateToVoice = currentChannelId && currentGuildId && activeChannelId !== currentChannelId;
+  const navigateToVoiceChannel = () => {
+    if (canNavigateToVoice) {
+      router.push(`/channels/${currentGuildId}/${currentChannelId}`);
+    }
+  };
 
   if (connectionState === 'disconnected' && !currentChannelId) return null;
 
@@ -146,8 +160,19 @@ export function VoiceConnectionPanel() {
         </div>
       )}
 
-      {/* Status line */}
-      <div className="flex items-center gap-2 px-1 relative">
+      {/* Status line — clickable to navigate back to voice channel */}
+      <button
+        className="flex items-center gap-2 px-1 relative w-full text-left rounded-md transition-colors"
+        style={{
+          cursor: canNavigateToVoice ? 'pointer' : 'default',
+          background: 'transparent',
+        }}
+        onClick={navigateToVoiceChannel}
+        onMouseEnter={(e) => {
+          if (canNavigateToVoice) e.currentTarget.style.background = 'rgba(255,255,255,0.04)';
+        }}
+        onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+      >
         {isTransitioning ? (
           <Loader2
             size={14}
@@ -165,14 +190,19 @@ export function VoiceConnectionPanel() {
           </p>
           {channel && (
             <p
-              className="text-xs truncate"
+              className="text-xs truncate flex items-center gap-1"
               style={{ color: 'var(--color-text-tertiary)' }}
             >
-              {channel.name}
-              {aloneTimeout != null && aloneTimeout > 60 && (
-                <span style={{ color: 'var(--color-text-tertiary)', marginLeft: 4 }}>
-                  · alone ({aloneMinutes}m)
-                </span>
+              <span className="truncate">
+                {channel.name}
+                {aloneTimeout != null && aloneTimeout > 60 && (
+                  <span style={{ marginLeft: 4 }}>
+                    · alone ({aloneMinutes}m)
+                  </span>
+                )}
+              </span>
+              {canNavigateToVoice && (
+                <ArrowUpRight size={11} className="shrink-0 opacity-60" />
               )}
             </p>
           )}
@@ -185,7 +215,7 @@ export function VoiceConnectionPanel() {
             </p>
           )}
         </div>
-      </div>
+      </button>
 
       {/* Controls */}
       <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 relative max-w-full">

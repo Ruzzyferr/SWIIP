@@ -1,7 +1,7 @@
 /**
  * IndexedDB-based message cache for offline-first experience.
  * Stores messages per channel so they can be shown immediately on page load
- * before the API fetch completes (Discord pattern).
+ * before the API fetch completes (optimistic rendering pattern).
  */
 
 import type { MessagePayload } from '@constchat/protocol';

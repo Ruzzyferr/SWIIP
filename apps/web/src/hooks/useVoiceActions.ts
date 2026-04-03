@@ -75,7 +75,7 @@ export function useVoiceActions() {
   const toggleDeafen = useCallback(() => {
     const state = useVoiceStore.getState();
     const newDeafened = !state.selfDeafened;
-    // setSelfDeafened handles mute state preservation internally (Discord behavior:
+    // setSelfDeafened handles mute state preservation internally (Standard deafen behavior:
     // un-deafen restores previous mute state, not always unmute)
     state.setSelfDeafened(newDeafened);
     // Read the resulting mute state from store (setSelfDeafened may have changed it)

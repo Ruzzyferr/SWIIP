@@ -133,7 +133,7 @@ export async function searchMessages(
 }
 
 /**
- * Parse Discord-style search syntax: from:user before:date after:date has:file in:channel
+ * Parse advanced search syntax: from:user before:date after:date has:file in:channel
  * Returns the plain text query and extracted filters.
  */
 export function parseSearchQuery(raw: string): {

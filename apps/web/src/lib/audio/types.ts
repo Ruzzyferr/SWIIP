@@ -246,6 +246,12 @@ export interface AudioPipelineStrategy {
   removeProcessors(room: import('livekit-client').Room): Promise<void>;
 
   /**
+   * Set input gain multiplier (0–1 from store's inputVolume 0–100).
+   * Applied on top of any processor-specific compensation gain.
+   */
+  setInputGain?(normalized: number): void;
+
+  /**
    * Clean up all resources (AudioContext, worklet nodes, etc.)
    */
   dispose(): void;

@@ -288,12 +288,12 @@ function setupAppMenu() {
     ];
     Menu.setApplicationMenu(Menu.buildFromTemplate(template));
   } else {
-    // Production: no menu bar — Discord-style clean look
+    // Production: no menu bar — clean frameless look
     Menu.setApplicationMenu(null);
   }
 }
 
-// ── Splash Screen (Discord-style update check on startup) ────────────────
+// ── Splash Screen (update check on startup) ────────────────
 function createSplashWindow() {
   const splashIcon = path.join(__dirname, '..', 'build', 'icon.png');
   splashWindow = new BrowserWindow({
@@ -517,7 +517,7 @@ app.on('ready', async () => {
     callback({ requestHeaders: details.requestHeaders });
   });
 
-  // Content Security Policy — defense-in-depth against XSS (Discord pattern)
+  // Content Security Policy — defense-in-depth against XSS (standard CSP)
   // Only apply to navigation and document requests, not every sub-resource
   appSession.webRequest.onHeadersReceived((details, callback) => {
     // Only inject CSP on document/navigation responses

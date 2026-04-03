@@ -77,6 +77,7 @@ export function useLiveKitRoom() {
   const outputDeviceId = useVoiceStore((s) => s.settings.outputDeviceId);
   const videoDeviceId = useVoiceStore((s) => s.settings.videoDeviceId);
   const outputVolume = useVoiceStore((s) => s.settings.outputVolume);
+  const inputVolume = useVoiceStore((s) => s.settings.inputVolume);
   const audioMode = useVoiceStore((s) => s.settings.audioMode);
   const setConnectionState = useVoiceStore((s) => s.setConnectionState);
   const setSpeaking = useVoiceStore((s) => s.setSpeaking);
@@ -298,9 +299,14 @@ export function useLiveKitRoom() {
         let wasSpeaking = false;
         let silenceStart = 0;
         const SILENCE_DEBOUNCE_MS = 150; // Short debounce to prevent flicker
+        let frameCount = 0;
+        const SKIP_FRAMES = 2; // Process every 3rd frame (~20fps) to reduce CPU load
 
         const detect = () => {
           vadAnimFrameRef.current = requestAnimationFrame(detect);
+
+          // Throttle: skip 2 out of 3 frames
+          if (++frameCount % (SKIP_FRAMES + 1) !== 0) return;
 
           // Skip detection when muted — don't show speaking indicator
           const storeState = useVoiceStore.getState();
@@ -328,9 +334,11 @@ export function useLiveKitRoom() {
           const level = (peak / 128) * 100;
 
           // Get threshold: -1 = automatic (use low default for responsiveness)
+          // VAD reads the processed track (post-RNNoise), so threshold must be
+          // low enough that normal speech with noise suppression still triggers.
           const settings = storeState.settings;
           const threshold = settings.voiceActivityThreshold === -1
-            ? 3  // Very low default — normal speech at arm's length triggers ~5-15
+            ? 1.5  // Low default — compensates for RNNoise signal attenuation
             : settings.voiceActivityThreshold;
 
           const isSpeaking = level > threshold;
@@ -545,7 +553,7 @@ export function useLiveKitRoom() {
       const q = qualityToNumber(quality as unknown as string);
       setConnectionQuality(q);
 
-      // Adaptive video: reduce resolution on poor connection (Discord behaviour)
+      // Adaptive video: reduce resolution on poor connection (adaptive quality)
       const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
       if (camPub?.track) {
         if (q <= 1) {
@@ -988,36 +996,30 @@ export function useLiveKitRoom() {
     applyVolumes();
   }, [selfDeafened, outputVolume, applyVolumes]);
 
-  // Subscribe to per-user volume changes (not reactive via hook)
+  // Single combined subscribe for per-user volumes, stream volumes, and watchingStreams.
+  // Avoids 3 separate subscriptions each evaluating on every store update.
   useEffect(() => {
-    let prev = useVoiceStore.getState().userVolumes;
+    let prevUserVol = useVoiceStore.getState().userVolumes;
+    let prevStreamVol = useVoiceStore.getState().streamVolumes;
+    let prevWatching = useVoiceStore.getState().watchingStreams;
+
     const unsub = useVoiceStore.subscribe((state) => {
-      if (state.userVolumes !== prev) {
-        prev = state.userVolumes;
+      let volumeChanged = false;
+
+      if (state.userVolumes !== prevUserVol) {
+        prevUserVol = state.userVolumes;
+        volumeChanged = true;
+      }
+      if (state.streamVolumes !== prevStreamVol) {
+        prevStreamVol = state.streamVolumes;
+        volumeChanged = true;
+      }
+      if (volumeChanged) {
         applyVolumes();
       }
-    });
-    return unsub;
-  }, [applyVolumes]);
 
-  // Subscribe to per-stream volume changes
-  useEffect(() => {
-    let prev = useVoiceStore.getState().streamVolumes;
-    const unsub = useVoiceStore.subscribe((state) => {
-      if (state.streamVolumes !== prev) {
-        prev = state.streamVolumes;
-        applyVolumes();
-      }
-    });
-    return unsub;
-  }, [applyVolumes]);
-
-  // Subscribe to watchingStreams changes — toggle track subscriptions
-  useEffect(() => {
-    let prev = useVoiceStore.getState().watchingStreams;
-    const unsub = useVoiceStore.subscribe((state) => {
-      if (state.watchingStreams !== prev) {
-        prev = state.watchingStreams;
+      if (state.watchingStreams !== prevWatching) {
+        prevWatching = state.watchingStreams;
         const room = roomRef.current;
         if (!room || room.state !== ConnectionState.Connected) return;
 
@@ -1036,7 +1038,7 @@ export function useLiveKitRoom() {
       }
     });
     return unsub;
-  }, []);
+  }, [applyVolumes]);
 
   // Sync input device to LiveKit + notify pipeline of device change
   useEffect(() => {
@@ -1092,6 +1094,13 @@ export function useLiveKitRoom() {
     pipeline.requestMode(audioMode);
     console.debug(`[Audio] Requested mode switch to ${audioMode}`);
   }, [audioMode]);
+
+  // Sync inputVolume to pipeline gain
+  useEffect(() => {
+    const pipeline = pipelineRef.current;
+    if (!pipeline) return;
+    pipeline.setInputGain(inputVolume / 100);
+  }, [inputVolume]);
 
   // Sync camera enabled state to LiveKit
   useEffect(() => {

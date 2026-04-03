@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Transform Swiip from a Discord-like app into a premium emerald-graphite communication platform with immersive voice rooms, and fix 3 critical voice bugs (echo, stability, screen picker).
+**Goal:** Transform Swiip into a premium emerald-graphite communication platform with immersive voice rooms, and fix 3 critical voice bugs (echo, stability, screen picker).
 
 **Architecture:** CSS-variable-first approach - swap all design tokens in globals.css for instant color transformation, then restructure layout components (ServerRail -> floating pill dock, ChannelSidebar -> smart nav with categories, MemberSidebar -> context panel), redesign VoiceRoomView as immersive stage with floating controls, and finally fix voice bugs in useLiveKitRoom.ts.
 
@@ -241,11 +241,11 @@ git commit -m "feat: add emerald atmospheric nebula background"
 - Modify: `apps/web/src/components/layout/ServerRail.tsx` (334 lines - full rewrite of styling)
 - Modify: `apps/web/src/app/(app)/layout.tsx` (update ServerRail render)
 
-Transform the chunky Discord-like server rail into a floating pill dock with rounded corners, shadow, and emerald glow active states.
+Transform the chunky legacy server rail into a floating pill dock with rounded corners, shadow, and emerald glow active states.
 
 - [ ] **Step 1: Update ServerIcon component styling (lines 22-141)**
 
-Change the server icon from Discord-style pill indicator to floating glow active state:
+Change the server icon from legacy-style pill indicator to floating glow active state:
 
 Replace the `pillHeight` logic and pill element (lines 43-57) - remove the left-edge gradient pill indicator. Instead, apply an emerald fill glow on the active icon:
 
@@ -1255,7 +1255,7 @@ git commit -m "fix: harden voice reconnection logic and add stream reconnecting 
 **Files:**
 - All modified files from previous tasks
 
-Final pass to catch any remaining hardcoded indigo/purple/Discord colors across the codebase.
+Final pass to catch any remaining hardcoded indigo/purple/legacy colors across the codebase.
 
 - [ ] **Step 1: Search for remaining hardcoded indigo colors**
 
@@ -1268,7 +1268,7 @@ grep -rn "#6c5ce7\|#7c6ff0\|#5a4bd6\|#a29bfe\|#fd79a8\|#e8e4ef\|#ed4245\|#43b581
 
 Replace any findings with the corresponding CSS variable.
 
-- [ ] **Step 2: Search for hardcoded Discord-like patterns**
+- [ ] **Step 2: Search for hardcoded legacy patterns**
 
 ```bash
 grep -rn "blurple\|discord\|brand-default" --include="*.tsx" --include="*.ts" --include="*.css"

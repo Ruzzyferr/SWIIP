@@ -105,6 +105,24 @@ function SpoilerText({ children }: { children: React.ReactNode }) {
   );
 }
 
+// LRU cache for rendered message content — avoids re-running hljs.highlight
+// on every render. Keyed by raw text, limited to last 200 messages.
+const contentCache = new Map<string, React.ReactNode[]>();
+const CONTENT_CACHE_MAX = 200;
+
+function renderContentCached(text: string): React.ReactNode[] {
+  const cached = contentCache.get(text);
+  if (cached) return cached;
+  const result = renderContent(text);
+  if (contentCache.size >= CONTENT_CACHE_MAX) {
+    // Evict oldest entry
+    const first = contentCache.keys().next().value;
+    if (first !== undefined) contentCache.delete(first);
+  }
+  contentCache.set(text, result);
+  return result;
+}
+
 function renderContent(text: string): React.ReactNode[] {
   const nodes: React.ReactNode[] = [];
   let remaining = text;
@@ -537,7 +555,7 @@ export function MessageItem({
 
   const authorId = message.author?.id ?? (message as unknown as { authorId?: string }).authorId ?? '';
   const authorName = message.author?.globalName ?? message.author?.username ?? authorId;
-  // Discord-style: show author name in their highest role color
+  // Show author name in their highest role color
   const activeGuildId = useUIStore((s) => s.activeGuildId);
   const memberRoles = useGuildsStore(
     (s) => activeGuildId ? s.members[activeGuildId]?.[authorId]?.roles : undefined
@@ -873,7 +891,7 @@ export function MessageItem({
                     className="text-[13.5px] leading-[1.65]"
                     style={{ color: 'var(--color-text-primary)', wordBreak: 'break-word', letterSpacing: '0.01em' }}
                   >
-                    {renderContent(message.content)}
+                    {renderContentCached(message.content)}
                     {editedAt && (
                       <Tooltip
                         content={`${t('editedAt')} ${new Date(editedAt).toLocaleString()}`}

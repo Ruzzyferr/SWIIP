@@ -19,7 +19,7 @@
 
 ## Overview
 
-Swiip is a feature-rich communication platform with Discord-level functionality, built from scratch with a modern stack. It supports servers, channels, DMs, voice/video calls, screen sharing, roles & permissions, and more.
+Swiip is a feature-rich communication platform built from scratch with a modern stack. It supports servers, channels, DMs, voice/video calls, screen sharing, roles & permissions, and more.
 
 ### Key Features
 

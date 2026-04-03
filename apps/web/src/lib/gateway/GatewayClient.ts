@@ -88,7 +88,7 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private invalidSessionTimeout: ReturnType<typeof setTimeout> | null = null;
   private helloTimeout: ReturnType<typeof setTimeout> | null = null;
-  /** Timestamp of the last successful READY/RESUMED — used for time-based backoff reset (discord.py pattern). */
+  /** Timestamp of the last successful READY/RESUMED — used for time-based backoff reset (standard backoff pattern). */
   private lastStableAt: number = 0;
   /** Timestamp of last heartbeat ACK — used to detect zombie with tolerance. */
   private lastAckAt: number = 0;
@@ -162,7 +162,7 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
 
   send(op: OpCode, data: unknown): boolean {
     if (this.ws?.readyState !== WebSocket.OPEN) {
-      // Buffer dispatch events during reconnect — replay on RESUMED (Discord pattern)
+      // Buffer dispatch events during reconnect — replay on RESUMED (standard reconnect pattern)
       if (op === OpCode.DISPATCH && !this.destroyed) {
         // Cap queue to prevent unbounded memory growth during long disconnects
         if (this.sendQueue.length >= 500) {
@@ -613,7 +613,7 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
     const platform = getPlatformProvider();
     const { maxAttempts, cap } = platform.reconnectConfig;
 
-    // Time-based auto-reset (discord.py pattern): if the connection was stable
+    // Time-based auto-reset (standard backoff pattern): if the connection was stable
     // long enough, reset the backoff so a fresh disconnect reconnects quickly.
     const stableThreshold = this.reconnectDelay * 2 ** 11; // ~34 min at 1s base
     if (this.lastStableAt > 0 && Date.now() - this.lastStableAt > stableThreshold) {
@@ -664,8 +664,7 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
   /**
    * Called when the gateway session is fully established (READY or RESUMED).
    * This is the ONLY place where reconnect counters are reset — never on raw
-   * socket open.  Matches the pattern used by discord.js, discord.py, JDA, and
-   * Carbon (after the fix for buape/carbon#344).
+   * socket open.  Matches the pattern used by common WebSocket client libraries.
    */
   private _onSessionEstablished(): void {
     this.reconnectAttempts = 0;
@@ -674,7 +673,7 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
     this.lastStableAt = Date.now();
     this.lastAckAt = Date.now();
     this._clearHelloTimeout();
-    // Replay buffered outgoing messages (Discord pattern: events sent during
+    // Replay buffered outgoing messages (Reconnect pattern: events sent during
     // reconnect are replayed once session is re-established)
     this._flushSendQueue();
   }

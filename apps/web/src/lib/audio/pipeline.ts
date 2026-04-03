@@ -175,6 +175,13 @@ export class AudioPipeline {
   }
 
   /**
+   * Set input gain (0–1 from inputVolume / 100). Delegates to strategy.
+   */
+  setInputGain(normalized: number): void {
+    this.strategy.setInputGain?.(normalized);
+  }
+
+  /**
    * Clean up all resources.
    */
   dispose(): void {

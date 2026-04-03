@@ -17,6 +17,7 @@ interface UIState {
   isMobileNavOpen: boolean;
   serverSettingsGuildId: string | null;
   activeThreadId: string | null;
+  isVoiceChatOpen: boolean;
 
   // Actions
   setActiveGuild: (guildId: string | null) => void;
@@ -35,6 +36,8 @@ interface UIState {
   closeServerSettings: () => void;
   openThread: (threadId: string) => void;
   closeThread: () => void;
+  toggleVoiceChat: () => void;
+  setVoiceChatOpen: (open: boolean) => void;
 }
 
 export const useUIStore = create<UIState>()(
@@ -49,6 +52,7 @@ export const useUIStore = create<UIState>()(
     isMobileNavOpen: false,
     serverSettingsGuildId: null,
     activeThreadId: null,
+    isVoiceChatOpen: false,
 
     setActiveGuild: (guildId) =>
       set((state) => {
@@ -133,6 +137,23 @@ export const useUIStore = create<UIState>()(
     closeThread: () =>
       set((state) => {
         state.activeThreadId = null;
+      }),
+
+    toggleVoiceChat: () =>
+      set((state) => {
+        state.isVoiceChatOpen = !state.isVoiceChatOpen;
+        // Close member sidebar when opening voice chat to avoid overlap
+        if (state.isVoiceChatOpen) {
+          state.isMemberSidebarOpen = false;
+        }
+      }),
+
+    setVoiceChatOpen: (open) =>
+      set((state) => {
+        state.isVoiceChatOpen = open;
+        if (open) {
+          state.isMemberSidebarOpen = false;
+        }
       }),
   }))
 );

@@ -18,6 +18,7 @@ import {
   Eye,
   EyeOff,
   UserPlus,
+  MessageCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
 import { Avatar } from '@/components/ui/Avatar';
@@ -28,6 +29,7 @@ import { ScreenShareModal } from './ScreenShareModal';
 import { useVoiceStore, type VoiceParticipant, type ScreenShareQuality } from '@/stores/voice.store';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { useAuthStore } from '@/stores/auth.store';
+import { useUIStore } from '@/stores/ui.store';
 import { useVoiceActions } from '@/hooks/useVoiceActions';
 import { useLiveKitContext } from '@/contexts/LiveKitContext';
 import { updateMember } from '@/lib/api/guilds.api';
@@ -353,7 +355,7 @@ function ParticipantTile({
 }
 
 // ---------------------------------------------------------------------------
-// Adaptive grid layout calculator (Discord-style)
+// Adaptive grid layout calculator (adaptive tile layout)
 // ---------------------------------------------------------------------------
 
 function getGridLayout(count: number, narrow: boolean): { cols: number; rows: number } {
@@ -872,6 +874,8 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
   }, [participantsRaw, channelId]);
   const channel = useGuildsStore((s) => s.channels[channelId]);
   const userId = useAuthStore((s) => s.user?.id);
+  const isVoiceChatOpen = useUIStore((s) => s.isVoiceChatOpen);
+  const toggleVoiceChat = useUIStore((s) => s.toggleVoiceChat);
   const {
     joinVoiceChannel,
     leaveVoiceChannel,
@@ -1104,6 +1108,32 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
 
             {/* Screen Share */}
             <ScreenShareButton />
+
+            {/* Chat Toggle */}
+            <Tooltip content={isVoiceChatOpen ? 'Close Chat' : 'Open Chat'} placement="top">
+              <button
+                onClick={toggleVoiceChat}
+                className="flex items-center justify-center transition-all duration-200"
+                style={{
+                  width: 40,
+                  height: 40,
+                  borderRadius: 12,
+                  color: isVoiceChatOpen ? 'var(--color-accent-primary)' : 'var(--color-text-secondary)',
+                  background: isVoiceChatOpen
+                    ? 'var(--color-accent-muted)'
+                    : 'var(--color-surface-raised)',
+                }}
+                onMouseEnter={(e) => {
+                  if (!isVoiceChatOpen) e.currentTarget.style.background = 'var(--color-surface-overlay)';
+                }}
+                onMouseLeave={(e) => {
+                  if (!isVoiceChatOpen) e.currentTarget.style.background = 'var(--color-surface-raised)';
+                }}
+                aria-label={isVoiceChatOpen ? 'Close Chat' : 'Open Chat'}
+              >
+                <MessageCircle size={20} />
+              </button>
+            </Tooltip>
 
             {/* Separator before Leave */}
             <div style={{ width: 1, height: 24, background: 'var(--color-border-default)', margin: '0 4px' }} />

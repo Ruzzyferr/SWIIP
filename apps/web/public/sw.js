@@ -1,4 +1,4 @@
-// Service Worker — offline asset caching (Discord pattern)
+// Service Worker — offline asset caching (standard caching pattern)
 // Caches static assets (JS, CSS, fonts, images) for faster reload
 // and basic offline shell support.
 

@@ -47,6 +47,10 @@ export class DesktopAudioStrategy implements AudioPipelineStrategy {
     await this.rnnoiseManager.removeFromTrack(room);
   }
 
+  setInputGain(normalized: number): void {
+    this.rnnoiseManager.setInputGain(normalized);
+  }
+
   dispose(): void {
     this.rnnoiseManager.dispose();
     this.workletManager.dispose();

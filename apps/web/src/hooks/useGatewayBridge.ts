@@ -30,7 +30,7 @@ function isViewingMessageChannel(channelId: string): boolean {
   );
 }
 
-/** Discord-like: user should get audio/desktop alert for this channel. */
+/** Determine if user should get audio/desktop alert for this channel. */
 function shouldAlertIncomingMessage(channelId: string): boolean {
   if (typeof document === 'undefined') return true;
   const viewing = isViewingMessageChannel(channelId);
@@ -94,7 +94,7 @@ export function useGatewayBridge() {
     // Sync access token for API calls
     setAccessToken(accessToken);
 
-    // Request notification permission for desktop notifications (Discord pattern)
+    // Request notification permission for desktop notifications (standard browser pattern)
     if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
       Notification.requestPermission().catch(() => {});
     }
@@ -204,7 +204,7 @@ export function useGatewayBridge() {
       }
 
       // Lazy load guild members — only fetch the active guild immediately,
-      // defer others until the user navigates to them (Discord pattern: avoids
+      // defer others until the user navigates to them (Lazy-load pattern: avoids
       // request burst of N guilds on connect).
       const activeGuildId = useUIStore.getState().activeGuildId;
       for (const guild of data.guilds) {
@@ -246,7 +246,7 @@ export function useGatewayBridge() {
       // Track lastMessageId on the channel for unread detection
       updateChannel(data.message.channelId, { lastMessageId: data.message.id } as any);
 
-      // Sound + desktop notification (Discord-like: other channel / DM, unfocused, or background tab)
+      // Sound + desktop notification (Alert behavior: other channel / DM, unfocused, or background tab)
       const currentUserId = useAuthStore.getState().user?.id;
       const chId = data.message.channelId;
       if (data.message.author.id !== currentUserId && shouldAlertIncomingMessage(chId)) {
@@ -308,13 +308,29 @@ export function useGatewayBridge() {
       setTyping(data.channelId, data.userId, data.timestamp);
     });
 
-    // --- Presence ---
+    // --- Presence (batched via microtask to coalesce rapid updates) ---
+    let presenceBatch: Array<{ userId: string } & { status: any; customStatus?: string; activities?: any[] }> = [];
+    let presenceFlushScheduled = false;
     gw.on('presence_update', (data) => {
-      setPresence(data.userId, {
+      presenceBatch.push({
+        userId: data.userId,
         status: data.status,
         ...(data.customStatus != null && { customStatus: data.customStatus }),
         ...(data.activities != null && { activities: data.activities }),
       });
+      if (!presenceFlushScheduled) {
+        presenceFlushScheduled = true;
+        queueMicrotask(() => {
+          const batch = presenceBatch;
+          presenceBatch = [];
+          presenceFlushScheduled = false;
+          if (batch.length === 1) {
+            setPresence(batch[0]!.userId, batch[0]!);
+          } else if (batch.length > 1) {
+            usePresenceStore.getState().setPresences(batch);
+          }
+        });
+      }
     });
 
     // --- Guilds ---

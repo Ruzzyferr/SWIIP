@@ -36,6 +36,7 @@ export class RnnoiseManager {
   private supportCheckPromise: Promise<boolean> | null = null;
   private lastFailure: RnnoiseFailure | null = null;
   private platform: AudioPlatform;
+  private activeProcessor: RnnoiseProcessor | null = null;
 
   constructor(platform: AudioPlatform) {
     this.platform = platform;
@@ -139,6 +140,7 @@ export class RnnoiseManager {
         // Apply RNNoise processor — cast needed because LiveKit's generic
         // TrackProcessor type is overly strict with ProcessorOptions variance
         await (micPub.track as any).setProcessor(processor);
+        this.activeProcessor = processor;
 
         // Disable browser NS to prevent double-processing
         await micPub.track!.mediaStreamTrack.applyConstraints({
@@ -172,6 +174,14 @@ export class RnnoiseManager {
   }
 
   /**
+   * Set input gain on the active RNNoise processor.
+   * @param normalized 0–1 (from store's inputVolume / 100)
+   */
+  setInputGain(normalized: number): void {
+    this.activeProcessor?.setInputGain(normalized);
+  }
+
+  /**
    * Remove RNNoise processor from the room's mic track.
    */
   async removeFromTrack(room: Room): Promise<void> {
@@ -183,6 +193,8 @@ export class RnnoiseManager {
         // Already removed or no processor
       }
     }
+
+    this.activeProcessor = null;
 
     // Return to ready state (not idle) — ready for re-application
     if (this.state === 'applied') {
@@ -211,6 +223,7 @@ export class RnnoiseManager {
    * Full cleanup.
    */
   dispose(): void {
+    this.activeProcessor = null;
     this.lastFailure = null;
     this.supportCheckPromise = null;
     this.state = 'idle';

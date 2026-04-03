@@ -535,7 +535,7 @@ function ChannelsPage({ guildId }: { guildId: string }) {
   );
 }
 
-// Channel-level permission overrides (Discord-style allow/deny per role)
+// Channel-level permission overrides (allow/deny overrides per role)
 const CHANNEL_PERMISSIONS = [
   { bit: 0x400, label: 'View Channel', description: 'View this channel' },
   { bit: 0x800, label: 'Send Messages', description: 'Send messages in this channel' },

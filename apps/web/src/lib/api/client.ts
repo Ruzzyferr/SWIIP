@@ -33,7 +33,7 @@ let _accessToken: string | null = null;
 let _refreshPromise: Promise<string> | null = null;
 
 // ---------------------------------------------------------------------------
-// Rate limit queue — Discord-style bucket handling
+// Rate limit queue — token bucket rate limiting
 // ---------------------------------------------------------------------------
 
 const _rateLimitQueue: Array<{

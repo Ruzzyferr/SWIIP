@@ -69,7 +69,7 @@ export function playDisconnectSound() {
   playTone([520, 400, 300], 0.3, 'sine', 0.15);
 }
 
-/** Short double-ping — new message notification (Discord-style) */
+/** Short double-ping — new message notification */
 export function playMessageSound() {
   try {
     const ctx = getAudioContext();

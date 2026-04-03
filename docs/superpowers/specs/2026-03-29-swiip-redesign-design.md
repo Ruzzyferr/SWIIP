@@ -2,7 +2,7 @@
 
 ## Context
 
-Swiip currently looks too similar to Discord. This redesign transforms the entire visual identity into a premium, original, emerald-graphite communication platform. Additionally, 3 critical voice/screen share bugs must be fixed: echo during screen share, connection drops/sync issues, and screen picker categorization.
+Swiip needed a fresh visual identity. This redesign transforms the entire UI into a premium, original, emerald-graphite communication platform. Additionally, 3 critical voice/screen share bugs must be fixed: echo during screen share, connection drops/sync issues, and screen picker categorization.
 
 Reference: `new theme.png` on desktop - the definitive visual target.
 
@@ -122,7 +122,7 @@ body::after {
 
 ### Overview
 
-The layout changes from a 5-panel Discord shell to a 4-panel premium structure:
+The layout changes from a 5-panel shell to a 4-panel premium structure:
 
 ```
 Current:  [ServerRail 76px][ChannelSidebar 252px][Content flex][MemberSidebar 244px]
@@ -149,7 +149,7 @@ New:      [FloatingDock 64px][NavPanel 240px][RoomCanvas flex][ContextPanel 260p
    - Create workspace (+) - emerald outline
    - Discover - emerald outline
 
-**Key difference from Discord**: Floating, rounded, not touching edges. Pill-shaped container with shadow-float. No left-edge indicator pills - uses fill glow instead.
+**Key design choice**: Floating, rounded, not touching edges. Pill-shaped container with shadow-float. No left-edge indicator pills - uses fill glow instead.
 
 **File**: `apps/web/src/components/layout/ServerRail.tsx` (rename to `WorkspaceDock.tsx`)
 

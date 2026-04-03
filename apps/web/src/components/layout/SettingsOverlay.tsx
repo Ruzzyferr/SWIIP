@@ -14,6 +14,7 @@ import {
   ChevronRight,
 } from 'lucide-react';
 import { useUIStore } from '@/stores/ui.store';
+import { getPlatformProvider } from '@/lib/platform';
 import { useAuthStore } from '@/stores/auth.store';
 import { useTranslations } from 'next-intl';
 import { logout as logoutApi } from '@/lib/api/auth.api';
@@ -64,6 +65,7 @@ export function SettingsOverlay() {
   const logoutStore = useAuthStore((s) => s.logout);
   const user = useAuthStore((s) => s.user);
   const [wideNav, setWideNav] = useState(true);
+  const isDesktop = getPlatformProvider().isDesktop;
 
   useEffect(() => {
     const q = window.matchMedia('(min-width: 768px)');
@@ -139,6 +141,7 @@ export function SettingsOverlay() {
           style={{
             zIndex: 50,
             background: 'var(--color-surface-base)',
+            ...(isDesktop && { top: 32 }),
           }}
         >
           {/* ---- Left Navigation Panel ---- */}
