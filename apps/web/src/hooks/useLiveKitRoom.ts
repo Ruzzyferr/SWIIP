@@ -90,6 +90,9 @@ export function useLiveKitRoom() {
   const disconnect = useVoiceStore((s) => s.disconnect);
   const userId = useAuthStore((s) => s.user?.id);
   const aloneTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  /** Custom VAD: AudioContext + AnalyserNode for responsive speaking detection */
+  const vadContextRef = useRef<AudioContext | null>(null);
+  const vadAnimFrameRef = useRef<number>(0);
 
   // Helper to update video track map
   const updateVideoTrack = useCallback((
@@ -253,12 +256,123 @@ export function useLiveKitRoom() {
       }
     };
 
-    // Per-participant speaking detection (instant, no batching delay)
+    // Per-participant speaking detection for REMOTE participants (uses LiveKit's built-in VAD)
     const bindSpeakingListener = (participant: Participant) => {
       participant.on(ParticipantEvent.IsSpeakingChanged, (speaking: boolean) => {
         if (!currentChannelId) return;
         setSpeaking(currentChannelId, participant.identity, speaking);
       });
+    };
+
+    /**
+     * Custom VAD for the LOCAL participant using Web Audio API AnalyserNode.
+     * LiveKit's built-in IsSpeakingChanged has high latency (~300-500ms) and a
+     * fixed high threshold. This custom detector:
+     *  - Uses requestAnimationFrame (~16ms intervals) for near-instant response
+     *  - Respects the user's voiceActivityThreshold setting from the store
+     *  - Uses a short debounce (150ms) to avoid flickering on silence gaps
+     */
+    const startLocalVAD = (localParticipant: LocalParticipant) => {
+      // Clean up any existing VAD
+      stopLocalVAD();
+
+      const micPub = localParticipant.getTrackPublication(Track.Source.Microphone);
+      const micTrack = micPub?.track?.mediaStreamTrack;
+      if (!micTrack) {
+        console.debug('[VAD] No mic track available, skipping custom VAD');
+        return;
+      }
+
+      try {
+        const ctx = new AudioContext();
+        const source = ctx.createMediaStreamSource(new MediaStream([micTrack]));
+        const analyser = ctx.createAnalyser();
+        analyser.fftSize = 512;
+        analyser.smoothingTimeConstant = 0.3;
+        source.connect(analyser);
+        vadContextRef.current = ctx;
+
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        let wasSpeaking = false;
+        let silenceStart = 0;
+        const SILENCE_DEBOUNCE_MS = 150; // Short debounce to prevent flicker
+
+        const detect = () => {
+          vadAnimFrameRef.current = requestAnimationFrame(detect);
+
+          // Skip detection when muted — don't show speaking indicator
+          const storeState = useVoiceStore.getState();
+          if (storeState.selfMuted) {
+            if (wasSpeaking) {
+              wasSpeaking = false;
+              silenceStart = 0;
+              if (currentChannelId && userId) {
+                setSpeaking(currentChannelId, userId, false);
+              }
+            }
+            return;
+          }
+
+          analyser.getByteFrequencyData(dataArray);
+
+          // Calculate RMS-like average of frequency bins (skip bin 0 = DC offset)
+          let sum = 0;
+          for (let i = 1; i < dataArray.length; i++) {
+            sum += dataArray[i]!;
+          }
+          const avg = sum / (dataArray.length - 1); // 0-255 range
+          const level = (avg / 255) * 100; // Normalize to 0-100
+
+          // Get threshold: -1 = automatic (use default low threshold for responsiveness)
+          const settings = storeState.settings;
+          const threshold = settings.voiceActivityThreshold === -1
+            ? 8  // Low default for responsive detection
+            : settings.voiceActivityThreshold;
+
+          // Also factor in input volume — lower input volume means higher effective threshold
+          const inputVol = settings.inputVolume / 100;
+          const adjustedLevel = level * inputVol;
+
+          const isSpeaking = adjustedLevel > threshold;
+
+          if (isSpeaking) {
+            silenceStart = 0;
+            if (!wasSpeaking) {
+              wasSpeaking = true;
+              if (currentChannelId && userId) {
+                setSpeaking(currentChannelId, userId, true);
+              }
+            }
+          } else if (wasSpeaking) {
+            // Debounce: only stop speaking after short silence
+            if (silenceStart === 0) {
+              silenceStart = performance.now();
+            } else if (performance.now() - silenceStart > SILENCE_DEBOUNCE_MS) {
+              wasSpeaking = false;
+              silenceStart = 0;
+              if (currentChannelId && userId) {
+                setSpeaking(currentChannelId, userId, false);
+              }
+            }
+          }
+        };
+
+        vadAnimFrameRef.current = requestAnimationFrame(detect);
+        console.debug('[VAD] Custom local VAD started');
+      } catch (err) {
+        console.warn('[VAD] Failed to start custom VAD:', err);
+      }
+    };
+
+    const stopLocalVAD = () => {
+      if (vadAnimFrameRef.current) {
+        cancelAnimationFrame(vadAnimFrameRef.current);
+        vadAnimFrameRef.current = 0;
+      }
+      if (vadContextRef.current) {
+        vadContextRef.current.close().catch(() => {});
+        vadContextRef.current = null;
+      }
     };
 
     // --- Event handlers ---
@@ -316,6 +430,9 @@ export function useLiveKitRoom() {
           for (const delay of [200, 800, 2000, 5000]) {
             setTimeout(() => applyVolumes(), delay);
           }
+
+          // Restart custom VAD after reconnect (mic track may have changed)
+          setTimeout(() => startLocalVAD(room.localParticipant), 600);
 
           // Reconcile: remove stale participants from store that are no longer in room
           if (currentChannelId) {
@@ -650,21 +767,13 @@ export function useLiveKitRoom() {
       }
     });
 
-    // Connect with STUN + TURN servers for reliable connectivity behind NAT/firewalls
-    // Discord uses TURN relay for users behind symmetric NAT — we do the same.
+    // Let LiveKit handle ICE server configuration.
+    // LiveKit server provides STUN + TURN servers via the token's ICE config.
+    // Overriding iceServers here would REPLACE LiveKit's built-in TURN servers,
+    // causing media path failures behind symmetric NAT or firewalls.
     setConnectionState('connecting');
     room
-      .connect(livekitUrl, livekitToken, {
-        rtcConfig: {
-          iceServers: [
-            { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' },
-            // TURN servers — LiveKit Cloud provides these via the token's ICE config.
-            // For self-hosted, specify your TURN server here:
-            // { urls: 'turn:turn.yourdomain.com:3478', username: '...', credential: '...' },
-          ],
-        },
-      })
+      .connect(livekitUrl, livekitToken)
       .then(async () => {
         console.debug('[LiveKit] Connected successfully');
         // Resume AudioContext if browser suspended it (autoplay policy)
@@ -693,7 +802,7 @@ export function useLiveKitRoom() {
           useVoiceStore.getState().setSelfMuted(true);
         }
 
-        // Register self as participant + bind speaking listener
+        // Register self as participant + start custom VAD for local user
         if (currentChannelId && userId) {
           const isMuted = useVoiceStore.getState().selfMuted;
           setParticipant({
@@ -707,7 +816,11 @@ export function useLiveKitRoom() {
             selfVideo: false,
             screenSharing: false,
           });
+          // Use custom VAD for local participant (more responsive than LiveKit's built-in)
+          // Keep LiveKit's listener as fallback
           bindSpeakingListener(room.localParticipant);
+          // Start custom VAD after a short delay to ensure mic track is published
+          setTimeout(() => startLocalVAD(room.localParticipant), 500);
         }
 
         // Register existing remote participants + bind speaking listeners
@@ -779,6 +892,7 @@ export function useLiveKitRoom() {
     return () => {
       console.debug('[LiveKit] Cleaning up room');
       clearInterval(healthCheckInterval);
+      stopLocalVAD();
       // Dispose audio pipeline first
       if (pipelineRef.current) {
         pipelineRef.current.dispose();
@@ -799,6 +913,12 @@ export function useLiveKitRoom() {
     const room = roomRef.current;
     if (!room || room.state !== ConnectionState.Connected) return;
     room.localParticipant.setMicrophoneEnabled(!selfMuted).catch(console.error);
+
+    // Clear speaking state immediately on mute — VAD loop also checks mute
+    // but this ensures instant UI response
+    if (selfMuted && currentChannelId && userId) {
+      setSpeaking(currentChannelId, userId, false);
+    }
 
     // When unmuting, apply any audio mode change that was deferred while muted
     if (!selfMuted && pendingModeRef.current && pipelineRef.current) {
@@ -1109,6 +1229,15 @@ export function useLiveKitRoom() {
     if (credentialTimeoutRef.current) {
       clearTimeout(credentialTimeoutRef.current);
       credentialTimeoutRef.current = null;
+    }
+    // Stop custom VAD
+    if (vadAnimFrameRef.current) {
+      cancelAnimationFrame(vadAnimFrameRef.current);
+      vadAnimFrameRef.current = 0;
+    }
+    if (vadContextRef.current) {
+      vadContextRef.current.close().catch(() => {});
+      vadContextRef.current = null;
     }
     if (pipelineRef.current) {
       pipelineRef.current.dispose();

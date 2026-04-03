@@ -153,10 +153,17 @@ function createWindow() {
     return { action: 'deny' };
   });
 
-  // Save window size on resize
+  // Save window size on resize — debounced to avoid blocking main thread
+  // (electron-store writes synchronously to disk on every set)
+  let resizeTimer = null;
   mainWindow.on('resize', () => {
     if (!mainWindow.isMaximized()) {
-      store.set('windowBounds', mainWindow.getBounds());
+      if (resizeTimer) clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        if (mainWindow && !mainWindow.isDestroyed()) {
+          store.set('windowBounds', mainWindow.getBounds());
+        }
+      }, 500);
     }
   });
 
@@ -497,30 +504,44 @@ app.on('ready', async () => {
 
   // Set custom user agent to identify desktop app
   const appSession = session.fromPartition(PERSIST_PARTITION);
-  appSession.webRequest.onBeforeSendHeaders((details, callback) => {
+  // Only intercept external API requests — skip local assets (JS/CSS/images) for performance.
+  // webRequest hooks run synchronously on every request; filtering reduces overhead.
+  const apiFilter = { urls: ['https://*/*', 'http://*/*'] };
+  appSession.webRequest.onBeforeSendHeaders(apiFilter, (details, callback) => {
+    // Skip local web server requests (assets loaded from bundled Next.js)
+    if (localServerPort && details.url.includes(`127.0.0.1:${localServerPort}`)) {
+      callback({ requestHeaders: details.requestHeaders });
+      return;
+    }
     details.requestHeaders['X-Swiip-Client'] = 'desktop';
     callback({ requestHeaders: details.requestHeaders });
   });
 
   // Content Security Policy — defense-in-depth against XSS (Discord pattern)
+  // Only apply to navigation and document requests, not every sub-resource
   appSession.webRequest.onHeadersReceived((details, callback) => {
-    callback({
-      responseHeaders: {
-        ...details.responseHeaders,
-        'Content-Security-Policy': [
-          [
-            "default-src 'self'",
-            "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
-            "style-src 'self' 'unsafe-inline'",
-            "img-src 'self' data: blob: https: http:",
-            "media-src 'self' blob: https: http: mediastream:",
-            "connect-src 'self' ws: wss: https: http:",
-            "font-src 'self' data:",
-            "worker-src 'self' blob:",
-          ].join('; '),
-        ],
-      },
-    });
+    // Only inject CSP on document/navigation responses
+    if (details.resourceType === 'mainFrame' || details.resourceType === 'subFrame') {
+      callback({
+        responseHeaders: {
+          ...details.responseHeaders,
+          'Content-Security-Policy': [
+            [
+              "default-src 'self'",
+              "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+              "style-src 'self' 'unsafe-inline'",
+              "img-src 'self' data: blob: https: http:",
+              "media-src 'self' blob: https: http: mediastream:",
+              "connect-src 'self' ws: wss: https: http:",
+              "font-src 'self' data:",
+              "worker-src 'self' blob:",
+            ].join('; '),
+          ],
+        },
+      });
+    } else {
+      callback({});
+    }
   });
 
   setupAppMenu();

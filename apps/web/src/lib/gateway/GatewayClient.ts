@@ -140,7 +140,7 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
   }
 
   disconnect(): void {
-    this.destroyed = false;
+    this.destroyed = true;
     this._clearHeartbeat();
     this._clearReconnect();
     this.sendQueue.length = 0;
@@ -164,6 +164,11 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
     if (this.ws?.readyState !== WebSocket.OPEN) {
       // Buffer dispatch events during reconnect — replay on RESUMED (Discord pattern)
       if (op === OpCode.DISPATCH && !this.destroyed) {
+        // Cap queue to prevent unbounded memory growth during long disconnects
+        if (this.sendQueue.length >= 500) {
+          console.warn('[Gateway] Send queue full (500), dropping oldest message');
+          this.sendQueue.shift();
+        }
         this.sendQueue.push({ op, data });
         console.debug('[Gateway] Buffered outgoing dispatch during reconnect');
         return true; // Indicate message was accepted (queued)

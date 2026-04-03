@@ -68,10 +68,23 @@ export function useDesktopTray() {
     // Initial sync
     constchat.setBadgeCount(computeUnread());
 
-    // Subscribe to store changes
+    // Subscribe to store changes — throttled to avoid spamming IPC on every message/typing event
+    let badgeTimer: ReturnType<typeof setTimeout> | null = null;
+    let lastBadge = computeUnread();
     const unsub = useMessagesStore.subscribe(() => {
-      constchat.setBadgeCount(computeUnread());
+      if (badgeTimer) return; // Already scheduled
+      badgeTimer = setTimeout(() => {
+        badgeTimer = null;
+        const count = computeUnread();
+        if (count !== lastBadge) {
+          lastBadge = count;
+          constchat.setBadgeCount(count);
+        }
+      }, 500);
     });
-    return unsub;
+    return () => {
+      unsub();
+      if (badgeTimer) clearTimeout(badgeTimer);
+    };
   }, [platform.isDesktop]);
 }
