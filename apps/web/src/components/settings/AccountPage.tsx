@@ -401,7 +401,7 @@ export function AccountPage() {
                         value={link.label}
                         onChange={(e) => {
                           const updated = [...profileLinks];
-                          updated[idx] = { ...updated[idx], label: e.target.value };
+                          updated[idx] = { label: e.target.value, url: updated[idx]?.url ?? '' };
                           setProfileLinks(updated);
                         }}
                         placeholder="Label"
@@ -417,7 +417,7 @@ export function AccountPage() {
                         value={link.url}
                         onChange={(e) => {
                           const updated = [...profileLinks];
-                          updated[idx] = { ...updated[idx], url: e.target.value };
+                          updated[idx] = { label: updated[idx]?.label ?? '', url: e.target.value };
                           setProfileLinks(updated);
                         }}
                         placeholder="https://..."
