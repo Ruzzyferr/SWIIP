@@ -64,7 +64,8 @@ export type NotificationType =
   | 'reply'
   | 'dm'
   | 'friend_request'
-  | 'system';
+  | 'system'
+  | 'incoming_call';
 
 // ---------------------------------------------------------------------------
 // Shared / referenced types
@@ -314,6 +315,9 @@ export enum ClientEventType {
   VOICE_JOIN = 'VOICE_JOIN',
   VOICE_LEAVE = 'VOICE_LEAVE',
   VOICE_STATE_UPDATE = 'VOICE_STATE_UPDATE',
+  VOICE_CALL_ACCEPT = 'VOICE_CALL_ACCEPT',
+  VOICE_CALL_DECLINE = 'VOICE_CALL_DECLINE',
+  VOICE_CALL_CANCEL = 'VOICE_CALL_CANCEL',
   SCREEN_SHARE_START = 'SCREEN_SHARE_START',
   SCREEN_SHARE_STOP = 'SCREEN_SHARE_STOP',
   READ_STATE_UPDATE = 'READ_STATE_UPDATE',
@@ -373,6 +377,9 @@ export type ClientEvent =
     }
   | { t: ClientEventType.VOICE_JOIN; d: { channelId: string } }
   | { t: ClientEventType.VOICE_LEAVE; d: Record<string, never> }
+  | { t: ClientEventType.VOICE_CALL_ACCEPT; d: { channelId: string } }
+  | { t: ClientEventType.VOICE_CALL_DECLINE; d: { channelId: string } }
+  | { t: ClientEventType.VOICE_CALL_CANCEL; d: { channelId: string } }
   | {
       t: ClientEventType.VOICE_STATE_UPDATE;
       d: { selfMute: boolean; selfDeaf: boolean; selfVideo?: boolean };
@@ -427,6 +434,11 @@ export enum ServerEventType {
   REACTION_REMOVE = 'REACTION_REMOVE',
   VOICE_STATE_UPDATE = 'VOICE_STATE_UPDATE',
   VOICE_SERVER_UPDATE = 'VOICE_SERVER_UPDATE',
+  VOICE_CALL_RING = 'VOICE_CALL_RING',
+  VOICE_CALL_ACCEPTED = 'VOICE_CALL_ACCEPTED',
+  VOICE_CALL_DECLINED = 'VOICE_CALL_DECLINED',
+  VOICE_CALL_CANCELLED = 'VOICE_CALL_CANCELLED',
+  VOICE_CALL_TIMEOUT = 'VOICE_CALL_TIMEOUT',
   SCREEN_SHARE_STARTED = 'SCREEN_SHARE_STARTED',
   SCREEN_SHARE_STOPPED = 'SCREEN_SHARE_STOPPED',
   READ_STATE_UPDATE = 'READ_STATE_UPDATE',
@@ -559,6 +571,20 @@ export type ServerEvent =
       t: ServerEventType.VOICE_SERVER_UPDATE;
       d: { guildId: string; token: string; endpoint: string };
     }
+  | {
+      t: ServerEventType.VOICE_CALL_RING;
+      d: {
+        channelId: string;
+        callerId: string;
+        callerName: string;
+        callerAvatar: string | null;
+        callType: 'dm' | 'group_dm';
+      };
+    }
+  | { t: ServerEventType.VOICE_CALL_ACCEPTED; d: { channelId: string; userId: string } }
+  | { t: ServerEventType.VOICE_CALL_DECLINED; d: { channelId: string; userId: string } }
+  | { t: ServerEventType.VOICE_CALL_CANCELLED; d: { channelId: string } }
+  | { t: ServerEventType.VOICE_CALL_TIMEOUT; d: { channelId: string } }
   | {
       t: ServerEventType.SCREEN_SHARE_STARTED;
       d: { userId: string; channelId: string; guildId: string; quality: string };
