@@ -187,7 +187,7 @@ export class UsersService {
 
     await this.prisma.user.update({
       where: { id: userId },
-      data: { settings: merged },
+      data: { settings: merged as Prisma.InputJsonValue },
     });
 
     return merged;
