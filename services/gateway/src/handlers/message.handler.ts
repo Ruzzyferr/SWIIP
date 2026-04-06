@@ -533,6 +533,50 @@ async function handleClientDispatch(
           }),
         );
         log.info({ userId: session.userId, channelId: d.channelId }, 'VOICE_JOIN: VOICE_SERVER_UPDATE sent');
+
+        // Ring other DM participants
+        if (isDMCall) {
+          try {
+            const participantsUrl = `${apiBase}/internal/channels/${d.channelId}/participants`;
+            const partRes = await fetch(participantsUrl, {
+              headers: { 'X-Internal-Token': context.config.JWT_SECRET },
+              signal: AbortSignal.timeout(3_000),
+            });
+            if (partRes.ok) {
+              const participants = (await partRes.json()) as Array<{ userId: string }>;
+              const otherParticipants = participants.filter(p => p.userId !== session.userId);
+
+              const userUrl = `${apiBase}/internal/users/${session.userId}`;
+              const userRes = await fetch(userUrl, {
+                headers: { 'X-Internal-Token': context.config.JWT_SECRET },
+                signal: AbortSignal.timeout(3_000),
+              });
+              const caller = userRes.ok ? await userRes.json() as { username: string; globalName?: string; avatarId?: string } : null;
+
+              for (const p of otherParticipants) {
+                const ringPayload = JSON.stringify({
+                  op: OpCode.DISPATCH,
+                  t: ServerEventType.VOICE_CALL_RING,
+                  d: {
+                    channelId: d.channelId,
+                    callerId: session.userId,
+                    callerName: caller?.globalName || caller?.username || 'Unknown',
+                    callerAvatar: caller?.avatarId || null,
+                    callType: 'dm',
+                  },
+                });
+                context.pubsub.getPublisher().publish(`user:${p.userId}`, ringPayload).catch(() => {});
+              }
+
+              const callKey = `swiip:call:${d.channelId}`;
+              await context.pubsub.getPublisher().set(callKey, session.userId, 'EX', 30);
+
+              log.info({ channelId: d.channelId, recipients: otherParticipants.length }, 'VOICE_JOIN: DM call ring sent');
+            }
+          } catch (err) {
+            log.warn({ err }, 'VOICE_JOIN: failed to send DM call ring');
+          }
+        }
       } catch (err) {
         log.error({ err, channelId: d.channelId }, 'VOICE_JOIN: unexpected error');
         sendVoiceError('Unexpected error');
@@ -689,6 +733,72 @@ async function handleClientDispatch(
         channelId: d.channelId,
         lastReadMessageId: d.lastReadMessageId,
       });
+      break;
+    }
+
+    case ClientEventType.VOICE_CALL_ACCEPT: {
+      const d = data as { channelId: string };
+      if (!d.channelId) return;
+      const callKey = `swiip:call:${d.channelId}`;
+      const callerId = await context.pubsub.getPublisher().get(callKey);
+      await context.pubsub.getPublisher().del(callKey);
+      if (callerId) {
+        const acceptPayload = JSON.stringify({
+          op: OpCode.DISPATCH,
+          t: ServerEventType.VOICE_CALL_ACCEPTED,
+          d: { channelId: d.channelId, userId: session.userId },
+        });
+        context.pubsub.getPublisher().publish(`user:${callerId}`, acceptPayload).catch(() => {});
+      }
+      log.info({ userId: session.userId, channelId: d.channelId }, 'VOICE_CALL_ACCEPT');
+      break;
+    }
+
+    case ClientEventType.VOICE_CALL_DECLINE: {
+      const d = data as { channelId: string };
+      if (!d.channelId) return;
+      const callKey = `swiip:call:${d.channelId}`;
+      const callerId = await context.pubsub.getPublisher().get(callKey);
+      await context.pubsub.getPublisher().del(callKey);
+      if (callerId) {
+        const declinePayload = JSON.stringify({
+          op: OpCode.DISPATCH,
+          t: ServerEventType.VOICE_CALL_DECLINED,
+          d: { channelId: d.channelId, userId: session.userId },
+        });
+        context.pubsub.getPublisher().publish(`user:${callerId}`, declinePayload).catch(() => {});
+      }
+      log.info({ userId: session.userId, channelId: d.channelId }, 'VOICE_CALL_DECLINE');
+      break;
+    }
+
+    case ClientEventType.VOICE_CALL_CANCEL: {
+      const d = data as { channelId: string };
+      if (!d.channelId) return;
+      const callKey = `swiip:call:${d.channelId}`;
+      await context.pubsub.getPublisher().del(callKey);
+      try {
+        const participantsUrl = `${context.apiBaseUrl}/internal/channels/${d.channelId}/participants`;
+        const partRes = await fetch(participantsUrl, {
+          headers: { 'X-Internal-Token': context.config.JWT_SECRET },
+          signal: AbortSignal.timeout(3_000),
+        });
+        if (partRes.ok) {
+          const participants = (await partRes.json()) as Array<{ userId: string }>;
+          for (const p of participants) {
+            if (p.userId === session.userId) continue;
+            const cancelPayload = JSON.stringify({
+              op: OpCode.DISPATCH,
+              t: ServerEventType.VOICE_CALL_CANCELLED,
+              d: { channelId: d.channelId },
+            });
+            context.pubsub.getPublisher().publish(`user:${p.userId}`, cancelPayload).catch(() => {});
+          }
+        }
+      } catch (err) {
+        log.warn({ err }, 'VOICE_CALL_CANCEL: failed to notify participants');
+      }
+      log.info({ userId: session.userId, channelId: d.channelId }, 'VOICE_CALL_CANCEL');
       break;
     }
 
