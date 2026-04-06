@@ -120,6 +120,7 @@ function createWindow() {
       nodeIntegration: false,
       spellcheck: true,
       partition: PERSIST_PARTITION,
+      backgroundThrottling: false,
     },
     show: false,
   });

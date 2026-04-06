@@ -34,8 +34,10 @@ class DesktopStandardProcessor extends AudioWorkletProcessor {
     this._expanderAttack = 1.0 - Math.exp(-1.0 / (0.010 * sampleRate));
     this._expanderRelease = 1.0 - Math.exp(-1.0 / (0.100 * sampleRate));
 
-    // --- Hard Limiter at -1dBFS ---
-    this._limiterThreshold = 0.891; // -1dBFS in linear ≈ 10^(-1/20)
+    // --- Soft Limiter at -3dBFS ---
+    // Use a softer threshold with a gradual knee to avoid hard-clipping pops.
+    // Samples above the threshold are smoothly attenuated using tanh soft-clip.
+    this._limiterThreshold = 0.708; // -3dBFS in linear ≈ 10^(-3/20)
 
     // --- Latency reporting ---
     this._reportedLatency = false;
@@ -144,11 +146,15 @@ class DesktopStandardProcessor extends AudioWorkletProcessor {
         }
       }
 
-      // --- Stage 3: Hard Limiter (-1dBFS) ---
+      // --- Stage 3: Soft Limiter (tanh soft-clip) ---
+      // Uses tanh curve above threshold for smooth limiting without audible pops.
+      // Below threshold: passthrough. Above: gradual compression.
       if (sample > this._limiterThreshold) {
-        sample = this._limiterThreshold;
+        const excess = (sample - this._limiterThreshold) / (1.0 - this._limiterThreshold);
+        sample = this._limiterThreshold + (1.0 - this._limiterThreshold) * Math.tanh(excess);
       } else if (sample < -this._limiterThreshold) {
-        sample = -this._limiterThreshold;
+        const excess = (-sample - this._limiterThreshold) / (1.0 - this._limiterThreshold);
+        sample = -(this._limiterThreshold + (1.0 - this._limiterThreshold) * Math.tanh(excess));
       }
 
       outputChannel[i] = sample;

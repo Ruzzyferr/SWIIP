@@ -14,7 +14,7 @@ import { Track, type AudioProcessorOptions, type TrackProcessor } from 'livekit-
  * Default gain multiplier to compensate for RNNoise signal attenuation.
  * RNNoise suppresses noise by reducing overall amplitude — this restores it.
  */
-const DEFAULT_RNNOISE_COMPENSATION_GAIN = 2.2;
+const DEFAULT_RNNOISE_COMPENSATION_GAIN = 1.8;
 
 export class RnnoiseProcessor implements TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> {
   name = 'rnnoise-noise-suppressor';
@@ -61,12 +61,13 @@ export class RnnoiseProcessor implements TrackProcessor<Track.Kind.Audio, AudioP
     this.sourceNode = audioContext.createMediaStreamSource(mediaStream);
 
     // Soft limiter before RNNoise to prevent input distortion when volume > 100%
+    // Use a gentle knee to avoid hard-clipping artifacts (pops/crackles)
     this.limiterNode = audioContext.createDynamicsCompressor();
-    this.limiterNode.threshold.value = -1;   // dBFS
-    this.limiterNode.knee.value = 0;
-    this.limiterNode.ratio.value = 20;       // Hard limiting
-    this.limiterNode.attack.value = 0.001;   // 1ms
-    this.limiterNode.release.value = 0.01;   // 10ms
+    this.limiterNode.threshold.value = -6;   // dBFS — start compressing earlier
+    this.limiterNode.knee.value = 10;        // Soft knee — gradual onset avoids pops
+    this.limiterNode.ratio.value = 12;       // Firm but not brick-wall
+    this.limiterNode.attack.value = 0.003;   // 3ms — fast enough for transients
+    this.limiterNode.release.value = 0.05;   // 50ms — smoother recovery
 
     this.rnnoiseNode = new RnnoiseWorkletNode(audioContext, {
       maxChannels: 1,
