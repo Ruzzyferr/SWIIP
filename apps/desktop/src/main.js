@@ -110,7 +110,7 @@ function createWindow() {
     minWidth: 940,
     minHeight: 600,
     title: 'Swiip',
-    icon: path.join(__dirname, '..', 'build', 'icon.png'),
+    icon: path.join(__dirname, '..', 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png'),
     frame: false,
     // Use a near-black background to minimize flash on both dark and light themes
     backgroundColor: '#090B0B',
@@ -197,12 +197,18 @@ function createWindow() {
 function createTray() {
   // Create a simple tray icon (16x16 blue circle)
   const iconPath = path.join(__dirname, '..', 'build', 'tray-icon.png');
+  const fs = require('fs');
   let trayIcon;
   try {
-    trayIcon = nativeImage.createFromPath(iconPath);
+    const stats = fs.statSync(iconPath);
+    if (stats.size > 1024) {
+      trayIcon = nativeImage.createFromPath(iconPath);
+    } else {
+      trayIcon = nativeImage.createFromPath(path.join(__dirname, '..', 'build', 'icon.png'));
+    }
+    trayIcon = trayIcon.resize({ width: 16, height: 16 });
   } catch {
-    // Fallback: create a simple icon
-    trayIcon = nativeImage.createEmpty();
+    trayIcon = nativeImage.createFromPath(path.join(__dirname, '..', 'build', 'icon.png')).resize({ width: 16, height: 16 });
   }
 
   tray = new Tray(trayIcon.isEmpty() ? nativeImage.createFromDataURL(createTrayIconDataURL()) : trayIcon);
@@ -295,7 +301,7 @@ function setupAppMenu() {
 
 // ── Splash Screen (update check on startup) ────────────────
 function createSplashWindow() {
-  const splashIcon = path.join(__dirname, '..', 'build', 'icon.png');
+  const splashIcon = path.join(__dirname, '..', 'build', process.platform === 'win32' ? 'icon.ico' : 'icon.png');
   splashWindow = new BrowserWindow({
     width: 300,
     height: 350,
