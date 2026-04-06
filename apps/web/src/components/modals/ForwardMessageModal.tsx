@@ -13,7 +13,7 @@ import { ChannelType } from '@constchat/protocol';
 
 export function ForwardMessageModal() {
   const closeModal = useUIStore((s) => s.closeModal);
-  const modalData = useUIStore((s) => s.activeModal?.data) as { content: string; authorName: string } | undefined;
+  const modalData = useUIStore((s) => s.activeModal?.props) as { content: string; authorName: string } | undefined;
   const guilds = useGuildsStore((s) => s.guilds);
   const channels = useGuildsStore((s) => s.channels);
   const conversations = useDMsStore((s) => s.conversations);
