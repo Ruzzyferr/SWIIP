@@ -4,6 +4,7 @@ import { useEffect, useState, useCallback } from 'react';
 import { Hash, Plus, Trash2, Save, Loader2 } from 'lucide-react';
 import { getWelcomeScreen, updateWelcomeScreen, type WelcomeScreen, type WelcomeScreenChannel } from '@/lib/api/guilds.api';
 import { useGuildsStore } from '@/stores/guilds.store';
+import { ChannelType } from '@constchat/protocol';
 import { toastSuccess, toastError } from '@/lib/toast';
 
 export function WelcomeScreenEditor({ guildId }: { guildId: string }) {
@@ -14,7 +15,7 @@ export function WelcomeScreenEditor({ guildId }: { guildId: string }) {
   const [saving, setSaving] = useState(false);
 
   const guildChannels = useGuildsStore((s) => s.getGuildChannels(guildId));
-  const textChannels = guildChannels.filter((c) => c.type === 'TEXT' || c.type === 0);
+  const textChannels = guildChannels.filter((c) => c.type === ChannelType.TEXT);
 
   const load = useCallback(async () => {
     try {
