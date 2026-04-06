@@ -158,4 +158,12 @@ export class MessagesController {
   ) {
     return this.messagesService.crosspost(messageId, channelId, user.userId);
   }
+
+  @Get(':messageId/revisions')
+  @ApiOperation({ summary: 'Get edit history for a message' })
+  async getRevisions(
+    @Param('messageId') messageId: string,
+  ) {
+    return this.messagesService.getRevisions(messageId);
+  }
 }

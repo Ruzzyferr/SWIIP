@@ -25,6 +25,7 @@ export class CreateRoleDto {
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) @Max(16777215) color?: number;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() hoist?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() mentionable?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() selfAssignable?: boolean;
   @ApiPropertyOptional() @IsOptional() permissions?: string;
 }
 
@@ -33,6 +34,7 @@ export class UpdateRoleDto {
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) @Max(16777215) color?: number;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() hoist?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsBoolean() mentionable?: boolean;
+  @ApiPropertyOptional() @IsOptional() @IsBoolean() selfAssignable?: boolean;
   @ApiPropertyOptional() @IsOptional() permissions?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() icon?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() unicodeEmoji?: string;
@@ -136,6 +138,7 @@ export class RolesService {
         color: dto.color ?? 0,
         hoist: dto.hoist ?? false,
         mentionable: dto.mentionable ?? false,
+        selfAssignable: dto.selfAssignable ?? false,
         permissionsInteger: dto.permissions ? this.parseBigIntPermissions(dto.permissions) : 0n,
         position: newPosition,
       },
@@ -177,6 +180,7 @@ export class RolesService {
         ...(dto.color !== undefined && { color: dto.color }),
         ...(dto.hoist !== undefined && { hoist: dto.hoist }),
         ...(dto.mentionable !== undefined && { mentionable: dto.mentionable }),
+        ...(dto.selfAssignable !== undefined && { selfAssignable: dto.selfAssignable }),
         ...(dto.permissions !== undefined && { permissionsInteger: this.parseBigIntPermissions(dto.permissions) }),
         ...(dto.icon !== undefined && { icon: dto.icon }),
         ...(dto.unicodeEmoji !== undefined && { unicodeEmoji: dto.unicodeEmoji }),
@@ -336,6 +340,47 @@ export class RolesService {
     });
 
     return updated;
+  }
+
+  async getSelfAssignableRoles(guildId: string) {
+    const roles = await this.prisma.role.findMany({
+      where: { guildId, selfAssignable: true },
+      orderBy: { position: 'asc' },
+    });
+    return roles.map((r) => this.serializeRole(r));
+  }
+
+  async selfAssignRole(guildId: string, userId: string, roleId: string) {
+    const role = await this.prisma.role.findFirst({ where: { id: roleId, guildId } });
+    if (!role) throw new NotFoundException('Role not found');
+    if (!role.selfAssignable) throw new ForbiddenException('This role is not self-assignable');
+
+    const member = await this.prisma.guildMember.findUnique({
+      where: { guildId_userId: { guildId, userId } },
+    });
+    if (!member) throw new NotFoundException('Member not found');
+    if (member.roles.includes(roleId)) return;
+
+    await this.prisma.guildMember.update({
+      where: { guildId_userId: { guildId, userId } },
+      data: { roles: { push: roleId } },
+    });
+  }
+
+  async selfRemoveRole(guildId: string, userId: string, roleId: string) {
+    const role = await this.prisma.role.findFirst({ where: { id: roleId, guildId } });
+    if (!role) throw new NotFoundException('Role not found');
+    if (!role.selfAssignable) throw new ForbiddenException('This role is not self-assignable');
+
+    const member = await this.prisma.guildMember.findUnique({
+      where: { guildId_userId: { guildId, userId } },
+    });
+    if (!member) throw new NotFoundException('Member not found');
+
+    await this.prisma.guildMember.update({
+      where: { guildId_userId: { guildId, userId } },
+      data: { roles: member.roles.filter((r: string) => r !== roleId) },
+    });
   }
 
   async getRoles(guildId: string) {

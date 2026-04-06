@@ -40,6 +40,8 @@ export class DesktopAudioStrategy implements AudioPipelineStrategy {
         return this.applyStandard(room);
       case 'enhanced':
         return this.applyEnhanced(room);
+      case 'music':
+        return this.applyMusic(room);
     }
   }
 
@@ -49,6 +51,10 @@ export class DesktopAudioStrategy implements AudioPipelineStrategy {
 
   setInputGain(normalized: number): void {
     this.rnnoiseManager.setInputGain(normalized);
+  }
+
+  setRnnoiseGain(gain: number): void {
+    this.rnnoiseManager.setCompensationGain(gain);
   }
 
   dispose(): void {
@@ -172,6 +178,28 @@ export class DesktopAudioStrategy implements AudioPipelineStrategy {
       reason,
       errorCode,
     };
+  }
+
+  private async applyMusic(room: Room): Promise<{
+    activeMode: AudioMode;
+    degraded: boolean;
+    reason: string | null;
+    errorCode: NoiseFilterError | WorkletInitError | null;
+  }> {
+    // Remove all processors for maximum audio fidelity
+    await this.rnnoiseManager.removeFromTrack(room);
+
+    if (this.workletManager.getState() === 'active') {
+      this.workletManager.bypass(true);
+    }
+
+    const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+    if (micPub?.track) {
+      const constraints = buildRuntimeConstraints('desktop', 'music');
+      await micPub.track.mediaStreamTrack.applyConstraints(constraints).catch(() => {});
+    }
+
+    return { activeMode: 'music', degraded: false, reason: null, errorCode: null };
   }
 
   private async applyWorkletChain(room: Room): Promise<boolean> {

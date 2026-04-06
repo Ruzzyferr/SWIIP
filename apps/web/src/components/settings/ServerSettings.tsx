@@ -19,6 +19,8 @@ import {
   Smile,
   Plus,
   Loader2,
+  Calendar,
+  DoorOpen,
 } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
@@ -32,6 +34,9 @@ import { ChannelType } from '@constchat/protocol';
 import { RolesPage } from './RolesPage';
 import { AuditLogPage } from './AuditLogPage';
 import { BanListPage } from './BanListPage';
+import { EventsPanel } from '@/components/guild/EventsPanel';
+import { WelcomeScreenEditor } from '@/components/guild/WelcomeScreenEditor';
+import { RolePicker } from '@/components/guild/RolePicker';
 
 // ---------------------------------------------------------------------------
 // Nav structure
@@ -43,6 +48,8 @@ const NAV_ITEMS = [
   { id: 'emoji', label: 'Emoji', icon: Smile, section: 'Server Settings' },
   { id: 'members', label: 'Members', icon: Users, section: 'Server Settings' },
   { id: 'channels', label: 'Channels', icon: Hash, section: 'Server Settings' },
+  { id: 'events', label: 'Events', icon: Calendar, section: 'Server Settings' },
+  { id: 'welcome', label: 'Welcome Screen', icon: DoorOpen, section: 'Server Settings' },
   { id: 'bans', label: 'Bans', icon: Ban, section: 'Moderation' },
   { id: 'audit-log', label: 'Audit Log', icon: ScrollText, section: 'Moderation' },
 ];
@@ -1055,6 +1062,10 @@ export function ServerSettings({ guildId, onClose }: ServerSettingsProps) {
         return <BanListPage guildId={guildId} />;
       case 'audit-log':
         return <AuditLogPage guildId={guildId} />;
+      case 'events':
+        return <EventsPanel guildId={guildId} />;
+      case 'welcome':
+        return <WelcomeScreenEditor guildId={guildId} />;
       default:
         return <PlaceholderPage title={NAV_ITEMS.find((i) => i.id === activePage)?.label ?? activePage} />;
     }

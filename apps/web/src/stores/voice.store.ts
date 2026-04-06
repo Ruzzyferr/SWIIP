@@ -25,7 +25,7 @@ export type VoiceConnectionState =
 export type ScreenShareQuality = '720p30' | '1080p30' | '1080p60';
 
 /** Audio processing mode — only one noise processing layer active at a time. */
-export type AudioMode = 'standard' | 'enhanced' | 'raw';
+export type AudioMode = 'standard' | 'enhanced' | 'raw' | 'music';
 
 export interface AudioCapabilities {
   enhancedAvailable: boolean;
@@ -43,6 +43,12 @@ interface VoiceSettings {
   audioMode: AudioMode;
   /** Voice activity detection threshold (0=most sensitive, 100=least sensitive). -1 = automatic. */
   voiceActivityThreshold: number;
+  /** RNNoise compensation gain multiplier (1.0–4.0). Default 2.2. */
+  rnnoiseGain: number;
+  /** Noise gate (expander) enabled — attenuates input below threshold */
+  noiseGateEnabled: boolean;
+  /** Noise gate threshold in dB (-80 to -20). Default -50. */
+  noiseGateThreshold: number;
   /** Push-to-talk mode enabled */
   pushToTalk: boolean;
   /** Key to hold for push-to-talk (default: Space) */
@@ -152,6 +158,9 @@ const DEFAULT_SETTINGS: VoiceSettings = {
   notificationSounds: true,
   audioMode: 'standard',
   voiceActivityThreshold: -1, // -1 = automatic
+  rnnoiseGain: 2.2,
+  noiseGateEnabled: false,
+  noiseGateThreshold: -50,
   pushToTalk: false,
   pttKey: 'Space',
 };

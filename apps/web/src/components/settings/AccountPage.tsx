@@ -1,12 +1,13 @@
 'use client';
 
 import { useState, useRef, useCallback } from 'react';
-import { Camera, Pencil, Check, X, Loader2 } from 'lucide-react';
+import { Camera, Pencil, Check, X, Loader2, Plus, Trash2, Link2 } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
 import { Button } from '@/components/ui/Button';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePresenceStore } from '@/stores/presence.store';
 import { updateProfile, uploadAvatar, uploadBanner, deleteAccount } from '@/lib/api/users.api';
+import { CLEAR_AFTER_OPTIONS, scheduleStatusClear } from '@/lib/presence';
 import { getGatewayClient } from '@/lib/gateway/GatewayClient';
 import { toastError } from '@/lib/toast';
 import { updateUserStatus } from '@/lib/presence';
@@ -166,7 +167,10 @@ export function AccountPage() {
   const status = getPresence(user.id);
   const customStatus = usePresenceStore((s) => s.users[user.id]?.customStatus ?? '');
   const bio = (user as any).bio ?? '';
+  const [profileLinks, setProfileLinks] = useState<{ label: string; url: string }[]>((user as any).profileLinks ?? []);
   const [statusDraft, setStatusDraft] = useState(customStatus);
+  const [emojiDraft, setEmojiDraft] = useState(usePresenceStore.getState().users[user.id]?.customStatusEmoji ?? '');
+  const [clearAfter, setClearAfter] = useState(0);
   const [editingStatus, setEditingStatus] = useState(false);
   const bannerUrl = (user as any).bannerId
     ? undefined // Will be handled by CDN URL from backend
@@ -367,6 +371,94 @@ export function AccountPage() {
 
               <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />
 
+              {/* Profile Links */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <p className="text-xs font-bold uppercase tracking-wide" style={{ color: 'var(--color-text-disabled)' }}>
+                    Profile Links
+                  </p>
+                  {profileLinks.length < 5 && (
+                    <button
+                      onClick={() => setProfileLinks([...profileLinks, { label: '', url: '' }])}
+                      className="flex items-center gap-1 text-xs"
+                      style={{ color: 'var(--color-accent-primary)' }}
+                    >
+                      <Plus size={12} /> Add
+                    </button>
+                  )}
+                </div>
+                {profileLinks.length === 0 && (
+                  <p className="text-xs" style={{ color: 'var(--color-text-disabled)' }}>
+                    Add links to your profile (social media, website, etc.)
+                  </p>
+                )}
+                <div className="space-y-2">
+                  {profileLinks.map((link, idx) => (
+                    <div key={idx} className="flex items-center gap-2">
+                      <Link2 size={14} className="flex-shrink-0" style={{ color: 'var(--color-text-disabled)' }} />
+                      <input
+                        type="text"
+                        value={link.label}
+                        onChange={(e) => {
+                          const updated = [...profileLinks];
+                          updated[idx] = { ...updated[idx], label: e.target.value };
+                          setProfileLinks(updated);
+                        }}
+                        placeholder="Label"
+                        className="flex-1 px-2 py-1.5 rounded text-xs"
+                        style={{
+                          background: 'var(--color-surface-base)',
+                          color: 'var(--color-text-primary)',
+                          border: '1px solid var(--color-border-default)',
+                        }}
+                      />
+                      <input
+                        type="url"
+                        value={link.url}
+                        onChange={(e) => {
+                          const updated = [...profileLinks];
+                          updated[idx] = { ...updated[idx], url: e.target.value };
+                          setProfileLinks(updated);
+                        }}
+                        placeholder="https://..."
+                        className="flex-[2] px-2 py-1.5 rounded text-xs"
+                        style={{
+                          background: 'var(--color-surface-base)',
+                          color: 'var(--color-text-primary)',
+                          border: '1px solid var(--color-border-default)',
+                        }}
+                      />
+                      <button
+                        onClick={() => setProfileLinks(profileLinks.filter((_, i) => i !== idx))}
+                        className="flex-shrink-0 p-1"
+                        style={{ color: 'var(--color-text-disabled)' }}
+                      >
+                        <Trash2 size={12} />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+                {profileLinks.length > 0 && (
+                  <button
+                    onClick={async () => {
+                      try {
+                        const valid = profileLinks.filter((l) => l.url.trim());
+                        await updateProfile({ profileLinks: valid });
+                        setProfileLinks(valid);
+                      } catch {
+                        toastError('Failed to save links');
+                      }
+                    }}
+                    className="mt-2 text-xs font-medium px-3 py-1.5 rounded-md"
+                    style={{ background: 'var(--color-accent-primary)', color: '#fff' }}
+                  >
+                    Save Links
+                  </button>
+                )}
+              </div>
+
+              <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />
+
               {/* Online Status Picker */}
               <div>
                 <p className="text-xs font-bold uppercase tracking-wide mb-2" style={{ color: 'var(--color-text-disabled)' }}>
@@ -406,67 +498,136 @@ export function AccountPage() {
                   Custom Status
                 </p>
                 {editingStatus ? (
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="text"
-                      value={statusDraft}
-                      onChange={(e) => setStatusDraft(e.target.value)}
-                      maxLength={128}
-                      placeholder="What are you up to?"
-                      className="flex-1 bg-transparent rounded-lg px-3 py-2 text-sm outline-none"
-                      style={{
-                        color: 'var(--color-text-primary)',
-                        background: 'var(--color-surface-base)',
-                        border: '1px solid var(--color-border-default)',
-                      }}
-                      autoFocus
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter') {
-                          updateUserStatus(user.id, status ?? 'online', statusDraft || undefined);
-                          setEditingStatus(false);
-                        }
-                        if (e.key === 'Escape') {
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2">
+                      {/* Emoji input */}
+                      <input
+                        type="text"
+                        value={emojiDraft}
+                        onChange={(e) => setEmojiDraft(e.target.value.slice(0, 2))}
+                        placeholder="😊"
+                        className="w-10 h-10 text-center text-lg rounded-lg outline-none"
+                        style={{
+                          background: 'var(--color-surface-base)',
+                          border: '1px solid var(--color-border-default)',
+                        }}
+                      />
+                      {/* Status text */}
+                      <input
+                        type="text"
+                        value={statusDraft}
+                        onChange={(e) => setStatusDraft(e.target.value)}
+                        maxLength={128}
+                        placeholder="What are you up to?"
+                        className="flex-1 bg-transparent rounded-lg px-3 py-2 text-sm outline-none"
+                        style={{
+                          color: 'var(--color-text-primary)',
+                          background: 'var(--color-surface-base)',
+                          border: '1px solid var(--color-border-default)',
+                        }}
+                        autoFocus
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter') {
+                            const expiresAt = clearAfter > 0
+                              ? new Date(Date.now() + clearAfter).toISOString()
+                              : clearAfter === -1
+                                ? new Date(new Date().setHours(23, 59, 59, 999)).toISOString()
+                                : undefined;
+                            updateUserStatus(user.id, status ?? 'online', statusDraft || undefined, emojiDraft || undefined, expiresAt);
+                            if (clearAfter !== 0) scheduleStatusClear(user.id, status ?? 'online', clearAfter);
+                            setEditingStatus(false);
+                          }
+                          if (e.key === 'Escape') {
+                            setStatusDraft(customStatus);
+                            setEditingStatus(false);
+                          }
+                        }}
+                      />
+                    </div>
+
+                    {/* Clear after */}
+                    <div className="flex items-center gap-2">
+                      <span className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>Clear after:</span>
+                      <select
+                        value={clearAfter}
+                        onChange={(e) => setClearAfter(Number(e.target.value))}
+                        className="text-xs px-2 py-1 rounded"
+                        style={{
+                          background: 'var(--color-surface-base)',
+                          color: 'var(--color-text-primary)',
+                          border: '1px solid var(--color-border-default)',
+                        }}
+                      >
+                        {CLEAR_AFTER_OPTIONS.map((opt) => (
+                          <option key={opt.value} value={opt.value}>{opt.label}</option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div className="flex justify-end gap-2">
+                      <button
+                        onClick={() => {
                           setStatusDraft(customStatus);
                           setEditingStatus(false);
-                        }
-                      }}
-                    />
-                    <button
-                      onClick={() => {
-                        updateUserStatus(user.id, status ?? 'online', statusDraft || undefined);
-                        setEditingStatus(false);
-                      }}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ background: 'var(--color-success-default)', color: '#fff' }}
-                    >
-                      <Check size={14} />
-                    </button>
-                    <button
-                      onClick={() => {
-                        setStatusDraft(customStatus);
-                        setEditingStatus(false);
-                      }}
-                      className="w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0"
-                      style={{ background: 'var(--color-surface-overlay)', color: 'var(--color-text-secondary)' }}
-                    >
-                      <X size={14} />
-                    </button>
+                        }}
+                        className="px-3 py-1.5 rounded-md text-xs font-medium"
+                        style={{ background: 'var(--color-surface-overlay)', color: 'var(--color-text-secondary)' }}
+                      >
+                        Cancel
+                      </button>
+                      <button
+                        onClick={() => {
+                          const expiresAt = clearAfter > 0
+                            ? new Date(Date.now() + clearAfter).toISOString()
+                            : clearAfter === -1
+                              ? new Date(new Date().setHours(23, 59, 59, 999)).toISOString()
+                              : undefined;
+                          updateUserStatus(user.id, status ?? 'online', statusDraft || undefined, emojiDraft || undefined, expiresAt);
+                          if (clearAfter !== 0) scheduleStatusClear(user.id, status ?? 'online', clearAfter);
+                          setEditingStatus(false);
+                        }}
+                        className="px-3 py-1.5 rounded-md text-xs font-medium"
+                        style={{ background: 'var(--color-success-default)', color: '#fff' }}
+                      >
+                        Save
+                      </button>
+                    </div>
                   </div>
                 ) : (
                   <div className="flex justify-between items-center">
-                    <p className="text-sm" style={{ color: customStatus ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)' }}>
-                      {customStatus || 'No custom status set'}
-                    </p>
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      onClick={() => {
-                        setStatusDraft(customStatus);
-                        setEditingStatus(true);
-                      }}
-                    >
-                      Edit
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {usePresenceStore.getState().users[user.id]?.customStatusEmoji && (
+                        <span className="text-lg">{usePresenceStore.getState().users[user.id]?.customStatusEmoji}</span>
+                      )}
+                      <p className="text-sm" style={{ color: customStatus ? 'var(--color-text-primary)' : 'var(--color-text-tertiary)' }}>
+                        {customStatus || 'No custom status set'}
+                      </p>
+                    </div>
+                    <div className="flex gap-2">
+                      {customStatus && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => {
+                            updateUserStatus(user.id, status ?? 'online', undefined, undefined, undefined);
+                            setStatusDraft('');
+                            setEmojiDraft('');
+                          }}
+                        >
+                          Clear
+                        </Button>
+                      )}
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        onClick={() => {
+                          setStatusDraft(customStatus);
+                          setEditingStatus(true);
+                        }}
+                      >
+                        Edit
+                      </Button>
+                    </div>
                   </div>
                 )}
               </div>

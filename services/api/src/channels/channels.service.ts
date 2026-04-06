@@ -507,4 +507,51 @@ export class ChannelsService {
       },
     });
   }
+
+  async createThread(channelId: string, userId: string, name: string, messageId: string) {
+    const channel = await this.prisma.channel.findUnique({ where: { id: channelId } });
+    if (!channel || !channel.guildId) throw new NotFoundException('Channel not found');
+
+    // Create a thread channel
+    const threadChannel = await this.prisma.channel.create({
+      data: {
+        name,
+        type: ChannelType.THREAD,
+        guildId: channel.guildId,
+        parentId: channelId,
+        position: 0,
+      },
+    });
+
+    // Create thread metadata
+    const thread = await this.prisma.thread.create({
+      data: {
+        channelId: threadChannel.id,
+        parentChannelId: channelId,
+        ownerId: userId,
+        name,
+      },
+    });
+
+    // Link the originating message to this thread
+    await this.prisma.message.update({
+      where: { id: messageId },
+      data: { threadId: threadChannel.id },
+    });
+
+    // Publish event
+    await this.redis.publish(
+      `guild:${channel.guildId}`,
+      JSON.stringify({ type: 'THREAD_CREATE', data: { ...thread, channel: threadChannel } }),
+    );
+
+    return { ...thread, channel: threadChannel };
+  }
+
+  async getThreads(channelId: string) {
+    return this.prisma.thread.findMany({
+      where: { parentChannelId: channelId, archived: false },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
 }

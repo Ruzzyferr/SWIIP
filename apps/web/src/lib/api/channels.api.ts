@@ -125,3 +125,34 @@ export async function acknowledgeChannel(
 ): Promise<void> {
   await apiClient.post(`/channels/${channelId}/ack`, data);
 }
+
+export interface ThreadPayload {
+  id: string;
+  channelId: string;
+  parentChannelId: string;
+  ownerId: string;
+  name: string;
+  archived: boolean;
+  locked: boolean;
+  messageCount: number;
+  memberCount: number;
+  createdAt: string;
+  channel?: ChannelPayload;
+}
+
+export async function createThread(
+  channelId: string,
+  name: string,
+  messageId: string,
+): Promise<ThreadPayload> {
+  const res = await apiClient.post<ThreadPayload>(
+    `/channels/${channelId}/threads`,
+    { name, messageId },
+  );
+  return res.data;
+}
+
+export async function getThreads(channelId: string): Promise<ThreadPayload[]> {
+  const res = await apiClient.get<ThreadPayload[]>(`/channels/${channelId}/threads`);
+  return res.data;
+}

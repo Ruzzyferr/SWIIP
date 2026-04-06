@@ -36,6 +36,7 @@ export const viewport: Viewport = {
 };
 
 import { ServiceWorkerRegistration } from '@/components/providers/ServiceWorkerRegistration';
+import { AccentColorSync } from '@/components/providers/AccentColorSync';
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const locale = await getLocale();
@@ -47,6 +48,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
         <NextIntlClientProvider locale={locale} messages={messages}>
           {children}
         </NextIntlClientProvider>
+        <AccentColorSync />
         <ServiceWorkerRegistration />
       </body>
     </html>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useRouter, usePathname } from 'next/navigation';
 import { Users, Plus, X, MessageSquare } from 'lucide-react';
 import { Avatar } from '@/components/ui/Avatar';
@@ -8,6 +8,7 @@ import { Tooltip } from '@/components/ui/Tooltip';
 import { useDMsStore } from '@/stores/dms.store';
 import { useAuthStore } from '@/stores/auth.store';
 import { usePresenceStore } from '@/stores/presence.store';
+import { useMessagesStore } from '@/stores/messages.store';
 import { useFriendsStore } from '@/stores/friends.store';
 import { useUIStore } from '@/stores/ui.store';
 import { getDMConversations } from '@/lib/api/dms.api';
@@ -33,6 +34,11 @@ function DMItem({
   const [hovered, setHovered] = useState(false);
   const otherUser = dm.recipients?.find((r) => r.id !== currentUserId) ?? dm.recipients?.[0];
   const isGroup = dm.type === ChannelType.GROUP_DM;
+
+  const lastReadId = useMessagesStore((s) => s.channels[dm.id]?.lastReadId);
+  const mentionCount = useMessagesStore((s) => s.channels[dm.id]?.mentionCount ?? 0);
+  const hasUnread = !!(dm.lastMessageId && lastReadId && dm.lastMessageId !== lastReadId);
+  const showBadge = mentionCount > 0;
 
   const displayName = isGroup
     ? (dm.name ?? dm.recipients?.map((r) => r.globalName ?? r.username).join(', ') ?? 'Group')
@@ -76,7 +82,33 @@ function DMItem({
         />
       )}
 
-      <span className="text-sm truncate flex-1">{displayName}</span>
+      <span
+        className={`text-sm truncate flex-1 ${hasUnread ? 'font-semibold' : ''}`}
+        style={hasUnread ? { color: 'var(--color-text-primary)' } : undefined}
+      >
+        {displayName}
+      </span>
+
+      {showBadge && !hovered && (
+        <span
+          className="flex items-center justify-center rounded-full text-white text-[10px] font-bold shrink-0"
+          style={{
+            background: 'var(--color-danger-default)',
+            minWidth: 18,
+            height: 18,
+            padding: '0 5px',
+          }}
+        >
+          {mentionCount > 99 ? '99+' : mentionCount}
+        </span>
+      )}
+
+      {hasUnread && !showBadge && !hovered && (
+        <span
+          className="w-2 h-2 rounded-full shrink-0"
+          style={{ background: 'var(--color-text-primary)' }}
+        />
+      )}
 
       {hovered && (
         <Tooltip content="Close DM" placement="top">
@@ -141,7 +173,15 @@ export function DMConversationList() {
     }
   }, [isLoaded, setConversations]);
 
-  const dmList = Object.values(conversations);
+  const dmList = useMemo(
+    () =>
+      Object.values(conversations).sort((a, b) => {
+        const aTime = a.updatedAt ? new Date(a.updatedAt).getTime() : 0;
+        const bTime = b.updatedAt ? new Date(b.updatedAt).getTime() : 0;
+        return bTime - aTime;
+      }),
+    [conversations],
+  );
 
   // Extract active DM ID from pathname
   const activeDMId = pathname?.startsWith('/channels/@me/')

@@ -177,4 +177,24 @@ export class ChannelsController {
   ) {
     await this.channelsService.acknowledgeChannel(channelId, user.userId, body.lastReadMessageId);
   }
+
+  @Post('channels/:id/threads')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a thread from a message' })
+  async createThread(
+    @Param('id') channelId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: { name: string; messageId: string },
+  ) {
+    return this.channelsService.createThread(channelId, user.userId, body.name, body.messageId);
+  }
+
+  @Get('channels/:id/threads')
+  @ApiOperation({ summary: 'List threads in a channel' })
+  async getThreads(
+    @Param('id') channelId: string,
+    @CurrentUser() _user: AuthUser,
+  ) {
+    return this.channelsService.getThreads(channelId);
+  }
 }

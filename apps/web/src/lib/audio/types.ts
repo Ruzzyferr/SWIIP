@@ -68,6 +68,12 @@ export const AUDIO_MODE_POLICY: Record<AudioPlatform, Record<AudioMode, AudioCon
       autoGainControl: false,
       rationale: 'Browser Enhanced: NS off because RNNoise handles NS — stacking browser NS causes artifacts. AGC off: browser AGC runs at getUserMedia time (before RNNoise), distorting the signal RNNoise depends on for noise detection. Low-voice issue compensated by RNNOISE_COMPENSATION_GAIN. EC stays on because RNNoise does NOT handle echo cancellation.',
     },
+    music: {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      rationale: 'Music/Hi-Fi mode: all processing disabled for maximum audio fidelity. Intended for instruments, music playback, or studio microphones.',
+    },
   },
   desktop: {
     raw: {
@@ -87,6 +93,12 @@ export const AUDIO_MODE_POLICY: Record<AudioPlatform, Record<AudioMode, AudioCon
       noiseSuppression: false,
       autoGainControl: false,
       rationale: 'Desktop Enhanced: NS off because RNNoise handles NS. AGC off: browser AGC runs at getUserMedia time (before RNNoise), distorting the signal RNNoise depends on for noise detection. Low-voice issue compensated by RNNOISE_COMPENSATION_GAIN. EC on because RNNoise does NOT handle echo cancellation.',
+    },
+    music: {
+      echoCancellation: false,
+      noiseSuppression: false,
+      autoGainControl: false,
+      rationale: 'Music/Hi-Fi mode: all processing disabled for maximum audio fidelity. Intended for instruments, music playback, or studio microphones.',
     },
   },
 };
@@ -250,6 +262,11 @@ export interface AudioPipelineStrategy {
    * Applied on top of any processor-specific compensation gain.
    */
   setInputGain?(normalized: number): void;
+
+  /**
+   * Set RNNoise compensation gain (1.0–4.0).
+   */
+  setRnnoiseGain?(gain: number): void;
 
   /**
    * Clean up all resources (AudioContext, worklet nodes, etc.)

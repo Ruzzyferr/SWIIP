@@ -118,6 +118,10 @@ export async function joinGuildByInvite(code: string): Promise<GuildPayload> {
   return res.data;
 }
 
+export async function joinGuild(guildId: string): Promise<void> {
+  await apiClient.post(`/guilds/${guildId}/join`);
+}
+
 export async function resolveInvite(code: string): Promise<{
   code: string;
   guild: { id: string; name: string; icon?: string; memberCount: number; description?: string };
@@ -152,6 +156,92 @@ export async function updateMember(
   const res = await apiClient.patch<MemberPayload>(
     `/guilds/${guildId}/members/${userId}`,
     data
+  );
+  return res.data;
+}
+
+// Scheduled Events
+export interface ScheduledEvent {
+  id: string;
+  guildId: string;
+  channelId: string | null;
+  creatorId: string;
+  name: string;
+  description: string | null;
+  startTime: string;
+  endTime: string | null;
+  location: string | null;
+  status: string;
+  interestedCount: number;
+  createdAt: string;
+}
+
+export async function getGuildEvents(guildId: string): Promise<ScheduledEvent[]> {
+  const res = await apiClient.get<ScheduledEvent[]>(`/guilds/${guildId}/events`);
+  return res.data;
+}
+
+export async function createGuildEvent(
+  guildId: string,
+  data: { name: string; description?: string; startTime: string; endTime?: string; location?: string; channelId?: string },
+): Promise<ScheduledEvent> {
+  const res = await apiClient.post<ScheduledEvent>(`/guilds/${guildId}/events`, data);
+  return res.data;
+}
+
+export async function deleteGuildEvent(guildId: string, eventId: string): Promise<void> {
+  await apiClient.delete(`/guilds/${guildId}/events/${eventId}`);
+}
+
+export async function markEventInterested(guildId: string, eventId: string): Promise<void> {
+  await apiClient.post(`/guilds/${guildId}/events/${eventId}/interested`);
+}
+
+// Welcome Screen
+export interface WelcomeScreenChannel {
+  channelId: string;
+  description: string;
+  emoji?: string;
+}
+
+export interface WelcomeScreen {
+  enabled: boolean;
+  description: string | null;
+  channels: WelcomeScreenChannel[];
+}
+
+export async function getWelcomeScreen(guildId: string): Promise<WelcomeScreen> {
+  const res = await apiClient.get<WelcomeScreen>(`/guilds/${guildId}/welcome-screen`);
+  return res.data;
+}
+
+export async function updateWelcomeScreen(
+  guildId: string,
+  data: WelcomeScreen,
+): Promise<WelcomeScreen> {
+  const res = await apiClient.patch<WelcomeScreen>(`/guilds/${guildId}/welcome-screen`, data);
+  return res.data;
+}
+
+export interface DiscoverGuild {
+  id: string;
+  name: string;
+  icon: string | null;
+  description: string | null;
+  memberCount: number;
+  vanityUrlCode: string | null;
+  splash: string | null;
+  joined: boolean;
+}
+
+export async function discoverGuilds(params?: {
+  search?: string;
+  limit?: number;
+  offset?: number;
+}): Promise<{ guilds: DiscoverGuild[]; total: number }> {
+  const res = await apiClient.get<{ guilds: DiscoverGuild[]; total: number }>(
+    '/guilds/discover',
+    { params },
   );
   return res.data;
 }

@@ -4,6 +4,8 @@ import type { DMChannelPayload } from '@constchat/protocol';
 
 interface DMsState {
   conversations: Record<string, DMChannelPayload>;
+  /** Tracks the last message read by the other participant(s) in each DM. */
+  recipientReadState: Record<string, string>; // dmId -> lastReadMessageId
   isLoaded: boolean;
 
   // Actions
@@ -11,11 +13,13 @@ interface DMsState {
   addConversation: (dm: DMChannelPayload) => void;
   removeConversation: (dmId: string) => void;
   updateConversation: (dmId: string, partial: Partial<DMChannelPayload>) => void;
+  setRecipientRead: (dmId: string, messageId: string) => void;
 }
 
 export const useDMsStore = create<DMsState>()(
   immer((set) => ({
     conversations: {},
+    recipientReadState: {},
     isLoaded: false,
 
     setConversations: (dms) =>
@@ -43,6 +47,11 @@ export const useDMsStore = create<DMsState>()(
         if (existing) {
           Object.assign(existing, partial);
         }
+      }),
+
+    setRecipientRead: (dmId, messageId) =>
+      set((state) => {
+        state.recipientReadState[dmId] = messageId;
       }),
   }))
 );

@@ -1,11 +1,17 @@
 import { apiClient } from './client';
 import type { UserPayload } from '@constchat/protocol';
 
+export interface ProfileLink {
+  label: string;
+  url: string;
+}
+
 export interface UpdateProfileData {
   globalName?: string;
   bio?: string;
   accentColor?: number;
   locale?: string;
+  profileLinks?: ProfileLink[];
 }
 
 export async function updateProfile(data: UpdateProfileData): Promise<UserPayload> {
@@ -42,5 +48,27 @@ export async function uploadBanner(file: File): Promise<UploadResult> {
   const res = await apiClient.post<UploadResult>('/uploads/banners', form, {
     headers: { 'Content-Type': 'multipart/form-data' },
   });
+  return res.data;
+}
+
+export interface UserSettings {
+  desktopNotifications?: boolean;
+  notificationSounds?: boolean;
+  messageSounds?: boolean;
+  mentionEveryone?: boolean;
+  mentionRoles?: boolean;
+  flashTaskbar?: boolean;
+  badgeCount?: boolean;
+  muteAllServers?: boolean;
+  [key: string]: unknown;
+}
+
+export async function getUserSettings(): Promise<UserSettings> {
+  const res = await apiClient.get<UserSettings>('/users/@me/settings');
+  return res.data;
+}
+
+export async function updateUserSettings(patch: Partial<UserSettings>): Promise<UserSettings> {
+  const res = await apiClient.patch<UserSettings>('/users/@me/settings', patch);
   return res.data;
 }

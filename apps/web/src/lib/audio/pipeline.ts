@@ -182,6 +182,13 @@ export class AudioPipeline {
   }
 
   /**
+   * Set RNNoise compensation gain (1.0–4.0). Delegates to strategy.
+   */
+  setRnnoiseGain(gain: number): void {
+    this.strategy.setRnnoiseGain?.(gain);
+  }
+
+  /**
    * Clean up all resources.
    */
   dispose(): void {

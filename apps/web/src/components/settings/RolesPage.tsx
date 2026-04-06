@@ -78,6 +78,7 @@ function RoleEditor({
   const [color, setColor] = useState(role.color);
   const [hoist, setHoist] = useState(role.hoist);
   const [mentionable, setMentionable] = useState(role.mentionable);
+  const [selfAssignable, setSelfAssignable] = useState((role as any).selfAssignable ?? false);
   const [permissions, setPermissions] = useState(role.permissions);
   const [saving, setSaving] = useState(false);
   const [showPerms, setShowPerms] = useState(false);
@@ -88,6 +89,7 @@ function RoleEditor({
     color !== role.color ||
     hoist !== role.hoist ||
     mentionable !== role.mentionable ||
+    selfAssignable !== ((role as any).selfAssignable ?? false) ||
     permissions !== role.permissions;
 
   const isEveryone = role.name === '@everyone';
@@ -100,8 +102,9 @@ function RoleEditor({
         color,
         hoist,
         mentionable,
+        selfAssignable,
         permissions,
-      });
+      } as any);
       onSaved(updated);
       toastSuccess('Role updated');
     } catch (err: any) {
@@ -211,6 +214,29 @@ function RoleEditor({
               style={{ transform: mentionable ? 'translateX(22px)' : 'translateX(2px)' }} />
           </button>
         </div>
+
+        {/* Self-assignable */}
+        <div className="flex items-center justify-between py-3">
+          <div>
+            <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+              Self-assignable
+            </p>
+            <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+              Members can pick this role themselves from the role picker
+            </p>
+          </div>
+          <button
+            onClick={() => setSelfAssignable(!selfAssignable)}
+            className="relative w-11 h-6 rounded-full transition-colors duration-200"
+            style={{
+              background: selfAssignable ? 'var(--color-accent-primary)' : 'var(--color-surface-overlay)',
+              border: selfAssignable ? 'none' : '1px solid var(--color-border-default)',
+            }}
+          >
+            <div className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow-sm transition-transform duration-200"
+              style={{ transform: selfAssignable ? 'translateX(22px)' : 'translateX(2px)' }} />
+          </button>
+        </div>
       </div>
 
       {/* Permissions */}
@@ -266,6 +292,7 @@ function RoleEditor({
               setColor(role.color);
               setHoist(role.hoist);
               setMentionable(role.mentionable);
+              setSelfAssignable((role as any).selfAssignable ?? false);
               setPermissions(role.permissions);
             }}>
               Reset

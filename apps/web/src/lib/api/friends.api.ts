@@ -15,7 +15,10 @@ export interface RelationshipPayload {
 }
 
 export interface UserProfile {
-  user: UserPayload;
+  user: UserPayload & {
+    profileLinks?: { label: string; url: string }[];
+    createdAt?: string;
+  };
   relationshipType: RelationshipType | null;
   mutualGuildCount: number;
 }
@@ -54,6 +57,35 @@ export async function unblockUser(targetId: string): Promise<void> {
   await apiClient.delete(`/users/@me/relationships/${targetId}`, {
     params: { type: 'unblock' },
   });
+}
+
+export interface FriendSuggestion {
+  id: string;
+  username: string;
+  discriminator: string;
+  globalName: string | null;
+  avatar: string | null;
+  mutualGuildCount: number;
+}
+
+export async function getFriendSuggestions(): Promise<FriendSuggestion[]> {
+  const res = await apiClient.get<FriendSuggestion[]>('/users/@me/friend-suggestions');
+  return res.data;
+}
+
+// User Notes
+export async function getUserNote(userId: string): Promise<{ content: string }> {
+  const res = await apiClient.get<{ content: string }>(`/users/${userId}/note`);
+  return res.data;
+}
+
+export async function setUserNote(userId: string, content: string): Promise<{ content: string }> {
+  const res = await apiClient.put<{ content: string }>(`/users/${userId}/note`, { content });
+  return res.data;
+}
+
+export async function deleteUserNote(userId: string): Promise<void> {
+  await apiClient.delete(`/users/${userId}/note`);
 }
 
 export async function getUserProfile(userId: string): Promise<UserProfile> {

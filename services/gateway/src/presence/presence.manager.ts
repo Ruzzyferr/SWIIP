@@ -12,6 +12,8 @@ export interface PresenceData {
   userId: string;
   status: PresenceStatus;
   customStatus?: string;
+  customStatusEmoji?: string;
+  customStatusExpiresAt?: string;
   activities?: ActivityPayload[];
   /** Unix ms timestamp of last update. */
   updatedAt: number;
@@ -36,12 +38,16 @@ export class PresenceManager {
     guildIds: string[],
     customStatus?: string,
     activities?: ActivityPayload[],
+    customStatusEmoji?: string,
+    customStatusExpiresAt?: string,
   ): Promise<void> {
     const key = `swiip:presence:${userId}`;
     const data: PresenceData = {
       userId,
       status,
       customStatus,
+      customStatusEmoji,
+      customStatusExpiresAt,
       activities,
       updatedAt: Date.now(),
     };
@@ -51,6 +57,8 @@ export class PresenceManager {
       userId,
       status,
       customStatus: customStatus ?? '',
+      customStatusEmoji: customStatusEmoji ?? '',
+      customStatusExpiresAt: customStatusExpiresAt ?? '',
       activities: JSON.stringify(activities ?? []),
       updatedAt: String(data.updatedAt),
     });
@@ -65,6 +73,8 @@ export class PresenceManager {
         userId,
         status,
         customStatus,
+        customStatusEmoji,
+        customStatusExpiresAt,
         activities,
       },
       s: 0,
@@ -245,6 +255,8 @@ export class PresenceManager {
       userId: raw['userId'] ?? '',
       status: (raw['status'] as PresenceStatus) ?? 'offline',
       customStatus: raw['customStatus'] || undefined,
+      customStatusEmoji: raw['customStatusEmoji'] || undefined,
+      customStatusExpiresAt: raw['customStatusExpiresAt'] || undefined,
       activities: activities && activities.length > 0 ? activities : undefined,
       updatedAt: raw['updatedAt'] ? parseInt(raw['updatedAt'], 10) : 0,
     };

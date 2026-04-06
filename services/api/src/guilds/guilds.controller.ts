@@ -40,6 +40,17 @@ export class GuildsController {
     return this.guildsService.create(user.userId, dto);
   }
 
+  @Get('discover')
+  @ApiOperation({ summary: 'Browse discoverable guilds' })
+  async discover(
+    @CurrentUser() user: AuthUser,
+    @Query('search') search?: string,
+    @Query('limit') limit?: number,
+    @Query('offset') offset?: number,
+  ) {
+    return this.guildsService.discoverGuilds(user.userId, { search, limit: limit ?? 20, offset: offset ?? 0 });
+  }
+
   @Get(':id')
   @ApiOperation({ summary: 'Get guild by ID' })
   async findOne(@Param('id') id: string, @CurrentUser() user: AuthUser) {
@@ -155,6 +166,13 @@ export class GuildsController {
 
   // GET :id/invites is handled by InvitesController
 
+  @Post(':id/join')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Join a discoverable guild' })
+  async joinDiscoverable(@Param('id') id: string, @CurrentUser() user: AuthUser) {
+    await this.guildsService.joinDiscoverable(id, user.userId);
+  }
+
   @Post(':id/leave')
   @HttpCode(HttpStatus.NO_CONTENT)
   @ApiOperation({ summary: 'Leave a guild' })
@@ -170,5 +188,71 @@ export class GuildsController {
     @Body() body: { newOwnerId: string },
   ) {
     return this.guildsService.transferOwnership(id, user.userId, body.newOwnerId);
+  }
+
+  @Get(':id/welcome-screen')
+  @ApiOperation({ summary: 'Get guild welcome screen' })
+  async getWelcomeScreen(@Param('id') id: string) {
+    return this.guildsService.getWelcomeScreen(id);
+  }
+
+  @Patch(':id/welcome-screen')
+  @UseGuards(GuildPermissionGuard)
+  @RequirePermissions(Permissions.MANAGE_GUILD)
+  @ApiOperation({ summary: 'Update guild welcome screen' })
+  async updateWelcomeScreen(
+    @Param('id') id: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: { enabled: boolean; description?: string; channels?: { channelId: string; description: string; emoji?: string }[] },
+  ) {
+    return this.guildsService.updateWelcomeScreen(id, user.userId, body);
+  }
+
+  @Get(':id/events')
+  @ApiOperation({ summary: 'List scheduled events for a guild' })
+  async getEvents(@Param('id') guildId: string) {
+    return this.guildsService.getEvents(guildId);
+  }
+
+  @Post(':id/events')
+  @HttpCode(HttpStatus.CREATED)
+  @ApiOperation({ summary: 'Create a scheduled event' })
+  async createEvent(
+    @Param('id') guildId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: { name: string; description?: string; startTime: string; endTime?: string; location?: string; channelId?: string },
+  ) {
+    return this.guildsService.createEvent(guildId, user.userId, body);
+  }
+
+  @Patch(':id/events/:eventId')
+  @ApiOperation({ summary: 'Update a scheduled event' })
+  async updateEvent(
+    @Param('id') guildId: string,
+    @Param('eventId') eventId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: { name?: string; description?: string; startTime?: string; endTime?: string; location?: string; status?: string },
+  ) {
+    return this.guildsService.updateEvent(eventId, guildId, user.userId, body);
+  }
+
+  @Delete(':id/events/:eventId')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete a scheduled event' })
+  async deleteEvent(
+    @Param('id') guildId: string,
+    @Param('eventId') eventId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    await this.guildsService.deleteEvent(eventId, guildId, user.userId);
+  }
+
+  @Post(':id/events/:eventId/interested')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Mark interest in an event' })
+  async markInterested(
+    @Param('eventId') eventId: string,
+  ) {
+    await this.guildsService.markEventInterested(eventId);
   }
 }

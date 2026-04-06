@@ -10,10 +10,12 @@ export function updateUserStatus(
   userId: string,
   status: PresenceStatus,
   customStatus?: string,
+  customStatusEmoji?: string,
+  customStatusExpiresAt?: string,
 ): void {
   const gw = getGatewayClient();
-  gw.updatePresence(status, [], customStatus);
-  usePresenceStore.getState().setPresence(userId, { status, customStatus });
+  gw.updatePresence(status, [], customStatus, customStatusEmoji, customStatusExpiresAt);
+  usePresenceStore.getState().setPresence(userId, { status, customStatus, customStatusEmoji, customStatusExpiresAt });
 }
 
 /** Clear-after durations in milliseconds. */

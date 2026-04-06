@@ -113,6 +113,34 @@ export class RolesController {
     await this.rolesService.removeMemberRole(guildId, memberId, roleId, actor.userId);
   }
 
+  @Get('self-assignable')
+  @ApiOperation({ summary: 'Get self-assignable roles in a guild' })
+  async getSelfAssignable(@Param('guildId') guildId: string) {
+    return this.rolesService.getSelfAssignableRoles(guildId);
+  }
+
+  @Put(':roleId/self-assign')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Self-assign a role' })
+  async selfAssign(
+    @Param('guildId') guildId: string,
+    @Param('roleId') roleId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    await this.rolesService.selfAssignRole(guildId, user.userId, roleId);
+  }
+
+  @Delete(':roleId/self-assign')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Remove a self-assigned role' })
+  async selfRemove(
+    @Param('guildId') guildId: string,
+    @Param('roleId') roleId: string,
+    @CurrentUser() user: AuthUser,
+  ) {
+    await this.rolesService.selfRemoveRole(guildId, user.userId, roleId);
+  }
+
   @Get('permissions')
   @ApiOperation({ summary: 'Compute effective permissions for current user' })
   async getPermissions(

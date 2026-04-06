@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Bell, BellOff, Volume2, Monitor, MessageSquare } from 'lucide-react';
+import { getUserSettings, updateUserSettings, type UserSettings } from '@/lib/api/users.api';
 
 function ToggleRow({
   icon: Icon,
@@ -52,15 +53,43 @@ function ToggleRow({
   );
 }
 
+const DEFAULTS: UserSettings = {
+  desktopNotifications: true,
+  notificationSounds: true,
+  messageSounds: true,
+  mentionEveryone: true,
+  mentionRoles: true,
+  flashTaskbar: true,
+  badgeCount: true,
+  muteAllServers: false,
+};
+
 export function NotificationsPage() {
-  const [desktopNotifs, setDesktopNotifs] = useState(true);
-  const [sounds, setSounds] = useState(true);
-  const [messageSounds, setMessageSounds] = useState(true);
-  const [mentionEveryone, setMentionEveryone] = useState(true);
-  const [mentionRoles, setMentionRoles] = useState(true);
-  const [flashTaskbar, setFlashTaskbar] = useState(true);
-  const [badgeCount, setBadgeCount] = useState(true);
-  const [muteAllServers, setMuteAllServers] = useState(false);
+  const [settings, setSettings] = useState<UserSettings>(DEFAULTS);
+  const [loaded, setLoaded] = useState(false);
+
+  useEffect(() => {
+    getUserSettings()
+      .then((s) => {
+        setSettings({ ...DEFAULTS, ...s });
+        setLoaded(true);
+      })
+      .catch(() => setLoaded(true));
+  }, []);
+
+  const update = useCallback((patch: Partial<UserSettings>) => {
+    setSettings((prev) => ({ ...prev, ...patch }));
+    updateUserSettings(patch).catch(() => {});
+  }, []);
+
+  const desktopNotifs = settings.desktopNotifications ?? true;
+  const sounds = settings.notificationSounds ?? true;
+  const messageSounds = settings.messageSounds ?? true;
+  const mentionEveryone = settings.mentionEveryone ?? true;
+  const mentionRoles = settings.mentionRoles ?? true;
+  const flashTaskbar = settings.flashTaskbar ?? true;
+  const badgeCount = settings.badgeCount ?? true;
+  const muteAllServers = settings.muteAllServers ?? false;
 
   return (
     <div className="space-y-8">
@@ -90,7 +119,7 @@ export function NotificationsPage() {
             label="Enable desktop notifications"
             description="Show notifications on your desktop when you receive a message."
             value={desktopNotifs}
-            onChange={setDesktopNotifs}
+            onChange={(v) => update({ desktopNotifications: v })}
           />
 
           <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />
@@ -100,7 +129,7 @@ export function NotificationsPage() {
             label="Flash taskbar"
             description="Flash the app icon in the taskbar when you receive a notification."
             value={flashTaskbar}
-            onChange={setFlashTaskbar}
+            onChange={(v) => update({ flashTaskbar: v })}
           />
 
           <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />
@@ -110,7 +139,7 @@ export function NotificationsPage() {
             label="Unread message badge"
             description="Show unread message count badge on the app icon."
             value={badgeCount}
-            onChange={setBadgeCount}
+            onChange={(v) => update({ badgeCount: v })}
           />
         </div>
       </section>
@@ -134,7 +163,7 @@ export function NotificationsPage() {
             label="Notification sounds"
             description="Play a sound when you receive a notification."
             value={sounds}
-            onChange={setSounds}
+            onChange={(v) => update({ notificationSounds: v })}
           />
 
           <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />
@@ -144,7 +173,7 @@ export function NotificationsPage() {
             label="Message sounds"
             description="Play a sound for every incoming message in focused channels."
             value={messageSounds}
-            onChange={setMessageSounds}
+            onChange={(v) => update({ messageSounds: v })}
           />
         </div>
       </section>
@@ -168,7 +197,7 @@ export function NotificationsPage() {
             label="Suppress @everyone and @here"
             description="Prevent notifications from @everyone and @here mentions."
             value={!mentionEveryone}
-            onChange={(v) => setMentionEveryone(!v)}
+            onChange={(v) => update({ mentionEveryone: !v })}
           />
 
           <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />
@@ -178,7 +207,7 @@ export function NotificationsPage() {
             label="Suppress role mentions"
             description="Prevent notifications from role mentions."
             value={!mentionRoles}
-            onChange={(v) => setMentionRoles(!v)}
+            onChange={(v) => update({ mentionRoles: !v })}
           />
         </div>
       </section>
@@ -202,7 +231,7 @@ export function NotificationsPage() {
             label="Mute all servers"
             description="Disable all server notifications. You will still see unread indicators."
             value={muteAllServers}
-            onChange={setMuteAllServers}
+            onChange={(v) => update({ muteAllServers: v })}
           />
         </div>
         <p className="text-xs mt-2 px-1" style={{ color: 'var(--color-text-tertiary)' }}>

@@ -79,6 +79,7 @@ export function useLiveKitRoom() {
   const outputVolume = useVoiceStore((s) => s.settings.outputVolume);
   const inputVolume = useVoiceStore((s) => s.settings.inputVolume);
   const audioMode = useVoiceStore((s) => s.settings.audioMode);
+  const rnnoiseGain = useVoiceStore((s) => s.settings.rnnoiseGain);
   const setConnectionState = useVoiceStore((s) => s.setConnectionState);
   const setSpeaking = useVoiceStore((s) => s.setSpeaking);
   const setParticipant = useVoiceStore((s) => s.setParticipant);
@@ -547,37 +548,68 @@ export function useLiveKitRoom() {
       }
     };
 
+    // Hysteresis for connection quality: require 2 consecutive low readings before
+    // downgrading, but upgrade immediately. Prevents flickering quality indicator.
+    let lastAppliedQuality = 3; // Start at EXCELLENT
+    let consecutiveLowCount = 0;
+    let lastLowQuality = 0;
+
     room.on(RoomEvent.ConnectionQualityChanged, (quality, participant) => {
       if (!participant.isLocal) return;
       // ConnectionQuality is a string enum in livekit-client v2+: 'excellent'|'good'|'poor'|'lost'|'unknown'
       const q = qualityToNumber(quality as unknown as string);
-      setConnectionQuality(q);
 
-      // Adaptive video: reduce resolution on poor connection (adaptive quality)
-      const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
-      if (camPub?.track) {
-        if (q <= 1) {
-          // POOR or LOST → drop to 360p, low framerate
-          camPub.track.mediaStreamTrack.applyConstraints({
-            width: { ideal: 640 },
-            height: { ideal: 360 },
-            frameRate: { ideal: 15 },
-          }).catch(() => {});
-        } else if (q === 2) {
-          // GOOD → 720p
-          camPub.track.mediaStreamTrack.applyConstraints({
-            width: { ideal: 1280 },
-            height: { ideal: 720 },
-            frameRate: { ideal: 30 },
-          }).catch(() => {});
+      // Determine effective quality with hysteresis
+      let effectiveQ = q;
+      if (q < lastAppliedQuality) {
+        // Downgrade: require 2 consecutive low readings
+        if (q === lastLowQuality) {
+          consecutiveLowCount++;
         } else {
-          // EXCELLENT → full 1080p
-          camPub.track.mediaStreamTrack.applyConstraints({
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
-            frameRate: { ideal: 30 },
-          }).catch(() => {});
+          consecutiveLowCount = 1;
+          lastLowQuality = q;
         }
+        if (consecutiveLowCount < 2) {
+          effectiveQ = lastAppliedQuality; // Keep current quality
+        }
+      } else {
+        // Upgrade: apply immediately
+        consecutiveLowCount = 0;
+      }
+
+      if (effectiveQ !== lastAppliedQuality) {
+        lastAppliedQuality = effectiveQ;
+        setConnectionQuality(effectiveQ);
+
+        // Adaptive video: reduce resolution on poor connection (adaptive quality)
+        const camPub = room.localParticipant.getTrackPublication(Track.Source.Camera);
+        if (camPub?.track) {
+          if (effectiveQ <= 1) {
+            // POOR or LOST → drop to 360p, low framerate
+            camPub.track.mediaStreamTrack.applyConstraints({
+              width: { ideal: 640 },
+              height: { ideal: 360 },
+              frameRate: { ideal: 15 },
+            }).catch(() => {});
+          } else if (effectiveQ === 2) {
+            // GOOD → 720p
+            camPub.track.mediaStreamTrack.applyConstraints({
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              frameRate: { ideal: 30 },
+            }).catch(() => {});
+          } else {
+            // EXCELLENT → full 1080p
+            camPub.track.mediaStreamTrack.applyConstraints({
+              width: { ideal: 1920 },
+              height: { ideal: 1080 },
+              frameRate: { ideal: 30 },
+            }).catch(() => {});
+          }
+        }
+      } else {
+        // Still update store even if not changing video constraints
+        setConnectionQuality(q);
       }
     });
 
@@ -790,6 +822,21 @@ export function useLiveKitRoom() {
     // LiveKit server provides STUN + TURN servers via the token's ICE config.
     // Overriding iceServers here would REPLACE LiveKit's built-in TURN servers,
     // causing media path failures behind symmetric NAT or firewalls.
+
+    // Validate saved input device still exists — fall back to default if removed
+    navigator.mediaDevices.enumerateDevices().then((devices) => {
+      const savedId = useVoiceStore.getState().settings.inputDeviceId;
+      if (savedId && savedId !== 'default') {
+        const deviceExists = devices.some((d) => d.deviceId === savedId && d.kind === 'audioinput');
+        if (!deviceExists) {
+          console.warn('[LiveKit] Saved input device not found, falling back to default');
+          useVoiceStore.getState().updateSettings({ inputDeviceId: 'default' });
+        }
+      }
+    }).catch(() => {
+      // Non-fatal — proceed with current settings
+    });
+
     setConnectionState('connecting');
     room
       .connect(livekitUrl, livekitToken)
@@ -912,6 +959,11 @@ export function useLiveKitRoom() {
       console.debug('[LiveKit] Cleaning up room');
       clearInterval(healthCheckInterval);
       stopLocalVAD();
+      // Persist pending audio mode change so it's applied on next join
+      if (pendingModeRef.current) {
+        useVoiceStore.getState().updateSettings({ audioMode: pendingModeRef.current });
+        pendingModeRef.current = null;
+      }
       // Dispose audio pipeline first
       if (pipelineRef.current) {
         pipelineRef.current.dispose();
@@ -1101,6 +1153,13 @@ export function useLiveKitRoom() {
     if (!pipeline) return;
     pipeline.setInputGain(inputVolume / 100);
   }, [inputVolume]);
+
+  // Sync RNNoise compensation gain to the active processor
+  useEffect(() => {
+    const pipeline = pipelineRef.current;
+    if (!pipeline || !rnnoiseGain) return;
+    pipeline.setRnnoiseGain?.(rnnoiseGain);
+  }, [rnnoiseGain]);
 
   // Sync camera enabled state to LiveKit
   useEffect(() => {

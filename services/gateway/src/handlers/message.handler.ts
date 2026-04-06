@@ -140,7 +140,7 @@ export async function handleMessage(
           log.warn({ sessionId: session.id }, 'PRESENCE_UPDATE from unauthenticated session');
           return;
         }
-        const d = envelope.d as { status: PresenceStatus; customStatus?: string };
+        const d = envelope.d as { status: PresenceStatus; customStatus?: string; customStatusEmoji?: string; customStatusExpiresAt?: string };
         if (!d || !d.status) return;
         await handlePresenceUpdate(ws, d, context);
         break;
@@ -202,7 +202,7 @@ function handleHeartbeat(ws: UWSWebSocket): void {
  */
 async function handlePresenceUpdate(
   ws: UWSWebSocket,
-  data: { status: PresenceStatus; customStatus?: string },
+  data: { status: PresenceStatus; customStatus?: string; customStatusEmoji?: string; customStatusExpiresAt?: string },
   context: GatewayContext,
 ): Promise<void> {
   const session = ws.getUserData();
@@ -219,11 +219,15 @@ async function handlePresenceUpdate(
 
   // Broadcast 'offline' to others when invisible, but keep real status internally
   const broadcastStatus = data.status === 'invisible' ? 'offline' : data.status;
+  const isInvisible = data.status === 'invisible';
   await context.presenceManager.updatePresence(
     userId,
     broadcastStatus,
     guildIds,
-    data.status === 'invisible' ? undefined : data.customStatus,
+    isInvisible ? undefined : data.customStatus,
+    undefined, // activities
+    isInvisible ? undefined : data.customStatusEmoji,
+    isInvisible ? undefined : data.customStatusExpiresAt,
   );
 
   // Store actual status (including invisible) for the user's own awareness
@@ -235,6 +239,8 @@ async function handlePresenceUpdate(
   forwardToApi(context, `/internal/users/${userId}/presence`, {
     status: data.status,
     customStatusText: data.customStatus,
+    customStatusEmoji: data.customStatusEmoji,
+    customStatusExpiresAt: data.customStatusExpiresAt,
   }).catch(() => {});
 }
 
@@ -266,8 +272,10 @@ async function handleVoiceStateUpdate(
         state.selfVideo = selfVideo;
         await redis.hset(`swiip:voice_states:${guildId}`, userId, JSON.stringify(state));
 
-        // Broadcast to guild members
-        await context.pubsub.publish(`guild:${guildId}`, {
+        // Broadcast to guild members or DM topic
+        const isDM = guildId === 'dm';
+        const topic = isDM && session.voiceChannelId ? `dm:${session.voiceChannelId}` : `guild:${guildId}`;
+        await context.pubsub.publish(topic, {
           op: OpCode.DISPATCH,
           t: ServerEventType.VOICE_STATE_UPDATE,
           d: state,
@@ -443,11 +451,13 @@ async function handleClientDispatch(
           sendVoiceError('Channel not found');
           return;
         }
-        const channelData = (await channelResponse.json()) as { guildId: string };
-        log.info({ channelId: d.channelId, guildId: channelData.guildId }, 'VOICE_JOIN: channel resolved');
+        const channelData = (await channelResponse.json()) as { guildId: string | null };
+        const isDMCall = !channelData.guildId;
+        const effectiveGuildId = channelData.guildId ?? 'dm';
+        log.info({ channelId: d.channelId, guildId: effectiveGuildId, isDMCall }, 'VOICE_JOIN: channel resolved');
 
         // 2. Get LiveKit token from media-signalling
-        const joinUrl = `${mediaBaseUrl}/rooms/${channelData.guildId}/${d.channelId}/join`;
+        const joinUrl = `${mediaBaseUrl}/rooms/${effectiveGuildId}/${d.channelId}/join`;
         log.info({ url: joinUrl }, 'VOICE_JOIN: requesting LiveKit token');
         const joinResponse = await fetch(joinUrl, {
           method: 'POST',
@@ -474,7 +484,7 @@ async function handleClientDispatch(
         };
 
         log.info(
-          { userId: session.userId, channelId: d.channelId, guildId: channelData.guildId, endpoint: joinResult.endpoint },
+          { userId: session.userId, channelId: d.channelId, guildId: effectiveGuildId, endpoint: joinResult.endpoint },
           'VOICE_JOIN: token issued, sending VOICE_SERVER_UPDATE',
         );
 
@@ -482,7 +492,7 @@ async function handleClientDispatch(
         const voiceState = {
           userId: session.userId,
           channelId: d.channelId,
-          guildId: channelData.guildId,
+          guildId: effectiveGuildId,
           selfMute: false,
           selfDeaf: false,
           selfVideo: false,
@@ -492,18 +502,19 @@ async function handleClientDispatch(
           speaking: false,
         };
         // Track voice channel on session
-        session.voiceGuildId = channelData.guildId;
+        session.voiceGuildId = effectiveGuildId;
         session.voiceChannelId = d.channelId;
 
         const redis = context.pubsub.getPublisher();
         await redis.hset(
-          `swiip:voice_states:${channelData.guildId}`,
+          `swiip:voice_states:${effectiveGuildId}`,
           session.userId,
           JSON.stringify(voiceState),
         );
 
-        // 4. Broadcast VOICE_STATE_UPDATE to guild
-        await context.pubsub.publish(`guild:${channelData.guildId}`, {
+        // 4. Broadcast VOICE_STATE_UPDATE to guild or DM topic
+        const broadcastTopic = isDMCall ? `dm:${d.channelId}` : `guild:${effectiveGuildId}`;
+        await context.pubsub.publish(broadcastTopic, {
           op: OpCode.DISPATCH,
           t: ServerEventType.VOICE_STATE_UPDATE,
           d: voiceState,
@@ -514,7 +525,7 @@ async function handleClientDispatch(
             op: OpCode.DISPATCH,
             t: ServerEventType.VOICE_SERVER_UPDATE,
             d: {
-              guildId: channelData.guildId,
+              guildId: effectiveGuildId,
               token: joinResult.token,
               endpoint: joinResult.endpoint,
             },
@@ -535,6 +546,8 @@ async function handleClientDispatch(
       // We just publish the intent so the gateway can optimistically update.
       const userId = session.userId!;
       const voiceGuildId = session.voiceGuildId;
+      const voiceChannelId = session.voiceChannelId;
+      const isDMLeave = voiceGuildId === 'dm';
 
       // Clear session voice tracking
       session.voiceGuildId = null;
@@ -545,7 +558,8 @@ async function handleClientDispatch(
           const leaveRedis = context.pubsub.getPublisher();
           await leaveRedis.hdel(`swiip:voice_states:${voiceGuildId}`, userId);
 
-          await context.pubsub.publish(`guild:${voiceGuildId}`, {
+          const leaveTopic = isDMLeave && voiceChannelId ? `dm:${voiceChannelId}` : `guild:${voiceGuildId}`;
+          await context.pubsub.publish(leaveTopic, {
             op: OpCode.DISPATCH,
             t: ServerEventType.VOICE_STATE_UPDATE,
             d: {
@@ -584,7 +598,9 @@ async function handleClientDispatch(
           await redis.hset(`swiip:voice_states:${guildId}`, userId, JSON.stringify(state));
         }
 
-        await context.pubsub.publish(`guild:${guildId}`, {
+        const ssIsDM = guildId === 'dm';
+        const ssTopic = ssIsDM ? `dm:${d.channelId}` : `guild:${guildId}`;
+        await context.pubsub.publish(ssTopic, {
           op: OpCode.DISPATCH,
           t: ServerEventType.SCREEN_SHARE_STARTED,
           d: {
@@ -615,7 +631,9 @@ async function handleClientDispatch(
           await redis.hset(`swiip:voice_states:${guildId}`, userId, JSON.stringify(state));
         }
 
-        await context.pubsub.publish(`guild:${guildId}`, {
+        const stopIsDM = guildId === 'dm';
+        const stopTopic = stopIsDM && channelId ? `dm:${channelId}` : `guild:${guildId}`;
+        await context.pubsub.publish(stopTopic, {
           op: OpCode.DISPATCH,
           t: ServerEventType.SCREEN_SHARE_STOPPED,
           d: {

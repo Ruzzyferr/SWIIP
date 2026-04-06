@@ -37,9 +37,19 @@ export class RnnoiseManager {
   private lastFailure: RnnoiseFailure | null = null;
   private platform: AudioPlatform;
   private activeProcessor: RnnoiseProcessor | null = null;
+  private compensationGain = 2.2;
 
   constructor(platform: AudioPlatform) {
     this.platform = platform;
+  }
+
+  /**
+   * Set the compensation gain used when creating new processors.
+   * Also updates the active processor if one exists.
+   */
+  setCompensationGain(gain: number): void {
+    this.compensationGain = Math.max(1.0, Math.min(4.0, gain));
+    this.activeProcessor?.setCompensationGain(this.compensationGain);
   }
 
   getState(): RnnoiseManagerState {
@@ -103,9 +113,10 @@ export class RnnoiseManager {
   /**
    * Create a fresh RNNoise processor instance.
    * Returns a new RnnoiseProcessor that implements LiveKit's TrackProcessor.
+   * @param compensationGain Optional gain multiplier (1.0–4.0), default 2.2
    */
-  createProcessor(): RnnoiseProcessor {
-    return new RnnoiseProcessor();
+  createProcessor(compensationGain?: number): RnnoiseProcessor {
+    return new RnnoiseProcessor(compensationGain);
   }
 
   /**
@@ -125,7 +136,7 @@ export class RnnoiseManager {
 
     this.state = 'applying';
 
-    const processor = this.createProcessor();
+    const processor = this.createProcessor(this.compensationGain);
 
     // Apply with timeout
     const timeoutPromise = new Promise<false>((resolve) =>
@@ -133,35 +144,46 @@ export class RnnoiseManager {
     );
 
     const applyPromise = (async (): Promise<boolean> => {
-      try {
-        // Stop any existing processor first
-        await micPub.track!.stopProcessor().catch(() => {});
+      // Retry up to 3 times with exponential backoff (WASM fetch may fail transiently)
+      const maxRetries = 3;
+      for (let attempt = 1; attempt <= maxRetries; attempt++) {
+        try {
+          // Stop any existing processor first
+          await micPub.track!.stopProcessor().catch(() => {});
 
-        // Apply RNNoise processor — cast needed because LiveKit's generic
-        // TrackProcessor type is overly strict with ProcessorOptions variance
-        await (micPub.track as any).setProcessor(processor);
-        this.activeProcessor = processor;
+          // Apply RNNoise processor — cast needed because LiveKit's generic
+          // TrackProcessor type is overly strict with ProcessorOptions variance
+          await (micPub.track as any).setProcessor(processor);
+          this.activeProcessor = processor;
 
-        // Disable browser NS to prevent double-processing
-        await micPub.track!.mediaStreamTrack.applyConstraints({
-          noiseSuppression: false,
-          autoGainControl: false,
-        }).catch(() => {});
+          // Disable browser NS to prevent double-processing
+          await micPub.track!.mediaStreamTrack.applyConstraints({
+            noiseSuppression: false,
+            autoGainControl: false,
+          }).catch(() => {});
 
-        this.state = 'applied';
-        this.lastFailure = null;
+          this.state = 'applied';
+          this.lastFailure = null;
 
-        audioTelemetry.log({
-          type: 'processor',
-          platform: this.platform,
-          reason: 'RNNoise processor applied successfully',
-        });
+          audioTelemetry.log({
+            type: 'processor',
+            platform: this.platform,
+            reason: `RNNoise processor applied successfully (attempt ${attempt})`,
+          });
 
-        return true;
-      } catch (err) {
-        this.fail(NoiseFilterError.PROCESSOR_ERROR, err);
-        return false;
+          return true;
+        } catch (err) {
+          if (attempt < maxRetries) {
+            const delay = Math.pow(2, attempt - 1) * 1000; // 1s, 2s, 4s
+            console.warn(`[RnnoiseManager] Attempt ${attempt} failed, retrying in ${delay}ms`, err);
+            await new Promise((r) => setTimeout(r, delay));
+          } else {
+            this.fail(NoiseFilterError.PROCESSOR_ERROR, err);
+            return false;
+          }
+        }
       }
+      return false;
     })();
 
     const result = await Promise.race([applyPromise, timeoutPromise]);

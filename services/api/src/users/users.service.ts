@@ -24,6 +24,7 @@ export class UpdateProfileDto {
   @ApiPropertyOptional() @IsOptional() @IsString() @MaxLength(190) bio?: string;
   @ApiPropertyOptional() @IsOptional() @IsInt() @Min(0) @Max(16777215) accentColor?: number;
   @ApiPropertyOptional() @IsOptional() @IsString() locale?: string;
+  @ApiPropertyOptional() @IsOptional() profileLinks?: { label: string; url: string }[];
 }
 
 export class SendFriendRequestDto {
@@ -165,7 +166,44 @@ export class UsersService {
     });
   }
 
+  async getSettings(userId: string) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { settings: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+    return (user.settings as Record<string, unknown>) ?? {};
+  }
+
+  async updateSettings(userId: string, patch: Record<string, unknown>) {
+    const user = await this.prisma.user.findUnique({
+      where: { id: userId },
+      select: { settings: true },
+    });
+    if (!user) throw new NotFoundException('User not found');
+
+    const current = (user.settings as Record<string, unknown>) ?? {};
+    const merged = { ...current, ...patch };
+
+    await this.prisma.user.update({
+      where: { id: userId },
+      data: { settings: merged },
+    });
+
+    return merged;
+  }
+
   async updateProfile(userId: string, dto: UpdateProfileDto) {
+    // Handle profileLinks via settings JSON merge
+    if (dto.profileLinks !== undefined) {
+      const user = await this.prisma.user.findUnique({ where: { id: userId }, select: { settings: true } });
+      const current = (user?.settings as Record<string, unknown>) ?? {};
+      await this.prisma.user.update({
+        where: { id: userId },
+        data: { settings: { ...current, profileLinks: dto.profileLinks } as any },
+      });
+    }
+
     const updated = await this.prisma.user.update({
       where: { id: userId },
       data: {
@@ -223,6 +261,7 @@ export class UsersService {
       where: { id: userId },
       select: {
         ...this.PUBLIC_SELECT,
+        settings: true,
         presenceState: {
           select: {
             status: true,
@@ -242,9 +281,11 @@ export class UsersService {
     });
 
     const mutualGuilds = await this.getMutualGuilds(requesterId, userId);
+    const settings = (user.settings as Record<string, unknown>) ?? {};
+    const profileLinks = (settings.profileLinks as { label: string; url: string }[]) ?? [];
 
     return {
-      user: this.mapUserFields(user),
+      user: { ...this.mapUserFields(user), profileLinks },
       relationshipType: relationship?.type ?? null,
       mutualGuildCount: mutualGuilds.length,
     };
@@ -481,6 +522,82 @@ export class UsersService {
       where: { id: { in: mutualIds } },
       select: { id: true, name: true, icon: true, memberCount: true },
     });
+  }
+
+  async getFriendSuggestions(userId: string, limit = 10) {
+    // Get all guild IDs the user is in
+    const myGuilds = await this.prisma.guildMember.findMany({
+      where: { userId },
+      select: { guildId: true },
+    });
+    const guildIds = myGuilds.map((m) => m.guildId);
+    if (guildIds.length === 0) return [];
+
+    // Get existing relationships to exclude
+    const relationships = await this.prisma.userRelationship.findMany({
+      where: { requesterId: userId },
+      select: { targetId: true },
+    });
+    const excludeIds = new Set([userId, ...relationships.map((r) => r.targetId)]);
+
+    // Find users in the same guilds, ranked by number of mutual guilds
+    const coMembers = await this.prisma.guildMember.findMany({
+      where: {
+        guildId: { in: guildIds },
+        userId: { notIn: Array.from(excludeIds) },
+      },
+      select: { userId: true, guildId: true },
+    });
+
+    // Count mutual guilds per user
+    const mutualCounts = new Map<string, number>();
+    for (const m of coMembers) {
+      mutualCounts.set(m.userId, (mutualCounts.get(m.userId) ?? 0) + 1);
+    }
+
+    // Sort by mutual guild count desc, take top N
+    const topUserIds = [...mutualCounts.entries()]
+      .sort((a, b) => b[1] - a[1])
+      .slice(0, limit)
+      .map(([uid]) => uid);
+
+    if (topUserIds.length === 0) return [];
+
+    const users = await this.prisma.user.findMany({
+      where: { id: { in: topUserIds } },
+      select: this.PUBLIC_SELECT,
+    });
+
+    return users.map((u) => ({
+      ...this.mapUserFields(u),
+      mutualGuildCount: mutualCounts.get(u.id) ?? 0,
+    }));
+  }
+
+  async getNote(userId: string, targetId: string) {
+    const note = await this.prisma.userNote.findUnique({
+      where: { userId_targetId: { userId, targetId } },
+    });
+    return { content: note?.content ?? '' };
+  }
+
+  async setNote(userId: string, targetId: string, content: string) {
+    const trimmed = content.trim().slice(0, 500);
+    if (!trimmed) {
+      await this.prisma.userNote.deleteMany({ where: { userId, targetId } });
+      return { content: '' };
+    }
+
+    const note = await this.prisma.userNote.upsert({
+      where: { userId_targetId: { userId, targetId } },
+      create: { userId, targetId, content: trimmed },
+      update: { content: trimmed },
+    });
+    return { content: note.content };
+  }
+
+  async deleteNote(userId: string, targetId: string) {
+    await this.prisma.userNote.deleteMany({ where: { userId, targetId } });
   }
 
   async getPresence(userIds: string[]) {

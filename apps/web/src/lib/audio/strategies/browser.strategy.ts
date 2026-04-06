@@ -37,6 +37,8 @@ export class BrowserAudioStrategy implements AudioPipelineStrategy {
         return this.applyStandard(room);
       case 'enhanced':
         return this.applyEnhanced(room);
+      case 'music':
+        return this.applyMusic(room);
     }
   }
 
@@ -46,6 +48,10 @@ export class BrowserAudioStrategy implements AudioPipelineStrategy {
 
   setInputGain(normalized: number): void {
     this.rnnoiseManager.setInputGain(normalized);
+  }
+
+  setRnnoiseGain(gain: number): void {
+    this.rnnoiseManager.setCompensationGain(gain);
   }
 
   dispose(): void {
@@ -156,5 +162,24 @@ export class BrowserAudioStrategy implements AudioPipelineStrategy {
       reason,
       errorCode,
     };
+  }
+
+  private async applyMusic(room: Room): Promise<{
+    activeMode: AudioMode;
+    degraded: boolean;
+    reason: string | null;
+    errorCode: NoiseFilterError | WorkletInitError | null;
+  }> {
+    // Remove any processor — music mode uses no processing
+    await this.rnnoiseManager.removeFromTrack(room);
+
+    // Apply music constraints (all off for maximum fidelity)
+    const micPub = room.localParticipant.getTrackPublication(Track.Source.Microphone);
+    if (micPub?.track) {
+      const constraints = buildRuntimeConstraints('browser', 'music');
+      await micPub.track.mediaStreamTrack.applyConstraints(constraints).catch(() => {});
+    }
+
+    return { activeMode: 'music', degraded: false, reason: null, errorCode: null };
   }
 }

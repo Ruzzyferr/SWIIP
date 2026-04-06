@@ -184,6 +184,8 @@ export interface DMChannelPayload {
   name?: string | null;
   /** Group DM icon CDN hash. */
   icon?: string | null;
+  /** ISO 8601 timestamp — last activity in the conversation. */
+  updatedAt?: string;
 }
 
 export interface MemberPayload {

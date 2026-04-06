@@ -190,6 +190,7 @@ model User {
   verified     Boolean @default(false)
   locale       String  @default("en")
   premiumType  Int     @default(0)
+  settings     Json    @default("{}")
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
@@ -239,12 +240,13 @@ model Session {
 }
 
 model PresenceState {
-  userId            String    @id
-  status            UserStatus @default(OFFLINE)
-  customStatusText  String?
-  customStatusEmoji String?
-  lastSeenAt        DateTime  @default(now())
-  updatedAt         DateTime  @updatedAt
+  userId                  String    @id
+  status                  UserStatus @default(OFFLINE)
+  customStatusText        String?
+  customStatusEmoji       String?
+  customStatusExpiresAt   DateTime?
+  lastSeenAt              DateTime  @default(now())
+  updatedAt               DateTime  @updatedAt
 
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 }
@@ -271,6 +273,7 @@ model Guild {
   preferredLocale             String                      @default("en")
   isDiscoverable              Boolean                     @default(false)
   vanityUrlCode               String?                     @unique
+  welcomeScreen               Json?
   boostTier                   Int                         @default(0)
   boostCount                  Int                         @default(0)
   createdAt                   DateTime                    @default(now())
@@ -286,6 +289,7 @@ model Guild {
   moderationActions ModerationAction[]
   automodRules AutomodRule[]
   webhooks Webhook[]
+  scheduledEvents ScheduledEvent[]
 
   @@index([ownerId])
   @@index([vanityUrlCode])
@@ -326,6 +330,7 @@ model Role {
   permissionsInteger BigInt   @default(0)
   managed            Boolean  @default(false)
   mentionable        Boolean  @default(false)
+  selfAssignable     Boolean  @default(false)
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
 
@@ -492,6 +497,27 @@ model Thread {
 
   @@index([parentChannelId])
   @@index([ownerId])
+}
+
+model ScheduledEvent {
+  id            String   @id @default(cuid())
+  guildId       String
+  channelId     String?
+  creatorId     String
+  name          String
+  description   String?  @db.VarChar(1000)
+  startTime     DateTime
+  endTime       DateTime?
+  location      String?
+  status        String   @default("SCHEDULED") // SCHEDULED, ACTIVE, COMPLETED, CANCELLED
+  interestedCount Int    @default(0)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  guild   Guild @relation(fields: [guildId], references: [id], onDelete: Cascade)
+
+  @@index([guildId])
+  @@index([startTime])
 }
 
 model Pin {
@@ -721,4 +747,16 @@ model UserRelationship {
   @@unique([requesterId, targetId])
   @@index([requesterId])
   @@index([targetId])
+}
+
+model UserNote {
+  id        String   @id @default(cuid())
+  userId    String
+  targetId  String
+  content   String   @db.VarChar(500)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([userId, targetId])
+  @@index([userId])
 }

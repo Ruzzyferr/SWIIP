@@ -190,8 +190,14 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
     return true;
   }
 
-  updatePresence(status: string, activities: unknown[] = [], customStatus?: string): void {
-    this.send(OpCode.PRESENCE_UPDATE, { status, activities, customStatus });
+  updatePresence(
+    status: string,
+    activities: unknown[] = [],
+    customStatus?: string,
+    customStatusEmoji?: string,
+    customStatusExpiresAt?: string,
+  ): void {
+    this.send(OpCode.PRESENCE_UPDATE, { status, activities, customStatus, customStatusEmoji, customStatusExpiresAt });
   }
 
   // ---------------------------------------------------------------------------

@@ -4,6 +4,7 @@ import {
   useState,
   useRef,
   useCallback,
+  useEffect,
   type KeyboardEvent,
 } from 'react';
 import { formatDistanceToNow } from 'date-fns';
@@ -20,6 +21,7 @@ import {
   X,
   Copy,
   Link2,
+  Forward,
   MessageSquare,
   Clock,
   CheckCheck,
@@ -34,9 +36,11 @@ import { LinkPreview } from '@/components/messaging/LinkPreview';
 import { useAuthStore } from '@/stores/auth.store';
 import { useUIStore } from '@/stores/ui.store';
 import { useGuildsStore } from '@/stores/guilds.store';
-import { editMessage, deleteMessage, addReaction } from '@/lib/api/messages.api';
+import { editMessage, deleteMessage, addReaction, getMessageRevisions, type MessageRevision } from '@/lib/api/messages.api';
+import { createThread } from '@/lib/api/channels.api';
 import { pinMessage, unpinMessage } from '@/lib/api/channels.api';
 import { useMessagesStore } from '@/stores/messages.store';
+import { useDMsStore } from '@/stores/dms.store';
 import { toastError } from '@/lib/toast';
 import { useTranslations } from 'next-intl';
 import type { MessagePayload, ReactionPayload, EmojiRef } from '@constchat/protocol';
@@ -551,6 +555,9 @@ export function MessageItem({
   const [hovered, setHovered] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
+  const [showRevisions, setShowRevisions] = useState(false);
+  const [revisions, setRevisions] = useState<MessageRevision[]>([]);
+  const [revisionsLoading, setRevisionsLoading] = useState(false);
   const editRef = useRef<HTMLTextAreaElement>(null);
 
   const authorId = message.author?.id ?? (message as unknown as { authorId?: string }).authorId ?? '';
@@ -601,6 +608,36 @@ export function MessageItem({
     }
   };
 
+  const handleShowRevisions = async () => {
+    if (showRevisions) {
+      setShowRevisions(false);
+      return;
+    }
+    setShowRevisions(true);
+    setRevisionsLoading(true);
+    try {
+      const data = await getMessageRevisions(channelId, message.id);
+      setRevisions(data);
+    } catch {
+      setRevisions([]);
+    } finally {
+      setRevisionsLoading(false);
+    }
+  };
+
+  const handleStartThread = async () => {
+    const name = window.prompt('Thread name:');
+    if (!name?.trim()) return;
+    try {
+      const thread = await createThread(channelId, name.trim(), message.id);
+      if (thread.channel?.id) {
+        useUIStore.getState().openThread(thread.channel.id);
+      }
+    } catch (err: unknown) {
+      toastError(err instanceof Error ? err.message : 'Failed to create thread');
+    }
+  };
+
   const handleDelete = async () => {
     if (!window.confirm(t('confirmDelete'))) return;
     try {
@@ -644,6 +681,13 @@ export function MessageItem({
       setEditContent(message.content ?? '');
       setTimeout(() => { editRef.current?.focus(); editRef.current?.select(); }, 10);
     }}] : []),
+    { type: 'item', label: 'Start Thread', icon: <MessageSquare size={14} />, onClick: handleStartThread },
+    { type: 'item', label: 'Forward', icon: <Forward size={14} />, onClick: () => {
+      useUIStore.getState().openModal('forward-message', {
+        content: message.content ?? '',
+        authorName: message.author?.globalName ?? message.author?.username ?? 'Unknown',
+      });
+    }},
     { type: 'separator' as const },
     { type: 'item', label: isPinned ? t('unpin') : t('pin'), icon: isPinned ? <PinOff size={14} /> : <Pin size={14} />, onClick: handlePin },
     { type: 'item', label: t('copyMessageLink'), icon: <Link2 size={14} />, onClick: handleCopyLink },
@@ -806,11 +850,20 @@ export function MessageItem({
                     <Tooltip content={t('sending')} placement="top">
                       <Clock size={12} style={{ color: 'var(--color-text-tertiary)', opacity: 0.7 }} />
                     </Tooltip>
-                  ) : (
-                    <Tooltip content={t('delivered')} placement="top">
-                      <CheckCheck size={12} style={{ color: '#10B981' }} />
-                    </Tooltip>
-                  )
+                  ) : (() => {
+                    // Check if recipient has read this message (DM read receipt)
+                    const recipientReadId = useDMsStore.getState().recipientReadState[channelId];
+                    const isRead = recipientReadId && recipientReadId >= message.id;
+                    return (
+                      <Tooltip content={isRead ? t('read') : t('delivered')} placement="top">
+                        {isRead ? (
+                          <CheckCheck size={12} style={{ color: '#10B981' }} />
+                        ) : (
+                          <Check size={12} style={{ color: 'var(--color-text-tertiary)' }} />
+                        )}
+                      </Tooltip>
+                    );
+                  })()
                 )}
               </div>
             )}
@@ -894,31 +947,72 @@ export function MessageItem({
                     {renderContentCached(message.content)}
                     {editedAt && (
                       <Tooltip
-                        content={`${t('editedAt')} ${new Date(editedAt).toLocaleString()}`}
+                        content={`${t('editedAt')} ${new Date(editedAt).toLocaleString()} — Click to view history`}
                         placement="top"
                       >
-                        <span
-                          className="text-xs ml-1 cursor-default"
-                          style={{ color: 'var(--color-text-disabled)' }}
+                        <button
+                          className="text-xs ml-1 cursor-pointer hover:underline inline"
+                          style={{ color: 'var(--color-text-disabled)', background: 'none', border: 'none', padding: 0 }}
+                          onClick={handleShowRevisions}
                         >
                           {t('edited')}
-                        </span>
+                        </button>
                       </Tooltip>
                     )}
                   </p>
                 ) : editedAt ? (
                   <Tooltip
-                    content={`${t('editedAt')} ${new Date(editedAt).toLocaleString()}`}
+                    content={`${t('editedAt')} ${new Date(editedAt).toLocaleString()} — Click to view history`}
                     placement="top"
                   >
-                    <span
-                      className="text-xs cursor-default"
-                      style={{ color: 'var(--color-text-disabled)' }}
+                    <button
+                      className="text-xs cursor-pointer hover:underline"
+                      style={{ color: 'var(--color-text-disabled)', background: 'none', border: 'none', padding: 0 }}
+                      onClick={handleShowRevisions}
                     >
                       {t('edited')}
-                    </span>
+                    </button>
                   </Tooltip>
                 ) : null}
+
+                {/* Edit history popup */}
+                {showRevisions && (
+                  <div
+                    className="mt-2 rounded-lg p-3 text-sm max-w-md"
+                    style={{ background: 'var(--color-bg-secondary)', border: '1px solid var(--color-border-default)' }}
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="font-semibold text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                        Edit History
+                      </span>
+                      <button
+                        className="text-xs hover:underline"
+                        style={{ color: 'var(--color-text-disabled)', background: 'none', border: 'none', cursor: 'pointer' }}
+                        onClick={() => setShowRevisions(false)}
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                    {revisionsLoading ? (
+                      <p className="text-xs" style={{ color: 'var(--color-text-disabled)' }}>Loading...</p>
+                    ) : revisions.length === 0 ? (
+                      <p className="text-xs" style={{ color: 'var(--color-text-disabled)' }}>No previous versions found.</p>
+                    ) : (
+                      <div className="flex flex-col gap-2 max-h-60 overflow-y-auto">
+                        {revisions.map((rev) => (
+                          <div key={rev.id} className="rounded p-2" style={{ background: 'var(--color-bg-tertiary)' }}>
+                            <p className="text-xs mb-1" style={{ color: 'var(--color-text-disabled)' }}>
+                              {new Date(rev.editedAt).toLocaleString()}
+                            </p>
+                            <p className="text-[13px]" style={{ color: 'var(--color-text-primary)', wordBreak: 'break-word' }}>
+                              {rev.content}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
               </>
             )}
 

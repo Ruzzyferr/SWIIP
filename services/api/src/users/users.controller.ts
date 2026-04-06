@@ -49,6 +49,18 @@ export class UsersController {
     await this.usersService.deleteAccount(user.userId);
   }
 
+  @Get('users/@me/settings')
+  @ApiOperation({ summary: 'Get current user settings (notification prefs, etc.)' })
+  async getSettings(@CurrentUser() user: AuthUser) {
+    return this.usersService.getSettings(user.userId);
+  }
+
+  @Patch('users/@me/settings')
+  @ApiOperation({ summary: 'Update current user settings' })
+  async updateSettings(@CurrentUser() user: AuthUser, @Body() body: Record<string, unknown>) {
+    return this.usersService.updateSettings(user.userId, body);
+  }
+
   @Get('users/@me/guilds')
   @ApiOperation({ summary: 'Get guilds current user is in' })
   async getMyGuilds(@CurrentUser() user: AuthUser) {
@@ -65,6 +77,12 @@ export class UsersController {
   @ApiOperation({ summary: 'Get friends list' })
   async getFriends(@CurrentUser() user: AuthUser) {
     return this.usersService.getFriends(user.userId);
+  }
+
+  @Get('users/@me/friend-suggestions')
+  @ApiOperation({ summary: 'Get friend suggestions based on mutual guilds' })
+  async getFriendSuggestions(@CurrentUser() user: AuthUser) {
+    return this.usersService.getFriendSuggestions(user.userId);
   }
 
   @Post('users/@me/relationships')
@@ -138,6 +156,29 @@ export class UsersController {
     @CurrentUser() user: AuthUser,
   ) {
     return this.usersService.getMutualGuilds(user.userId, targetId);
+  }
+
+  @Get('users/:id/note')
+  @ApiOperation({ summary: 'Get note on a user' })
+  async getNote(@Param('id') targetId: string, @CurrentUser() user: AuthUser) {
+    return this.usersService.getNote(user.userId, targetId);
+  }
+
+  @Put('users/:id/note')
+  @ApiOperation({ summary: 'Set note on a user' })
+  async setNote(
+    @Param('id') targetId: string,
+    @CurrentUser() user: AuthUser,
+    @Body() body: { content: string },
+  ) {
+    return this.usersService.setNote(user.userId, targetId, body.content);
+  }
+
+  @Delete('users/:id/note')
+  @HttpCode(HttpStatus.NO_CONTENT)
+  @ApiOperation({ summary: 'Delete note on a user' })
+  async deleteNote(@Param('id') targetId: string, @CurrentUser() user: AuthUser) {
+    await this.usersService.deleteNote(user.userId, targetId);
   }
 
   @Post('users/presence')

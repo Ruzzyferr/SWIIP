@@ -913,10 +913,42 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
           )}
         </div>
         <div className="flex items-center gap-2 shrink-0">
-          <span className="text-[11px] sm:text-xs whitespace-nowrap" style={{ color: 'var(--color-text-tertiary)' }}>
-            {isInThisChannel ? 'Connected' : `${participants.length} participant${participants.length !== 1 ? 's' : ''}`}
-            {channel?.userLimit ? ` / ${channel.userLimit}` : ''}
-          </span>
+          {channel?.userLimit ? (
+            <div className="flex items-center gap-2">
+              <span
+                className="text-[11px] sm:text-xs whitespace-nowrap font-medium"
+                style={{
+                  color: participants.length >= channel.userLimit
+                    ? 'var(--color-danger-default)'
+                    : participants.length >= channel.userLimit * 0.8
+                      ? 'var(--color-warning-default)'
+                      : 'var(--color-text-tertiary)',
+                }}
+              >
+                {participants.length}/{channel.userLimit}
+              </span>
+              <div
+                className="w-16 h-1.5 rounded-full overflow-hidden"
+                style={{ background: 'var(--color-bg-tertiary)' }}
+              >
+                <div
+                  className="h-full rounded-full transition-all duration-300"
+                  style={{
+                    width: `${Math.min(100, (participants.length / channel.userLimit) * 100)}%`,
+                    background: participants.length >= channel.userLimit
+                      ? 'var(--color-danger-default)'
+                      : participants.length >= channel.userLimit * 0.8
+                        ? 'var(--color-warning-default)'
+                        : 'var(--color-success-default)',
+                  }}
+                />
+              </div>
+            </div>
+          ) : (
+            <span className="text-[11px] sm:text-xs whitespace-nowrap" style={{ color: 'var(--color-text-tertiary)' }}>
+              {isInThisChannel ? 'Connected' : `${participants.length} participant${participants.length !== 1 ? 's' : ''}`}
+            </span>
+          )}
         </div>
       </div>
 

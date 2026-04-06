@@ -119,6 +119,23 @@ export interface SearchMessagesParams {
   has?: string;    // 'file' | 'image' | 'link' | 'embed'
 }
 
+export interface MessageRevision {
+  id: string;
+  messageId: string;
+  content: string;
+  editedAt: string;
+}
+
+export async function getMessageRevisions(
+  channelId: string,
+  messageId: string
+): Promise<MessageRevision[]> {
+  const res = await apiClient.get<MessageRevision[]>(
+    `/channels/${channelId}/messages/${messageId}/revisions`
+  );
+  return res.data;
+}
+
 export async function searchMessages(
   guildId: string,
   query: string,

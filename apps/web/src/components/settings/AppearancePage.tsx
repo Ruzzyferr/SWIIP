@@ -1,7 +1,7 @@
 'use client';
 
-import { Moon, Sun, MessageSquare, AlignLeft, Globe } from 'lucide-react';
-import { useAppearanceStore, type Theme, type MessageDisplay } from '@/stores/appearance.store';
+import { Moon, Sun, Monitor, MessageSquare, AlignLeft, Globe, Palette } from 'lucide-react';
+import { useAppearanceStore, ACCENT_COLORS, type Theme, type MessageDisplay } from '@/stores/appearance.store';
 import { useTranslations, useLocale } from 'next-intl';
 import { useRouter } from 'next/navigation';
 import { useTransition } from 'react';
@@ -115,6 +115,8 @@ export function AppearancePage() {
   const setMessageDisplay = useAppearanceStore((s) => s.setMessageDisplay);
   const chatFontSize = useAppearanceStore((s) => s.chatFontSize);
   const setChatFontSize = useAppearanceStore((s) => s.setChatFontSize);
+  const accentColor = useAppearanceStore((s) => s.accentColor);
+  const setAccentColor = useAppearanceStore((s) => s.setAccentColor);
 
   const handleLocaleChange = (locale: Locale) => {
     startTransition(async () => {
@@ -210,6 +212,65 @@ export function AppearancePage() {
             onSelect={() => setTheme('light')}
             preview="linear-gradient(135deg, #f2f3f5, #ffffff)"
           />
+          <ThemeCard
+            theme="auto"
+            label="Auto"
+            icon={Monitor}
+            selected={theme === 'auto'}
+            onSelect={() => setTheme('auto')}
+            preview="linear-gradient(135deg, #1e1f22 50%, #f2f3f5 50%)"
+          />
+        </div>
+      </section>
+
+      <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />
+
+      {/* Accent Color */}
+      <section className="space-y-3">
+        <p
+          className="text-xs font-bold uppercase tracking-wider"
+          style={{ color: 'var(--color-text-disabled)' }}
+        >
+          Accent Color
+        </p>
+        <div className="flex flex-wrap gap-3">
+          {ACCENT_COLORS.map((color) => (
+            <button
+              key={color.value}
+              onClick={() => setAccentColor(color.value)}
+              className="w-10 h-10 rounded-full transition-all flex items-center justify-center"
+              style={{
+                background: color.value,
+                border: accentColor === color.value
+                  ? '3px solid var(--color-text-primary)'
+                  : '3px solid transparent',
+                boxShadow: accentColor === color.value
+                  ? `0 0 0 2px ${color.value}`
+                  : 'none',
+              }}
+              title={color.name}
+            >
+              {accentColor === color.value && (
+                <div className="w-2.5 h-2.5 rounded-full bg-white" />
+              )}
+            </button>
+          ))}
+        </div>
+        <div className="flex items-center gap-2 mt-2">
+          <Palette size={14} style={{ color: 'var(--color-text-tertiary)' }} />
+          <label className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+            Custom:
+          </label>
+          <input
+            type="color"
+            value={accentColor}
+            onChange={(e) => setAccentColor(e.target.value)}
+            className="w-8 h-8 rounded cursor-pointer border-0"
+            style={{ background: 'transparent' }}
+          />
+          <span className="text-xs font-mono" style={{ color: 'var(--color-text-disabled)' }}>
+            {accentColor}
+          </span>
         </div>
       </section>
 

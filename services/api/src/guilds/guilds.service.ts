@@ -56,6 +56,7 @@ export class UpdateGuildDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isDiscoverable?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsString() vanityUrlCode?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() systemChannelId?: string;
+  @ApiPropertyOptional() @IsOptional() welcomeScreen?: any;
 }
 
 export class UpdateMemberDto {
@@ -243,6 +244,7 @@ export class GuildsService {
         ...(dto.isDiscoverable !== undefined && { isDiscoverable: dto.isDiscoverable }),
         ...(dto.vanityUrlCode !== undefined && { vanityUrlCode: dto.vanityUrlCode }),
         ...(dto.systemChannelId !== undefined && { systemChannelId: dto.systemChannelId }),
+        ...(dto.welcomeScreen !== undefined && { welcomeScreen: dto.welcomeScreen }),
       },
     });
 
@@ -612,5 +614,166 @@ export class GuildsService {
     });
 
     return { message: 'Ownership transferred' };
+  }
+
+  async getWelcomeScreen(guildId: string) {
+    const guild = await this.prisma.guild.findUnique({
+      where: { id: guildId },
+      select: { welcomeScreen: true },
+    });
+    if (!guild) throw new NotFoundException('Guild not found');
+    return guild.welcomeScreen ?? { enabled: false, description: null, channels: [] };
+  }
+
+  async updateWelcomeScreen(
+    guildId: string,
+    userId: string,
+    data: { enabled: boolean; description?: string; channels?: { channelId: string; description: string; emoji?: string }[] },
+  ) {
+    const guild = await this.prisma.guild.findUnique({ where: { id: guildId } });
+    if (!guild) throw new NotFoundException('Guild not found');
+
+    const welcomeScreen = {
+      enabled: data.enabled,
+      description: data.description ?? null,
+      channels: data.channels ?? [],
+    };
+
+    await this.prisma.guild.update({
+      where: { id: guildId },
+      data: { welcomeScreen: welcomeScreen as any },
+    });
+
+    return welcomeScreen;
+  }
+
+  async getEvents(guildId: string) {
+    return this.prisma.scheduledEvent.findMany({
+      where: { guildId, status: { not: 'CANCELLED' } },
+      orderBy: { startTime: 'asc' },
+    });
+  }
+
+  async createEvent(guildId: string, userId: string, data: {
+    name: string; description?: string; startTime: string; endTime?: string; location?: string; channelId?: string;
+  }) {
+    const guild = await this.prisma.guild.findUnique({ where: { id: guildId } });
+    if (!guild) throw new NotFoundException('Guild not found');
+
+    return this.prisma.scheduledEvent.create({
+      data: {
+        guildId,
+        creatorId: userId,
+        name: data.name,
+        description: data.description,
+        startTime: new Date(data.startTime),
+        endTime: data.endTime ? new Date(data.endTime) : undefined,
+        location: data.location,
+        channelId: data.channelId,
+      },
+    });
+  }
+
+  async updateEvent(eventId: string, guildId: string, userId: string, data: {
+    name?: string; description?: string; startTime?: string; endTime?: string; location?: string; status?: string;
+  }) {
+    const event = await this.prisma.scheduledEvent.findFirst({ where: { id: eventId, guildId } });
+    if (!event) throw new NotFoundException('Event not found');
+
+    return this.prisma.scheduledEvent.update({
+      where: { id: eventId },
+      data: {
+        ...(data.name && { name: data.name }),
+        ...(data.description !== undefined && { description: data.description }),
+        ...(data.startTime && { startTime: new Date(data.startTime) }),
+        ...(data.endTime && { endTime: new Date(data.endTime) }),
+        ...(data.location !== undefined && { location: data.location }),
+        ...(data.status && { status: data.status }),
+      },
+    });
+  }
+
+  async deleteEvent(eventId: string, guildId: string, userId: string) {
+    const event = await this.prisma.scheduledEvent.findFirst({ where: { id: eventId, guildId } });
+    if (!event) throw new NotFoundException('Event not found');
+    await this.prisma.scheduledEvent.delete({ where: { id: eventId } });
+  }
+
+  async markEventInterested(eventId: string) {
+    await this.prisma.scheduledEvent.update({
+      where: { id: eventId },
+      data: { interestedCount: { increment: 1 } },
+    });
+  }
+
+  async joinDiscoverable(guildId: string, userId: string) {
+    const guild = await this.prisma.guild.findUnique({ where: { id: guildId } });
+    if (!guild) throw new NotFoundException('Guild not found');
+    if (!guild.isDiscoverable) throw new ForbiddenException('Guild is not discoverable');
+
+    const existing = await this.prisma.guildMember.findUnique({
+      where: { guildId_userId: { guildId, userId } },
+    });
+    if (existing) return; // Already a member
+
+    await this.prisma.guildMember.create({
+      data: { guildId, userId },
+    });
+
+    await this.prisma.guild.update({
+      where: { id: guildId },
+      data: { memberCount: { increment: 1 } },
+    });
+  }
+
+  async discoverGuilds(userId: string, opts: { search?: string; limit: number; offset: number }) {
+    const where: any = { isDiscoverable: true };
+    if (opts.search) {
+      where.OR = [
+        { name: { contains: opts.search, mode: 'insensitive' } },
+        { description: { contains: opts.search, mode: 'insensitive' } },
+      ];
+    }
+
+    const [guilds, total] = await Promise.all([
+      this.prisma.guild.findMany({
+        where,
+        select: {
+          id: true,
+          name: true,
+          icon: true,
+          description: true,
+          memberCount: true,
+          vanityUrlCode: true,
+          splash: true,
+          _count: { select: { members: true } },
+        },
+        orderBy: { memberCount: 'desc' },
+        take: Math.min(opts.limit, 50),
+        skip: opts.offset,
+      }),
+      this.prisma.guild.count({ where }),
+    ]);
+
+    // Check which guilds the user is already in
+    const userMemberships = await this.prisma.guildMember.findMany({
+      where: { userId, guildId: { in: guilds.map((g) => g.id) } },
+      select: { guildId: true },
+    });
+    const joinedSet = new Set(userMemberships.map((m) => m.guildId));
+
+    return {
+      guilds: guilds.map((g) => ({
+        id: g.id,
+        name: g.name,
+        icon: g.icon,
+        description: g.description,
+        memberCount: g._count.members,
+        vanityUrlCode: g.vanityUrlCode,
+        splash: g.splash,
+        joined: joinedSet.has(g.id),
+      })),
+      total,
+    };
   }
 }

@@ -53,8 +53,18 @@ export class InternalController {
       where: { id },
       select: { id: true, guildId: true, name: true, type: true },
     });
-    if (!channel) throw new NotFoundException('Channel not found');
-    return channel;
+    if (channel) return channel;
+
+    // Fall back to DM conversation lookup (DMs are stored separately)
+    const dmConversation = await this.prisma.dMConversation.findUnique({
+      where: { id },
+      select: { id: true, type: true, name: true },
+    });
+    if (dmConversation) {
+      return { id: dmConversation.id, guildId: null, name: dmConversation.name, type: dmConversation.type };
+    }
+
+    throw new NotFoundException('Channel not found');
   }
 
   @Get('ready/:userId')

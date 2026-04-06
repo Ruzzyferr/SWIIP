@@ -10,6 +10,8 @@ import { MessageComposer } from '@/components/messaging/MessageComposer';
 import { TypingIndicator } from '@/components/messaging/TypingIndicator';
 import { DMChatView } from '@/components/messaging/DMChatView';
 import { VoiceRoomView } from '@/components/voice/VoiceRoomView';
+import { ThreadPanel } from '@/components/messaging/ThreadPanel';
+import { WelcomeScreenModal } from '@/components/guild/WelcomeScreenModal';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { useUIStore } from '@/stores/ui.store';
 import { useMessagesStore } from '@/stores/messages.store';
@@ -29,12 +31,14 @@ export default function ChannelPage() {
   const setActiveGuild = useUIStore((s) => s.setActiveGuild);
   const setActiveChannel = useUIStore((s) => s.setActiveChannel);
   const isMemberSidebarOpen = useUIStore((s) => s.isMemberSidebarOpen);
+  const activeThreadId = useUIStore((s) => s.activeThreadId);
   const isVoiceChatOpen = useUIStore((s) => s.isVoiceChatOpen);
   const setVoiceChatOpen = useUIStore((s) => s.setVoiceChatOpen);
   const updateMessage = useMessagesStore((s) => s.updateMessage);
 
   const [replyTo, setReplyTo] = useState<MessagePayload | null>(null);
   const [editingMessage, setEditingMessage] = useState<MessagePayload | null>(null);
+  const [showWelcome, setShowWelcome] = useState(false);
 
   // Sync active state + lazy-load guild members on navigation
   useEffect(() => {
@@ -80,6 +84,16 @@ export default function ChannelPage() {
     return unsub;
   }, [channelId]);
 
+  // Show welcome screen on first guild visit
+  useEffect(() => {
+    if (isDM) return;
+    const key = `welcome_seen_${guildId}`;
+    if (!localStorage.getItem(key)) {
+      setShowWelcome(true);
+      localStorage.setItem(key, '1');
+    }
+  }, [guildId, isDM]);
+
   // Close voice chat drawer on Escape
   useEffect(() => {
     if (!isVoiceChatOpen) return;
@@ -116,6 +130,9 @@ export default function ChannelPage() {
 
   return (
     <div className="flex flex-1 min-w-0 overflow-hidden relative">
+      {showWelcome && (
+        <WelcomeScreenModal guildId={guildId} onClose={() => setShowWelcome(false)} />
+      )}
       {/* Full-width content */}
       <div
         className="flex-1 flex flex-col min-w-0"
@@ -143,6 +160,9 @@ export default function ChannelPage() {
           </>
         )}
       </div>
+
+      {/* Thread panel */}
+      {activeThreadId && <ThreadPanel />}
 
       {/* Voice chat drawer — slide-in from right */}
       <AnimatePresence>

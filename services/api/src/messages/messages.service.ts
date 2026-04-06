@@ -580,6 +580,18 @@ export class MessagesService {
     return { message: 'Message crossposted' };
   }
 
+  async getRevisions(messageId: string) {
+    const message = await this.prisma.message.findUnique({ where: { id: messageId } });
+    if (!message) throw new NotFoundException('Message not found');
+
+    const revisions = await this.prisma.messageRevision.findMany({
+      where: { messageId },
+      orderBy: { editedAt: 'desc' },
+    });
+
+    return revisions;
+  }
+
   private parseEmoji(emoji: string): { emojiId: string | null; emojiName: string } {
     const customEmojiMatch = emoji.match(/^<a?:(\w+):(\d+)>$/);
     if (customEmojiMatch) {

@@ -14,7 +14,7 @@ import { Track, type AudioProcessorOptions, type TrackProcessor } from 'livekit-
  * Default gain multiplier to compensate for RNNoise signal attenuation.
  * RNNoise suppresses noise by reducing overall amplitude — this restores it.
  */
-const RNNOISE_COMPENSATION_GAIN = 2.2;
+const DEFAULT_RNNOISE_COMPENSATION_GAIN = 2.2;
 
 export class RnnoiseProcessor implements TrackProcessor<Track.Kind.Audio, AudioProcessorOptions> {
   name = 'rnnoise-noise-suppressor';
@@ -22,9 +22,15 @@ export class RnnoiseProcessor implements TrackProcessor<Track.Kind.Audio, AudioP
 
   private sourceNode?: MediaStreamAudioSourceNode;
   private rnnoiseNode?: AudioWorkletNode;
+  private limiterNode?: DynamicsCompressorNode;
   private gainNode?: GainNode;
   private destinationNode?: MediaStreamAudioDestinationNode;
   private ownAudioContext?: AudioContext;
+  private compensationGain: number;
+
+  constructor(compensationGain?: number) {
+    this.compensationGain = Math.max(1.0, Math.min(4.0, compensationGain ?? DEFAULT_RNNOISE_COMPENSATION_GAIN));
+  }
 
   async init(opts: AudioProcessorOptions): Promise<void> {
     const { track } = opts;
@@ -51,17 +57,27 @@ export class RnnoiseProcessor implements TrackProcessor<Track.Kind.Audio, AudioP
     // Register the worklet processor from public directory
     await audioContext.audioWorklet.addModule('/rnnoise/workletProcessor.js');
 
-    // Build audio graph: source → rnnoise → gain (compensation) → destination
+    // Build audio graph: source → limiter → rnnoise → gain (compensation) → destination
     this.sourceNode = audioContext.createMediaStreamSource(mediaStream);
+
+    // Soft limiter before RNNoise to prevent input distortion when volume > 100%
+    this.limiterNode = audioContext.createDynamicsCompressor();
+    this.limiterNode.threshold.value = -1;   // dBFS
+    this.limiterNode.knee.value = 0;
+    this.limiterNode.ratio.value = 20;       // Hard limiting
+    this.limiterNode.attack.value = 0.001;   // 1ms
+    this.limiterNode.release.value = 0.01;   // 10ms
+
     this.rnnoiseNode = new RnnoiseWorkletNode(audioContext, {
       maxChannels: 1,
       wasmBinary,
     });
     this.gainNode = audioContext.createGain();
-    this.gainNode.gain.value = RNNOISE_COMPENSATION_GAIN;
+    this.gainNode.gain.value = this.compensationGain;
     this.destinationNode = audioContext.createMediaStreamDestination();
 
-    this.sourceNode.connect(this.rnnoiseNode);
+    this.sourceNode.connect(this.limiterNode);
+    this.limiterNode.connect(this.rnnoiseNode);
     this.rnnoiseNode.connect(this.gainNode);
     this.gainNode.connect(this.destinationNode);
 
@@ -74,7 +90,17 @@ export class RnnoiseProcessor implements TrackProcessor<Track.Kind.Audio, AudioP
    */
   setInputGain(normalized: number): void {
     if (this.gainNode) {
-      this.gainNode.gain.value = RNNOISE_COMPENSATION_GAIN * normalized;
+      this.gainNode.gain.value = this.compensationGain * normalized;
+    }
+  }
+
+  /**
+   * Update the compensation gain at runtime (e.g. from settings change).
+   */
+  setCompensationGain(gain: number): void {
+    this.compensationGain = Math.max(1.0, Math.min(4.0, gain));
+    if (this.gainNode) {
+      this.gainNode.gain.value = this.compensationGain;
     }
   }
 
@@ -86,6 +112,7 @@ export class RnnoiseProcessor implements TrackProcessor<Track.Kind.Audio, AudioP
   async destroy(): Promise<void> {
     try {
       this.sourceNode?.disconnect();
+      this.limiterNode?.disconnect();
       this.rnnoiseNode?.disconnect();
       this.gainNode?.disconnect();
       (this.rnnoiseNode as any)?.destroy?.();
@@ -98,6 +125,7 @@ export class RnnoiseProcessor implements TrackProcessor<Track.Kind.Audio, AudioP
     }
 
     this.sourceNode = undefined;
+    this.limiterNode = undefined;
     this.rnnoiseNode = undefined;
     this.gainNode = undefined;
     this.destinationNode = undefined;

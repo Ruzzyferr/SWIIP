@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
-import { Phone, Video, UserPlus, Menu } from 'lucide-react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
+import { Phone, Video, UserPlus, Menu, PhoneCall } from 'lucide-react';
 import { MessageList } from './MessageList';
 import { MessageComposer } from './MessageComposer';
 import { TypingIndicator } from './TypingIndicator';
@@ -12,6 +12,8 @@ import { useAuthStore } from '@/stores/auth.store';
 import { usePresenceStore } from '@/stores/presence.store';
 import { useUIStore } from '@/stores/ui.store';
 import { useMessagesStore } from '@/stores/messages.store';
+import { useVoiceStore } from '@/stores/voice.store';
+import { useVoiceActions } from '@/hooks/useVoiceActions';
 import { editMessage as editMessageApi } from '@/lib/api/messages.api';
 import { getDMChannel } from '@/lib/api/dms.api';
 import { ChannelType, type MessagePayload } from '@constchat/protocol';
@@ -29,9 +31,17 @@ export function DMChatView({ conversationId }: DMChatViewProps) {
   const updateMessage = useMessagesStore((s) => s.updateMessage);
   const presences = usePresenceStore((s) => s.users);
 
+  const { joinVoiceChannel, leaveVoiceChannel, toggleCamera } = useVoiceActions();
+  const isInCall = useVoiceStore((s) => s.currentChannelId === conversationId);
+  const getChannelParticipants = useVoiceStore((s) => s.getChannelParticipants);
+  const channelParticipants = getChannelParticipants(conversationId);
+  const hasActiveCall = channelParticipants.length > 0;
+
   const [replyTo, setReplyTo] = useState<MessagePayload | null>(null);
   const [editingMessage, setEditingMessage] = useState<MessagePayload | null>(null);
   const [fetchError, setFetchError] = useState<string | null>(null);
+  const [callDuration, setCallDuration] = useState(0);
+  const callStartRef = useRef<number | null>(null);
 
   const dm = conversations[conversationId];
 
@@ -52,6 +62,23 @@ export function DMChatView({ conversationId }: DMChatViewProps) {
     setFetchError(null);
   }, [conversationId]);
 
+  // Call duration timer
+  useEffect(() => {
+    if (isInCall) {
+      callStartRef.current = Date.now();
+      setCallDuration(0);
+      const interval = setInterval(() => {
+        if (callStartRef.current) {
+          setCallDuration(Math.floor((Date.now() - callStartRef.current) / 1000));
+        }
+      }, 1000);
+      return () => clearInterval(interval);
+    } else {
+      callStartRef.current = null;
+      setCallDuration(0);
+    }
+  }, [isInCall]);
+
   // Sync active DM
   useEffect(() => {
     setActiveDM(conversationId);
@@ -70,6 +97,14 @@ export function DMChatView({ conversationId }: DMChatViewProps) {
   const status = otherUser && !isGroup
     ? (presences[otherUser.id]?.status ?? 'offline')
     : null;
+
+  const formatDuration = (secs: number) => {
+    const h = Math.floor(secs / 3600);
+    const m = Math.floor((secs % 3600) / 60);
+    const s = secs % 60;
+    if (h > 0) return `${h}:${String(m).padStart(2, '0')}:${String(s).padStart(2, '0')}`;
+    return `${m}:${String(s).padStart(2, '0')}`;
+  };
 
   const handleReply = useCallback((message: MessagePayload) => {
     setReplyTo(message);
@@ -119,13 +154,34 @@ export function DMChatView({ conversationId }: DMChatViewProps) {
         </div>
 
         <div className="flex items-center gap-0.5 sm:gap-1 shrink-0" style={{ color: 'var(--color-text-secondary)' }}>
-          <Tooltip content="Start Voice Call" placement="bottom">
-            <button className="p-1.5 sm:p-2 rounded-md transition-colors" aria-label="Start voice call">
+          <Tooltip content={isInCall ? 'Leave Call' : 'Start Voice Call'} placement="bottom">
+            <button
+              className="p-1.5 sm:p-2 rounded-md transition-colors"
+              aria-label={isInCall ? 'Leave call' : 'Start voice call'}
+              style={isInCall ? { color: 'var(--color-danger-default)' } : undefined}
+              onClick={() => {
+                if (isInCall) {
+                  leaveVoiceChannel();
+                } else {
+                  joinVoiceChannel(conversationId, true);
+                }
+              }}
+            >
               <Phone size={16} className="sm:w-[18px] sm:h-[18px]" />
             </button>
           </Tooltip>
           <Tooltip content="Start Video Call" placement="bottom">
-            <button className="p-1.5 sm:p-2 rounded-md transition-colors" aria-label="Start video call">
+            <button
+              className="p-1.5 sm:p-2 rounded-md transition-colors"
+              aria-label="Start video call"
+              onClick={() => {
+                if (!isInCall) {
+                  joinVoiceChannel(conversationId, true);
+                }
+                // Small delay to let the connection establish before enabling camera
+                setTimeout(() => toggleCamera(), 500);
+              }}
+            >
               <Video size={16} className="sm:w-[18px] sm:h-[18px]" />
             </button>
           </Tooltip>
@@ -138,6 +194,51 @@ export function DMChatView({ conversationId }: DMChatViewProps) {
           )}
         </div>
       </div>
+
+      {/* Active call banner */}
+      {hasActiveCall && (
+        <div
+          className="flex items-center justify-between px-4 py-2 flex-shrink-0"
+          style={{
+            background: isInCall ? 'var(--color-success-muted)' : 'var(--color-bg-secondary)',
+            borderBottom: '1px solid var(--color-border-subtle)',
+          }}
+        >
+          <div className="flex items-center gap-3">
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center"
+              style={{ background: 'var(--color-success-default)' }}
+            >
+              <PhoneCall size={16} style={{ color: 'white' }} />
+            </div>
+            <div>
+              <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+                {isInCall ? 'Voice call in progress' : 'Voice call started'}
+              </p>
+              <p className="text-xs" style={{ color: 'var(--color-text-secondary)' }}>
+                {channelParticipants.length} participant{channelParticipants.length !== 1 ? 's' : ''}
+                {isInCall && ` · ${formatDuration(callDuration)}`}
+              </p>
+            </div>
+          </div>
+          <button
+            className="px-3 py-1.5 rounded-md text-sm font-medium transition-colors"
+            style={{
+              background: isInCall ? 'var(--color-danger-default)' : 'var(--color-success-default)',
+              color: 'white',
+            }}
+            onClick={() => {
+              if (isInCall) {
+                leaveVoiceChannel();
+              } else {
+                joinVoiceChannel(conversationId, true);
+              }
+            }}
+          >
+            {isInCall ? 'Leave' : 'Join Call'}
+          </button>
+        </div>
+      )}
 
       {/* Messages + composer */}
       <div className="flex-1 flex flex-col min-h-0">

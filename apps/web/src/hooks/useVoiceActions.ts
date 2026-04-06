@@ -16,11 +16,14 @@ export function useVoiceActions() {
   // This prevents unnecessary re-renders and global shortcut re-registration on every state change.
 
   const joinVoiceChannel = useCallback(
-    (channelId: string) => {
+    (channelId: string, isDM?: boolean) => {
       const gw = getGatewayClient();
-      const channels = useGuildsStore.getState().channels;
-      const channel = channels[channelId];
-      const guildId = (channel as { guildId?: string })?.guildId ?? null;
+      let guildId: string | null = null;
+      if (!isDM) {
+        const channels = useGuildsStore.getState().channels;
+        const channel = channels[channelId];
+        guildId = (channel as { guildId?: string })?.guildId ?? null;
+      }
       const state = useVoiceStore.getState();
 
       // If already in this channel, do nothing
@@ -32,8 +35,8 @@ export function useVoiceActions() {
         gw.send(OpCode.DISPATCH, { t: 'VOICE_LEAVE', d: {} });
       }
 
-      console.debug('[Voice] Joining voice channel', { channelId, guildId });
-      state.setCurrentChannel(channelId, guildId);
+      console.debug('[Voice] Joining voice channel', { channelId, guildId, isDM });
+      state.setCurrentChannel(channelId, isDM ? 'dm' : guildId);
       state.setConnectionState('connecting');
 
       // Send VOICE_JOIN — the gateway will respond with VOICE_SERVER_UPDATE

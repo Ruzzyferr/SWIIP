@@ -50,6 +50,19 @@ export async function deleteRole(
   await apiClient.delete(`/guilds/${guildId}/roles/${roleId}`);
 }
 
+export async function getSelfAssignableRoles(guildId: string): Promise<RolePayload[]> {
+  const res = await apiClient.get<RolePayload[]>(`/guilds/${guildId}/roles/self-assignable`);
+  return res.data;
+}
+
+export async function selfAssignRole(guildId: string, roleId: string): Promise<void> {
+  await apiClient.put(`/guilds/${guildId}/roles/${roleId}/self-assign`);
+}
+
+export async function selfRemoveRole(guildId: string, roleId: string): Promise<void> {
+  await apiClient.delete(`/guilds/${guildId}/roles/${roleId}/self-assign`);
+}
+
 export async function reorderRoles(
   guildId: string,
   positions: { id: string; position: number }[]

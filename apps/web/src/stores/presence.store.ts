@@ -5,6 +5,8 @@ import type { PresenceStatus, ActivityPayload } from '@constchat/protocol';
 interface UserPresence {
   status: PresenceStatus;
   customStatus?: string;
+  customStatusEmoji?: string;
+  customStatusExpiresAt?: string;
   activities?: ActivityPayload[];
 }
 

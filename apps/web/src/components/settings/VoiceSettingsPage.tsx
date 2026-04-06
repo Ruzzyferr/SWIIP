@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { Mic, Volume2, MicOff, Shield, Sparkles, Music, AlertTriangle } from 'lucide-react';
+import { Mic, Volume2, MicOff, Shield, Sparkles, Music, AlertTriangle, Radio } from 'lucide-react';
 import { useVoiceStore, type AudioMode } from '@/stores/voice.store';
 import { getPlatformProvider } from '@/lib/platform';
 
@@ -48,7 +48,8 @@ function useMediaDevices() {
 const EFFECTIVE_MODE_LABELS: Record<AudioMode, string> = {
   standard: 'Standard',
   enhanced: 'Enhanced',
-  raw: 'Music / Studio',
+  raw: 'Raw',
+  music: 'Music / Hi-Fi',
 };
 
 function MicTest() {
@@ -322,10 +323,16 @@ function getAudioModes(): { value: AudioMode; label: string; description: string
       requiresEnhanced: true,
     },
     {
-      value: 'raw',
-      label: 'Music / Studio',
-      description: 'No processing — for instruments and studio mics',
+      value: 'music',
+      label: 'Music / Hi-Fi',
+      description: 'All processing disabled — optimized for instruments, music playback, or studio microphones',
       icon: Music,
+    },
+    {
+      value: 'raw',
+      label: 'Raw',
+      description: 'No processing at all — direct microphone pass-through',
+      icon: Radio,
     },
   ];
 }
@@ -575,6 +582,88 @@ export function VoiceSettingsPage() {
           onChange={(mode) => updateSettings({ audioMode: mode })}
         />
         <AudioModeMismatchBanner />
+
+        {/* RNNoise compensation gain slider — only visible when Enhanced mode is selected */}
+        {settings.audioMode === 'enhanced' && (
+          <div className="mt-3 space-y-1">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                Noise Suppression Gain
+              </p>
+              <span className="text-xs tabular-nums" style={{ color: 'var(--color-text-tertiary)' }}>
+                {(settings.rnnoiseGain ?? 2.2).toFixed(1)}x
+              </span>
+            </div>
+            <input
+              type="range"
+              min={1.0}
+              max={4.0}
+              step={0.1}
+              value={settings.rnnoiseGain ?? 2.2}
+              onChange={(e) => updateSettings({ rnnoiseGain: parseFloat(e.target.value) })}
+              className="w-full accent-[var(--color-accent-primary)]"
+            />
+            <p className="text-[10px]" style={{ color: 'var(--color-text-disabled)' }}>
+              Compensates for RNNoise volume reduction. Increase if your voice sounds too quiet.
+            </p>
+          </div>
+        )}
+      </section>
+
+      <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />
+
+      {/* Noise Gate (Expander) */}
+      <section className="space-y-3">
+        <div className="flex items-center justify-between">
+          <div>
+            <p className="text-sm font-semibold uppercase tracking-wider" style={{ color: 'var(--color-text-disabled)' }}>
+              Noise Gate
+            </p>
+            <p className="text-xs mt-1" style={{ color: 'var(--color-text-disabled)' }}>
+              Silences input below a volume threshold to reduce background noise between speech
+            </p>
+          </div>
+          <button
+            onClick={() => updateSettings({ noiseGateEnabled: !settings.noiseGateEnabled })}
+            className="relative w-11 h-6 rounded-full transition-colors duration-200"
+            style={{
+              background: settings.noiseGateEnabled
+                ? 'var(--color-success-default)'
+                : 'var(--color-surface-base)',
+            }}
+          >
+            <div
+              className="absolute top-0.5 w-5 h-5 rounded-full bg-white shadow transition-transform duration-200"
+              style={{
+                transform: settings.noiseGateEnabled ? 'translateX(22px)' : 'translateX(2px)',
+              }}
+            />
+          </button>
+        </div>
+        {settings.noiseGateEnabled && (
+          <div className="space-y-1">
+            <div className="flex items-center justify-between">
+              <p className="text-xs font-medium" style={{ color: 'var(--color-text-secondary)' }}>
+                Threshold
+              </p>
+              <span className="text-xs tabular-nums" style={{ color: 'var(--color-text-tertiary)' }}>
+                {settings.noiseGateThreshold ?? -50} dB
+              </span>
+            </div>
+            <input
+              type="range"
+              min={-80}
+              max={-20}
+              step={1}
+              value={settings.noiseGateThreshold ?? -50}
+              onChange={(e) => updateSettings({ noiseGateThreshold: parseInt(e.target.value) })}
+              className="w-full accent-[var(--color-accent-primary)]"
+            />
+            <p className="text-[10px]" style={{ color: 'var(--color-text-disabled)' }}>
+              Audio below this level will be muted. Lower values = more sensitive.
+            </p>
+          </div>
+        )}
       </section>
 
       <div className="h-px" style={{ background: 'var(--color-border-subtle)' }} />

@@ -29,7 +29,9 @@ import {
   removeFriend,
   blockUser,
   unblockUser,
+  getFriendSuggestions,
   type RelationshipPayload,
+  type FriendSuggestion,
 } from '@/lib/api/friends.api';
 import { openDM } from '@/lib/api/dms.api';
 import { useDMsStore } from '@/stores/dms.store';
@@ -41,7 +43,7 @@ import type { PresenceStatus } from '@constchat/protocol';
 // Tab types
 // ---------------------------------------------------------------------------
 
-type FriendsTab = 'online' | 'all' | 'pending' | 'blocked' | 'add';
+type FriendsTab = 'online' | 'all' | 'pending' | 'blocked' | 'add' | 'suggestions';
 
 // ---------------------------------------------------------------------------
 // Add Friend form
@@ -419,6 +421,8 @@ export function FriendsList() {
   const isLoaded = useFriendsStore((s) => s.isLoaded);
   const addConversation = useDMsStore((s) => s.addConversation);
   const presences = usePresenceStore((s) => s.users);
+  const [suggestions, setSuggestions] = useState<FriendSuggestion[]>([]);
+  const [suggestionsLoaded, setSuggestionsLoaded] = useState(false);
 
   const refreshRelationships = useCallback(async () => {
     try {
@@ -434,6 +438,15 @@ export function FriendsList() {
       refreshRelationships();
     }
   }, [isLoaded, refreshRelationships]);
+
+  useEffect(() => {
+    if (activeTab === 'suggestions' && !suggestionsLoaded) {
+      getFriendSuggestions()
+        .then(setSuggestions)
+        .catch(() => setSuggestions([]))
+        .finally(() => setSuggestionsLoaded(true));
+    }
+  }, [activeTab, suggestionsLoaded]);
 
   const handleMessage = useCallback(async (userId: string) => {
     try {
@@ -537,6 +550,7 @@ export function FriendsList() {
     { id: 'all', label: t('all') },
     { id: 'pending', label: t('pending'), badge: pendingCount },
     { id: 'blocked', label: t('blocked') },
+    { id: 'suggestions', label: 'Suggestions' },
   ];
 
   return (
@@ -608,8 +622,74 @@ export function FriendsList() {
       {/* Add friend form */}
       {activeTab === 'add' && <AddFriendForm />}
 
+      {/* Suggestions */}
+      {activeTab === 'suggestions' && (
+        <div className="flex-1 overflow-y-auto px-4 py-4">
+          <p className="text-xs font-semibold uppercase tracking-wider px-2 mb-3"
+            style={{ color: 'var(--color-text-disabled)' }}>
+            Suggested Friends — {suggestions.length}
+          </p>
+          {!suggestionsLoaded && (
+            <div className="flex justify-center py-12">
+              <div className="w-5 h-5 border-2 border-t-transparent rounded-full animate-spin"
+                style={{ borderColor: 'var(--color-text-disabled)', borderTopColor: 'transparent' }} />
+            </div>
+          )}
+          {suggestionsLoaded && suggestions.length === 0 && (
+            <div className="flex flex-col items-center justify-center py-12 gap-3">
+              <Users size={48} style={{ color: 'var(--color-text-disabled)' }} />
+              <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
+                No suggestions right now. Join more servers to find people!
+              </p>
+            </div>
+          )}
+          {suggestions.map((s) => (
+            <div
+              key={s.id}
+              className="flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors mb-1"
+              style={{ background: 'transparent' }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'var(--color-surface-raised)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
+            >
+              <Avatar userId={s.id} src={s.avatar} displayName={s.globalName ?? s.username} size="md" />
+              <div className="flex-1 min-w-0">
+                <p className="text-sm font-medium truncate" style={{ color: 'var(--color-text-primary)' }}>
+                  {s.globalName ?? s.username}
+                </p>
+                <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+                  {s.mutualGuildCount} mutual server{s.mutualGuildCount !== 1 ? 's' : ''}
+                </p>
+              </div>
+              <button
+                onClick={async () => {
+                  try {
+                    await sendFriendRequest(s.username, s.discriminator);
+                    setSuggestions((prev) => prev.filter((x) => x.id !== s.id));
+                    toastSuccess('Friend request sent!');
+                  } catch {
+                    toastError('Failed to send request');
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-medium"
+                style={{ background: 'var(--color-success-default)', color: '#fff' }}
+              >
+                <UserPlus size={12} />
+                Add
+              </button>
+              <button
+                onClick={() => openModal('user-profile', { userId: s.id })}
+                className="p-1.5 rounded"
+                style={{ color: 'var(--color-text-secondary)' }}
+              >
+                <User size={14} />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Search */}
-      {activeTab !== 'add' && (
+      {activeTab !== 'add' && activeTab !== 'suggestions' && (
         <div className="px-6 pt-4 pb-2">
           <div className="relative">
             <Search
@@ -633,7 +713,7 @@ export function FriendsList() {
       )}
 
       {/* List */}
-      {activeTab !== 'add' && (
+      {activeTab !== 'add' && activeTab !== 'suggestions' && (
         <div className="flex-1 overflow-y-auto px-4 py-2">
           <p className="text-xs font-semibold uppercase tracking-wider px-2 mb-2"
             style={{ color: 'var(--color-text-disabled)' }}>

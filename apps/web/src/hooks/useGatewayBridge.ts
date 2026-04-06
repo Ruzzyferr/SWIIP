@@ -78,6 +78,7 @@ export function useGatewayBridge() {
 
   const setConversations = useDMsStore((s) => s.setConversations);
   const addConversation = useDMsStore((s) => s.addConversation);
+  const updateConversation = useDMsStore((s) => s.updateConversation);
 
   useEffect(() => {
     if (!accessToken || bridged.current) return;
@@ -246,6 +247,15 @@ export function useGatewayBridge() {
       // Track lastMessageId on the channel for unread detection
       updateChannel(data.message.channelId, { lastMessageId: data.message.id } as any);
 
+      // Move DM conversation to top of list by updating its timestamp
+      const dmsState = useDMsStore.getState();
+      if (dmsState.conversations[data.message.channelId]) {
+        updateConversation(data.message.channelId, {
+          updatedAt: new Date().toISOString(),
+          lastMessageId: data.message.id,
+        });
+      }
+
       // Sound + desktop notification (Alert behavior: other channel / DM, unfocused, or background tab)
       const currentUserId = useAuthStore.getState().user?.id;
       const chId = data.message.channelId;
@@ -316,6 +326,8 @@ export function useGatewayBridge() {
         userId: data.userId,
         status: data.status,
         ...(data.customStatus != null && { customStatus: data.customStatus }),
+        ...((data as any).customStatusEmoji != null && { customStatusEmoji: (data as any).customStatusEmoji }),
+        ...((data as any).customStatusExpiresAt != null && { customStatusExpiresAt: (data as any).customStatusExpiresAt }),
         ...(data.activities != null && { activities: data.activities }),
       });
       if (!presenceFlushScheduled) {
@@ -447,12 +459,20 @@ export function useGatewayBridge() {
 
     // --- Read State ---
     gw.on('read_state_update', (data: any) => {
+      const currentUserId = useAuthStore.getState().user?.id;
       const messagesStore = useMessagesStore.getState();
       if (data.lastReadMessageId) {
         messagesStore.setLastRead(data.channelId, data.lastReadMessageId);
       }
       if (typeof data.mentionCount === 'number') {
         messagesStore.setMentionCount(data.channelId, data.mentionCount);
+      }
+      // Track recipient read state for DM read receipts
+      if (data.userId && data.userId !== currentUserId && data.lastReadMessageId) {
+        const dmsState = useDMsStore.getState();
+        if (dmsState.conversations[data.channelId]) {
+          dmsState.setRecipientRead(data.channelId, data.lastReadMessageId);
+        }
       }
     });
 

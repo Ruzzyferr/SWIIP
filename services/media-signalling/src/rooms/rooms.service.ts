@@ -197,17 +197,18 @@ export class RoomsService {
   }
 
   private buildRoomName(guildId: string, channelId: string): string {
-    return `guild-${guildId}-${channelId}`;
+    return guildId === 'dm' ? `dm-${channelId}` : `guild-${guildId}-${channelId}`;
   }
 
   private async ensureRoomExists(roomName: string): Promise<Room> {
     const rooms = await this.roomServiceClient.listRooms([roomName]);
     if (rooms.length > 0 && rooms[0]) return rooms[0];
 
-    // Create room with sensible defaults
+    // DM rooms have lower participant limits
+    const isDMRoom = roomName.startsWith('dm-');
     return await this.roomServiceClient.createRoom({
       name: roomName,
-      maxParticipants: 500,
+      maxParticipants: isDMRoom ? 10 : 500,
       emptyTimeout: 300, // 5min empty before auto-delete
       metadata: JSON.stringify({ createdAt: new Date().toISOString() }),
     });
