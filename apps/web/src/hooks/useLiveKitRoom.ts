@@ -155,7 +155,7 @@ export function useLiveKitRoom() {
     // Noise suppression is mode-controlled: standard=browser NS, enhanced=Krisp, raw=off.
     const room = new Room({
       adaptiveStream: true,
-      dynacast: true,
+      dynacast: false,
       // Reconnect policy — platform-aware delays.
       // Desktop: faster initial retry, more attempts (always-on expectation).
       // Web: more conservative (browser tab may be backgrounded).
@@ -164,7 +164,7 @@ export function useLiveKitRoom() {
         // Disable simulcast for screen share — send one high-quality stream
         screenShareSimulcastLayers: [],
         screenShareEncoding: {
-          maxBitrate: 8_000_000,
+          maxBitrate: 4_000_000,
           maxFramerate: 30,
         },
       },
@@ -244,9 +244,13 @@ export function useLiveKitRoom() {
       element.autoplay = true;
       element.setAttribute('playsinline', 'true');
       element.muted = false;
-      const currentDeafened = useVoiceStore.getState().selfDeafened;
-      const currentOutputVol = useVoiceStore.getState().settings.outputVolume;
-      element.volume = currentDeafened ? 0 : Math.min(currentOutputVol / 100, 1);
+      const state = useVoiceStore.getState();
+      const globalVol = state.selfDeafened ? 0 : state.settings.outputVolume / 100;
+      const userVol = (state.userVolumes[participant?.identity ?? ''] ?? 100) / 100;
+      element.volume = Math.min(globalVol * userVol, 1);
+      if (track instanceof RemoteAudioTrack) {
+        track.setVolume(globalVol * userVol);
+      }
       document.body.appendChild(element);
       applySinkId(element);
       audioElementsRef.current.set(trackSid, element);
@@ -473,9 +477,9 @@ export function useLiveKitRoom() {
               console.debug('[LiveKit] Re-publishing screen share after reconnect');
               const quality = useVoiceStore.getState().screenShareQuality;
               const presets = {
-                '720p30': { maxBitrate: 5_000_000, fps: 30 },
-                '1080p30': { maxBitrate: 8_000_000, fps: 30 },
-                '1080p60': { maxBitrate: 12_000_000, fps: 60 },
+                '720p30': { maxBitrate: 2_500_000, fps: 30 },
+                '1080p30': { maxBitrate: 4_000_000, fps: 30 },
+                '1080p60': { maxBitrate: 6_000_000, fps: 60 },
               } as const;
               const preset = presets[quality as keyof typeof presets] ?? presets['1080p30'];
               const wantAudio = useVoiceStore.getState().screenShareAudio;
@@ -663,10 +667,10 @@ export function useLiveKitRoom() {
           if (currentChannelId) {
             if (isScreen) {
               setParticipantScreenShare(currentChannelId, participant.identity, true);
-              // Auto-watch new screen shares
+              // Default new screen shares to unwatched — user opts in via "Watch Stream" button
               const ws = useVoiceStore.getState().watchingStreams;
               if (ws[participant.identity] === undefined) {
-                useVoiceStore.getState().setWatchingStream(participant.identity, true);
+                useVoiceStore.getState().setWatchingStream(participant.identity, false);
               }
             } else {
               setParticipantVideo(currentChannelId, participant.identity, true);
@@ -719,6 +723,10 @@ export function useLiveKitRoom() {
         setParticipantVideo(currentChannelId, participant.identity, false);
       }
 
+      if (publication.source === Track.Source.ScreenShare) {
+        console.warn('[LiveKit] Screen share muted:', participant.identity, publication.trackSid);
+      }
+
       if (publication.source === Track.Source.Microphone) {
         const key = `${currentChannelId}:${participant.identity}`;
         const existing = useVoiceStore.getState().participants[key];
@@ -738,6 +746,10 @@ export function useLiveKitRoom() {
           updateVideoTrack(participant.identity, 'camera', track.mediaStreamTrack);
           setParticipantVideo(currentChannelId, participant.identity, true);
         }
+      }
+
+      if (publication.source === Track.Source.ScreenShare) {
+        console.warn('[LiveKit] Screen share unmuted:', participant.identity, publication.trackSid);
       }
 
       if (publication.source === Track.Source.Microphone) {
@@ -1191,9 +1203,9 @@ export function useLiveKitRoom() {
       // Read quality from store at start time (not reactive — avoids re-prompting)
       const quality = useVoiceStore.getState().screenShareQuality;
       const presets = {
-        '720p30': { width: 1280, height: 720, fps: 30, maxBitrate: 5_000_000 },
-        '1080p30': { width: 1920, height: 1080, fps: 30, maxBitrate: 8_000_000 },
-        '1080p60': { width: 1920, height: 1080, fps: 60, maxBitrate: 12_000_000 },
+        '720p30': { width: 1280, height: 720, fps: 30, maxBitrate: 2_500_000 },
+        '1080p30': { width: 1920, height: 1080, fps: 30, maxBitrate: 4_000_000 },
+        '1080p60': { width: 1920, height: 1080, fps: 60, maxBitrate: 6_000_000 },
       } as const;
       const preset = presets[quality as keyof typeof presets] ?? presets['1080p30'];
 
@@ -1218,6 +1230,17 @@ export function useLiveKitRoom() {
           maxFramerate: preset.fps,
         },
         // Screen share audio enabled when requested
+      }).then(() => {
+        // Listen for screen share track ending (e.g. user stops sharing via browser chrome)
+        const screenPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+        if (screenPub?.track) {
+          screenPub.track.on('ended', () => {
+            if (Date.now() >= screenShareReconnectUntil.current) {
+              console.warn('[LiveKit] Screen share track ended unexpectedly');
+              useVoiceStore.getState().setScreenShareEnabled(false);
+            }
+          });
+        }
       }).catch((err) => {
         console.warn('[LiveKit] Screen share failed:', err);
         useVoiceStore.getState().setScreenShareEnabled(false);

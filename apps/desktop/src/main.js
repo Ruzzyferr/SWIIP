@@ -559,13 +559,20 @@ app.on('ready', async () => {
   appSession.setDisplayMediaRequestHandler(async (_request, callback) => {
     try {
       if (selectedSourceId) {
-        const sources = await desktopCapturer.getSources({ types: ['screen', 'window'] });
-        const chosen = sources.find((s) => s.id === selectedSourceId);
+        // Try cached sources first (from get-desktop-sources), fall back to fresh query
+        const sources = cachedSources || await desktopCapturer.getSources({ types: ['screen', 'window'] });
+        let chosen = sources.find((s) => s.id === selectedSourceId);
+        if (!chosen) {
+          // Source not found in cache — re-query in case window z-order changed
+          const freshSources = await desktopCapturer.getSources({ types: ['screen', 'window'] });
+          chosen = freshSources.find((s) => s.id === selectedSourceId);
+        }
         const sourceId = selectedSourceId;
         selectedSourceId = null;
+        cachedSources = null;
         if (chosen) {
           const isWindowCapture = sourceId.startsWith('window:');
-          const includeAudio = !isWindowCapture && screenShareAudioEnabled;
+          const includeAudio = screenShareAudioEnabled;
           callback({ video: chosen, audio: includeAudio ? 'loopback' : undefined });
           return;
         }
@@ -616,6 +623,8 @@ ipcMain.handle('set-setting', (_, key, value) => store.set(key, value));
 let screenShareAudioEnabled = false;
 // Track the selected source ID (set from renderer via custom picker)
 let selectedSourceId = null;
+// Cached sources from the most recent get-desktop-sources call
+let cachedSources = null;
 
 ipcMain.handle('set-screen-share-audio', (_, enabled) => {
   screenShareAudioEnabled = !!enabled;
@@ -631,6 +640,7 @@ ipcMain.handle('get-desktop-sources', async () => {
     thumbnailSize: { width: 300, height: 200 },
     fetchWindowIcons: true,
   });
+  cachedSources = sources;
   return sources.map((s) => ({
     id: s.id,
     name: s.name,

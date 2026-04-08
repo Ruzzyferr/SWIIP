@@ -172,18 +172,16 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
         {/* Audio Toggle */}
         {(() => {
           const isWindowCapture = isDesktop && selectedSourceId?.startsWith('window:');
-          const audioDisabled = !!isWindowCapture;
           return (
             <div className="space-y-1.5">
               <div
                 className="flex items-center justify-between p-3 rounded-lg"
                 style={{
                   background: 'var(--color-surface-raised)',
-                  opacity: audioDisabled ? 0.5 : 1,
                 }}
               >
                 <div className="flex items-center gap-2.5">
-                  {shareAudio && !audioDisabled ? (
+                  {shareAudio ? (
                     <Volume2 size={18} style={{ color: 'var(--color-accent-primary)' }} />
                   ) : (
                     <VolumeX size={18} style={{ color: 'var(--color-text-tertiary)' }} />
@@ -195,28 +193,27 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
                     <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
                       {isDesktop
                         ? isWindowCapture
-                          ? 'Audio sharing is not available for window captures'
+                          ? 'Captures all system audio — not just this window. Use headphones to prevent echo'
                           : 'Captures system audio — use headphones to prevent echo'
                         : 'Share tab or system audio (Chrome/Edge only)'}
                     </p>
                   </div>
                 </div>
                 <button
-                  onClick={() => !audioDisabled && setShareAudio(!shareAudio)}
-                  disabled={audioDisabled}
+                  onClick={() => setShareAudio(!shareAudio)}
                   className="relative w-10 h-5 rounded-full transition-colors"
                   style={{
-                    background: shareAudio && !audioDisabled ? 'var(--color-accent-primary)' : 'var(--color-surface-overlay)',
-                    cursor: audioDisabled ? 'not-allowed' : 'pointer',
+                    background: shareAudio ? 'var(--color-accent-primary)' : 'var(--color-surface-overlay)',
+                    cursor: 'pointer',
                   }}
                 >
                   <span
                     className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform"
-                    style={{ transform: shareAudio && !audioDisabled ? 'translateX(20px)' : 'translateX(0)' }}
+                    style={{ transform: shareAudio ? 'translateX(20px)' : 'translateX(0)' }}
                   />
                 </button>
               </div>
-              {isDesktop && shareAudio && !isWindowCapture && (
+              {isDesktop && shareAudio && (
                 <p className="text-xs px-1" style={{ color: 'var(--color-warning-default, #faa61a)' }}>
                   Use headphones to prevent echo. Voice chat audio is routed to your selected output device.
                 </p>
