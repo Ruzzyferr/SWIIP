@@ -432,27 +432,6 @@ function VoiceRoomContent({
   const watchingStreams = useVoiceStore((s) => s.watchingStreams);
   const setWatchingStream = useVoiceStore((s) => s.setWatchingStream);
 
-  // Stream start notification — track new screen sharers
-  const [streamNotif, setStreamNotif] = useState<{ userId: string; name: string } | null>(null);
-  const prevSharersRef = useRef<Set<string>>(new Set());
-  useEffect(() => {
-    const currentIds = new Set(screenSharers.map((s) => s.userId));
-    const prevIds = prevSharersRef.current;
-    // Find newly added sharers
-    for (const id of currentIds) {
-      if (!prevIds.has(id) && id !== userId) {
-        const m = members?.[id];
-        const name = m?.nick ?? m?.user?.globalName ?? m?.user?.username ?? id;
-        setStreamNotif({ userId: id, name });
-        // Auto-dismiss after 4s
-        const timer = setTimeout(() => setStreamNotif(null), 4000);
-        prevSharersRef.current = currentIds;
-        return () => clearTimeout(timer);
-      }
-    }
-    prevSharersRef.current = currentIds;
-  }, [screenSharers, userId, members]);
-
   const [narrow, setNarrow] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 639px)');
@@ -463,43 +442,6 @@ function VoiceRoomContent({
   }, []);
 
   if (participants.length === 0) return null;
-
-  // Stream start notification toast (rendered above all modes)
-  const streamNotifToast = (
-    <AnimatePresence>
-      {streamNotif && (
-        <motion.div
-          key={`notif-${streamNotif.userId}`}
-          initial={{ opacity: 0, y: -30, scale: 0.95 }}
-          animate={{ opacity: 1, y: 0, scale: 1 }}
-          exit={{ opacity: 0, y: -20, scale: 0.95 }}
-          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
-          className="absolute top-16 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 px-4 py-3 rounded-2xl"
-          style={{
-            background: 'var(--glass-bg, rgba(30, 30, 30, 0.85))',
-            backdropFilter: 'blur(12px)',
-            border: '1px solid var(--glass-border, rgba(255, 255, 255, 0.08))',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
-          }}
-        >
-          <div
-            className="flex items-center justify-center rounded-full"
-            style={{ width: 32, height: 32, background: 'var(--color-danger-muted)' }}
-          >
-            <Monitor size={16} style={{ color: 'var(--color-danger-default)' }} />
-          </div>
-          <div>
-            <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
-              {streamNotif.name} started streaming
-            </p>
-            <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-              Now watching
-            </p>
-          </div>
-        </motion.div>
-      )}
-    </AnimatePresence>
-  );
 
   // Split screen sharers into watched and unwatched
   const watchedSharers = screenSharers.filter((s) => watchingStreams[s.userId] !== false);
@@ -518,7 +460,7 @@ function VoiceRoomContent({
     return (
       <LayoutGroup>
         <div className="flex-1 flex flex-col gap-3 w-full max-w-6xl min-h-0 mx-auto px-1 sm:px-2 relative">
-          {streamNotifToast}
+
           {/* Screen share spotlight area */}
           <div
             className="flex-1 min-h-0 grid gap-2"
@@ -850,7 +792,6 @@ function VoiceRoomContent({
   return (
     <LayoutGroup>
       <div className="flex-1 flex items-center justify-center w-full relative">
-        {streamNotifToast}
         {/* Ambient glow behind avatars */}
         <div
           className="absolute inset-0 pointer-events-none"

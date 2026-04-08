@@ -1273,32 +1273,28 @@ export function useLiveKitRoom() {
       const preset = presets[quality as keyof typeof presets] ?? presets['1080p30'];
 
       const wantAudio = useVoiceStore.getState().screenShareAudio;
-      room.localParticipant.setScreenShareEnabled(true, {
-        // Capture options — don't constrain resolution, let browser capture at native resolution
-        contentHint: preset.fps >= 60 ? 'motion' : 'detail',
-        audio: wantAudio,
+
+      const captureOpts = (audio: boolean) => ({
+        contentHint: (preset.fps >= 60 ? 'motion' : 'detail') as 'motion' | 'detail',
+        audio,
         suppressLocalAudioPlayback: true,
-        selfBrowserSurface: 'exclude',
-        surfaceSwitching: 'include',
-        // Include system audio so full-screen sharing captures all system sound.
-        // Window sharing only captures that window's audio (browser/OS handles this).
-        // Voice chat echo is prevented by suppressLocalAudioPlayback + separate
-        // output device routing for voice audio elements.
-        systemAudio: 'include',
+        selfBrowserSurface: 'exclude' as const,
+        surfaceSwitching: 'include' as const,
+        systemAudio: 'include' as const,
         preferCurrentTab: false,
-      }, {
-        // Publish options — disable simulcast so remote gets full resolution
+      });
+
+      const publishOpts = {
         simulcast: false,
         videoEncoding: {
           maxBitrate: preset.maxBitrate,
           maxFramerate: preset.fps,
         },
-        // High-quality stereo audio for screen share — music, games, videos
-        // Default Opus was using low bitrate mono (speech profile).
         audioPreset: AudioPresets.musicHighQualityStereo,
-        dtx: false, // Don't cut audio during quiet moments
-      }).then(() => {
-        // Listen for screen share track ending (e.g. user stops sharing via browser chrome)
+        dtx: false,
+      };
+
+      const listenForEnd = () => {
         const screenPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
         if (screenPub?.track) {
           screenPub.track.on('ended', () => {
@@ -1308,10 +1304,26 @@ export function useLiveKitRoom() {
             }
           });
         }
-      }).catch((err) => {
-        console.warn('[LiveKit] Screen share failed:', err);
-        useVoiceStore.getState().setScreenShareEnabled(false);
-      });
+      };
+
+      room.localParticipant.setScreenShareEnabled(true, captureOpts(wantAudio), publishOpts)
+        .then(listenForEnd)
+        .catch((err) => {
+          // If audio was requested and it failed, retry without audio.
+          // Some systems can't capture system audio (no loopback device, permissions, etc.)
+          if (wantAudio) {
+            console.warn('[LiveKit] Screen share with audio failed, retrying without audio:', err);
+            room.localParticipant.setScreenShareEnabled(true, captureOpts(false), publishOpts)
+              .then(listenForEnd)
+              .catch((retryErr) => {
+                console.warn('[LiveKit] Screen share failed entirely:', retryErr);
+                useVoiceStore.getState().setScreenShareEnabled(false);
+              });
+          } else {
+            console.warn('[LiveKit] Screen share failed:', err);
+            useVoiceStore.getState().setScreenShareEnabled(false);
+          }
+        });
     } else {
       room.localParticipant.setScreenShareEnabled(false).catch(console.error);
     }
