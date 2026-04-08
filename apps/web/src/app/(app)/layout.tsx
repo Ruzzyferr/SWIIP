@@ -49,6 +49,7 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setIsDesktop(!!(window as any).constchat?.platform);
   }, []);
 

@@ -56,6 +56,7 @@ export class UpdateGuildDto {
   @ApiPropertyOptional() @IsOptional() @IsBoolean() isDiscoverable?: boolean;
   @ApiPropertyOptional() @IsOptional() @IsString() vanityUrlCode?: string;
   @ApiPropertyOptional() @IsOptional() @IsString() systemChannelId?: string;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   @ApiPropertyOptional() @IsOptional() welcomeScreen?: any;
 }
 
@@ -641,6 +642,7 @@ export class GuildsService {
 
     await this.prisma.guild.update({
       where: { id: guildId },
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       data: { welcomeScreen: welcomeScreen as any },
     });
 
@@ -693,7 +695,7 @@ export class GuildsService {
     });
   }
 
-  async deleteEvent(eventId: string, guildId: string, userId: string) {
+  async deleteEvent(eventId: string, guildId: string, _userId: string) {
     const event = await this.prisma.scheduledEvent.findFirst({ where: { id: eventId, guildId } });
     if (!event) throw new NotFoundException('Event not found');
     await this.prisma.scheduledEvent.delete({ where: { id: eventId } });
@@ -727,6 +729,7 @@ export class GuildsService {
   }
 
   async discoverGuilds(userId: string, opts: { search?: string; limit: number; offset: number }) {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const where: any = { isDiscoverable: true };
     if (opts.search) {
       where.OR = [

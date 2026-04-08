@@ -200,6 +200,7 @@ export class UsersService {
       const current = (user?.settings as Record<string, unknown>) ?? {};
       await this.prisma.user.update({
         where: { id: userId },
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         data: { settings: { ...current, profileLinks: dto.profileLinks } as any },
       });
     }
