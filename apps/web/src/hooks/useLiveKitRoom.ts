@@ -843,29 +843,36 @@ export function useLiveKitRoom() {
     });
 
     // MediaDevicesError: device unplugged or permission revoked mid-call.
-    // Only show relevant messages — don't scare users with mic errors
-    // when they're just trying to screen share.
+    // Most device errors are non-fatal — log them but don't show scary UI errors.
+    // Screen sharing and listening work without a microphone.
     room.on(RoomEvent.MediaDevicesError, (error: Error, kind?: MediaDeviceKind) => {
-      console.error('[LiveKit] Media device error:', error, 'kind:', kind);
-      // Ignore audio input (mic) errors if user doesn't have a mic — it's not
-      // required for screen sharing or listening. Only warn, don't block.
-      if (kind === 'audioinput') {
-        if (error.name === 'NotFoundError' || error.name === 'NotReadableError') {
-          console.warn('[LiveKit] No microphone found — voice input unavailable, but screen share and listening still work');
-          // Don't setError — mic is optional for screen share viewers
+      console.warn('[LiveKit] Media device error:', error.message, 'name:', error.name, 'kind:', kind);
+
+      // Audio input (mic) errors — never block, mic is optional
+      if (kind === 'audioinput' || !kind) {
+        // "Could not start audio source", NotFoundError, NotReadableError — all mic issues.
+        // User can still listen, watch streams, and screen share without a mic.
+        const isMicError = error.name === 'NotFoundError'
+          || error.name === 'NotReadableError'
+          || error.message.toLowerCase().includes('audio source')
+          || error.message.toLowerCase().includes('audio');
+        if (isMicError) {
+          console.warn('[LiveKit] Mic unavailable — user can still listen and screen share');
           return;
         }
         if (error.name === 'NotAllowedError') {
-          setError('Microphone permission denied. You can still listen and watch streams.');
+          console.warn('[LiveKit] Mic permission denied');
           return;
         }
       }
+
       if (kind === 'videoinput') {
         setError('Camera error: ' + error.message);
         return;
       }
-      // Generic fallback for unknown device kinds
-      setError(`Device error: ${error.message}`);
+
+      // Only show error for truly unexpected failures
+      console.error('[LiveKit] Unexpected device error:', error);
     });
 
     // AudioPlaybackStatusChanged: browser blocked autoplay — prompt user
