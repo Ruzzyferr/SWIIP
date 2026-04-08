@@ -723,8 +723,10 @@ export function useLiveKitRoom() {
         setParticipantVideo(currentChannelId, participant.identity, false);
       }
 
-      if (publication.source === Track.Source.ScreenShare) {
-        console.warn('[LiveKit] Screen share muted:', participant.identity, publication.trackSid);
+      if (publication.source === Track.Source.ScreenShare && publication.kind === Track.Kind.Video) {
+        console.debug('[LiveKit] Screen share muted (ICE reconnecting?):', participant.identity);
+        // Don't clear the track — VideoTile handles mute/unmute via MediaStreamTrack events.
+        // Just ensure store knows screen share is still active so UI doesn't tear down.
       }
 
       if (publication.source === Track.Source.Microphone) {
@@ -748,8 +750,15 @@ export function useLiveKitRoom() {
         }
       }
 
-      if (publication.source === Track.Source.ScreenShare) {
-        console.warn('[LiveKit] Screen share unmuted:', participant.identity, publication.trackSid);
+      if (publication.source === Track.Source.ScreenShare && publication.kind === Track.Kind.Video) {
+        console.debug('[LiveKit] Screen share unmuted (ICE reconnected):', participant.identity);
+        // Re-push the track to VideoTile so it re-attaches and retries play().
+        // This handles the case where the MediaStreamTrack unmute event alone
+        // isn't sufficient (e.g., track was replaced by LiveKit during reconnect).
+        const track = publication.track;
+        if (track) {
+          updateVideoTrack(participant.identity, 'screen', track.mediaStreamTrack);
+        }
       }
 
       if (publication.source === Track.Source.Microphone) {

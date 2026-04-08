@@ -77,21 +77,52 @@ export const VideoTile = memo(function VideoTile({
 
     const stream = new MediaStream([track]);
     el.srcObject = stream;
-    el.play()
-      .then(() => setIsPlaying(true))
-      .catch(() => setIsPlaying(false));
 
-    const handleStopped = () => {
+    let retryTimer: ReturnType<typeof setTimeout> | null = null;
+
+    const tryPlay = () => {
+      el.play()
+        .then(() => setIsPlaying(true))
+        .catch(() => {
+          setIsPlaying(false);
+          // Retry play after a short delay — the track may need time to
+          // deliver frames after ICE reconnection or subscription change.
+          retryTimer = setTimeout(tryPlay, 1000);
+        });
+    };
+
+    tryPlay();
+
+    // Track ended permanently — tear down srcObject
+    const handleEnded = () => {
       el.srcObject = null;
       setIsPlaying(false);
     };
-    // Listen for both 'ended' and 'mute' — camera disable fires 'mute' on the raw track
-    track.addEventListener('ended', handleStopped);
-    track.addEventListener('mute', handleStopped);
+
+    // Track temporarily muted (ICE reconnection, network blip).
+    // Keep srcObject alive so playback can resume on unmute.
+    const handleMute = () => {
+      setIsPlaying(false);
+    };
+
+    // Track unmuted — data is flowing again, retry playback.
+    const handleUnmute = () => {
+      // Re-create stream if srcObject was somehow lost
+      if (!el.srcObject) {
+        el.srcObject = new MediaStream([track]);
+      }
+      tryPlay();
+    };
+
+    track.addEventListener('ended', handleEnded);
+    track.addEventListener('mute', handleMute);
+    track.addEventListener('unmute', handleUnmute);
 
     return () => {
-      track.removeEventListener('ended', handleStopped);
-      track.removeEventListener('mute', handleStopped);
+      if (retryTimer) clearTimeout(retryTimer);
+      track.removeEventListener('ended', handleEnded);
+      track.removeEventListener('mute', handleMute);
+      track.removeEventListener('unmute', handleUnmute);
       el.srcObject = null;
       setIsPlaying(false);
     };
