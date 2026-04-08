@@ -672,11 +672,11 @@ export function useLiveKitRoom() {
       if (!currentChannelId) return;
       if (publication.source === Track.Source.ScreenShare && publication.kind === Track.Kind.Video) {
         setParticipantScreenShare(currentChannelId, participant.identity, true);
-        // Auto-watch new screen shares so the stream is immediately visible.
-        // User can stop watching via context menu or the X button.
+        // Default to unwatched — user opts in via "Watch Stream" on the tile.
+        // This keeps the normal lobby view until the user chooses to watch.
         const ws = useVoiceStore.getState().watchingStreams;
         if (ws[participant.identity] === undefined) {
-          useVoiceStore.getState().setWatchingStream(participant.identity, true);
+          useVoiceStore.getState().setWatchingStream(participant.identity, false);
         }
       }
     });
@@ -976,11 +976,11 @@ export function useLiveKitRoom() {
               screenSharing: participant.isScreenShareEnabled,
             });
             bindSpeakingListener(participant);
-            // Auto-watch existing screen sharers when joining a room.
+            // Default existing screen sharers to unwatched when joining.
             if (participant.isScreenShareEnabled) {
               const ws = useVoiceStore.getState().watchingStreams;
               if (ws[participant.identity] === undefined) {
-                useVoiceStore.getState().setWatchingStream(participant.identity, true);
+                useVoiceStore.getState().setWatchingStream(participant.identity, false);
               }
             }
           }

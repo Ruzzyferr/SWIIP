@@ -155,11 +155,13 @@ function ParticipantTile({
   guildId,
   isCurrentUser,
   size = 'normal',
+  onWatchStream,
 }: {
   participant: VoiceParticipant;
   guildId: string;
   isCurrentUser: boolean;
   size?: 'normal' | 'compact';
+  onWatchStream?: () => void;
 }) {
   const members = useGuildsStore((s) => s.members[guildId]);
   const member = members?.[participant.userId];
@@ -335,6 +337,29 @@ function ParticipantTile({
           <span style={{ color: 'var(--color-text-tertiary)', fontWeight: 400 }}> (you)</span>
         )}
       </span>
+
+      {/* Watch Stream button — shown when participant is streaming */}
+      {participant.screenSharing && onWatchStream && !isCurrentUser && (
+        <motion.button
+          initial={{ opacity: 0, y: 4 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 25, delay: 0.1 }}
+          onClick={(e) => { e.stopPropagation(); onWatchStream(); }}
+          className="flex items-center gap-1.5 font-semibold transition-all"
+          style={{
+            fontSize: isCompact ? 10 : 12,
+            padding: isCompact ? '4px 10px' : '6px 14px',
+            borderRadius: 10,
+            background: 'var(--color-accent-primary)',
+            color: '#fff',
+            border: 'none',
+            cursor: 'pointer',
+          }}
+        >
+          <Eye size={isCompact ? 10 : 12} />
+          Watch Stream
+        </motion.button>
+      )}
     </motion.div>
   );
 
@@ -391,13 +416,10 @@ function VoiceRoomContent({
     );
   }, [participants, videoTracks]);
 
-  const hasAnyVideo = useMemo(() => {
+  // Only count cameras as "video" — screen shares are handled by spotlight mode
+  const hasAnyCamera = useMemo(() => {
     return participants.some(
-      (p) =>
-        p.selfVideo ||
-        p.screenSharing ||
-        videoTracks[p.userId]?.camera ||
-        videoTracks[p.userId]?.screen,
+      (p) => p.selfVideo || videoTracks[p.userId]?.camera,
     );
   }, [participants, videoTracks]);
 
@@ -479,13 +501,12 @@ function VoiceRoomContent({
     </AnimatePresence>
   );
 
-  // ── SPOTLIGHT MODE: Someone is screen sharing ──
-  if (screenSharers.length > 0) {
-    // Split into watched and unwatched streams
-    const watchedSharers = screenSharers.filter((s) => watchingStreams[s.userId] !== false);
-    const unwatchedSharers = screenSharers.filter((s) => watchingStreams[s.userId] === false);
+  // Split screen sharers into watched and unwatched
+  const watchedSharers = screenSharers.filter((s) => watchingStreams[s.userId] !== false);
+  const unwatchedSharers = screenSharers.filter((s) => watchingStreams[s.userId] === false);
 
-    // Calculate screen share grid layout — supports any number of sharers
+  // ── SPOTLIGHT MODE: Only when user is actively watching a stream ──
+  if (watchedSharers.length > 0) {
     const screenGridCols = narrow
       ? 1
       : watchedSharers.length <= 1
@@ -498,8 +519,7 @@ function VoiceRoomContent({
       <LayoutGroup>
         <div className="flex-1 flex flex-col gap-3 w-full max-w-6xl min-h-0 mx-auto px-1 sm:px-2 relative">
           {streamNotifToast}
-          {/* Screen share area — single spotlight or grid, or empty spacer */}
-          {watchedSharers.length > 0 ? (
+          {/* Screen share spotlight area */}
           <div
             className="flex-1 min-h-0 grid gap-2"
             style={{
@@ -610,15 +630,11 @@ function VoiceRoomContent({
               })}
             </AnimatePresence>
           </div>
-          ) : (
-            /* Spacer when no watched streams — keeps bottom strip at the bottom */
-            <div className="flex-1" />
-          )}
 
-          {/* Bottom strip: All participants + unwatched stream tiles */}
+          {/* Bottom strip: participant tiles + unwatched stream tiles */}
           <div className="flex gap-2 overflow-x-auto pb-1 justify-center shrink-0">
             <AnimatePresence mode="popLayout">
-              {/* Unwatched stream preview tiles */}
+              {/* Unwatched stream tiles in the strip */}
               {unwatchedSharers.map((sharer) => {
                 const sharerMember = members?.[sharer.userId];
                 const sharerName =
@@ -634,14 +650,13 @@ function VoiceRoomContent({
                     initial="hidden"
                     animate="visible"
                     exit="exit"
-                    className="flex flex-col items-center justify-center cursor-pointer group"
+                    className="flex flex-col items-center gap-1.5 cursor-pointer"
                     style={{
-                      background: 'var(--color-surface-raised)',
-                      borderRadius: 12,
-                      padding: 12,
-                      gap: 6,
+                      padding: '10px 14px',
+                      borderRadius: 16,
+                      background: 'rgba(237, 66, 69, 0.08)',
                       border: '2px solid var(--color-danger-default)',
-                      minWidth: narrow ? 120 : 140,
+                      minWidth: narrow ? 80 : 90,
                       flexShrink: 0,
                     }}
                     onClick={() => setWatchingStream(sharer.userId, true)}
@@ -651,39 +666,35 @@ function VoiceRoomContent({
                         src={sharerMember?.user?.avatar ?? (sharerMember?.user as { avatarId?: string } | undefined)?.avatarId}
                         userId={sharer.userId}
                         displayName={sharerName}
-                        size="md"
+                        size="lg"
                       />
                       <div
-                        className="absolute -top-1 -right-1 rounded flex items-center justify-center"
+                        className="absolute -top-1.5 left-1/2 -translate-x-1/2 rounded-full px-1.5 py-0.5 flex items-center gap-0.5"
                         style={{
-                          padding: '1px 4px',
                           background: 'var(--color-danger-default)',
                           fontSize: 8,
                           fontWeight: 700,
                           color: '#fff',
-                          lineHeight: 1.2,
                           letterSpacing: '0.05em',
+                          whiteSpace: 'nowrap',
                         }}
                       >
+                        <Monitor size={8} />
                         LIVE
                       </div>
                     </div>
                     <span
                       className="font-medium truncate w-full text-center"
-                      style={{ fontSize: 11, color: 'var(--color-text-primary)' }}
+                      style={{ fontSize: 10, color: 'var(--color-text-primary)' }}
                     >
                       {sharerName}
                     </span>
-                    <button
-                      className="flex items-center gap-1 px-2.5 py-1 rounded-md text-[10px] font-semibold transition-colors"
-                      style={{
-                        background: 'var(--color-accent-primary)',
-                        color: '#fff',
-                      }}
+                    <span
+                      className="text-[9px] font-semibold"
+                      style={{ color: 'var(--color-accent-primary)' }}
                     >
-                      <Eye size={10} />
                       Watch
-                    </button>
+                    </span>
                   </motion.div>
                 );
               })}
@@ -734,6 +745,7 @@ function VoiceRoomContent({
                     guildId={guildId}
                     isCurrentUser={p.userId === userId}
                     size="compact"
+                    onWatchStream={p.screenSharing ? () => setWatchingStream(p.userId, true) : undefined}
                   />
                 );
               })}
@@ -745,7 +757,7 @@ function VoiceRoomContent({
   }
 
   // ── VIDEO GRID MODE: Cameras active, no screen share ──
-  if (hasAnyVideo) {
+  if (hasAnyCamera) {
     const videoParticipants = participants.filter(
       (p) => p.selfVideo || videoTracks[p.userId]?.camera,
     );
@@ -823,6 +835,7 @@ function VoiceRoomContent({
                     guildId={guildId}
                     isCurrentUser={p.userId === userId}
                     size="compact"
+                    onWatchStream={p.screenSharing ? () => setWatchingStream(p.userId, true) : undefined}
                   />
                 ))}
               </AnimatePresence>
@@ -858,6 +871,7 @@ function VoiceRoomContent({
                 participant={p}
                 guildId={guildId}
                 isCurrentUser={p.userId === userId}
+                onWatchStream={p.screenSharing ? () => setWatchingStream(p.userId, true) : undefined}
               />
             ))}
           </AnimatePresence>
