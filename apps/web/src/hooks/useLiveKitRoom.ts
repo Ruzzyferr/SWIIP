@@ -8,6 +8,7 @@ import {
   ConnectionState,
   Track,
   VideoPresets,
+  AudioPresets,
   RemoteAudioTrack,
   RemoteTrackPublication,
   DefaultReconnectPolicy,
@@ -170,6 +171,9 @@ export function useLiveKitRoom() {
           maxBitrate: 4_000_000,
           maxFramerate: 30,
         },
+        // High-quality stereo audio for screen share by default
+        audioPreset: AudioPresets.musicHighQualityStereo,
+        dtx: false,
       },
       audioCaptureDefaults: buildCaptureConstraints(
         platform.isDesktop ? 'desktop' : 'browser',
@@ -491,11 +495,13 @@ export function useLiveKitRoom() {
                 audio: wantAudio,
                 selfBrowserSurface: 'exclude',
                 surfaceSwitching: 'include',
-                systemAudio: 'exclude',
+                systemAudio: 'include',
                 preferCurrentTab: false,
               }, {
                 simulcast: false,
                 videoEncoding: { maxBitrate: preset.maxBitrate, maxFramerate: preset.fps },
+                audioPreset: AudioPresets.musicHighQualityStereo,
+                dtx: false,
               }).then(() => {
                 console.debug('[LiveKit] Screen share re-published successfully');
               }).catch((err) => {
@@ -1252,10 +1258,11 @@ export function useLiveKitRoom() {
         suppressLocalAudioPlayback: true,
         selfBrowserSurface: 'exclude',
         surfaceSwitching: 'include',
-        // Always exclude system audio — it captures ALL system output including
-        // voice chat playback, creating feedback. Tab/window audio capture still
-        // works via the `audio` flag without system-wide capture.
-        systemAudio: 'exclude',
+        // Include system audio so full-screen sharing captures all system sound.
+        // Window sharing only captures that window's audio (browser/OS handles this).
+        // Voice chat echo is prevented by suppressLocalAudioPlayback + separate
+        // output device routing for voice audio elements.
+        systemAudio: 'include',
         preferCurrentTab: false,
       }, {
         // Publish options — disable simulcast so remote gets full resolution
@@ -1264,7 +1271,10 @@ export function useLiveKitRoom() {
           maxBitrate: preset.maxBitrate,
           maxFramerate: preset.fps,
         },
-        // Screen share audio enabled when requested
+        // High-quality stereo audio for screen share — music, games, videos
+        // Default Opus was using low bitrate mono (speech profile).
+        audioPreset: AudioPresets.musicHighQualityStereo,
+        dtx: false, // Don't cut audio during quiet moments
       }).then(() => {
         // Listen for screen share track ending (e.g. user stops sharing via browser chrome)
         const screenPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);

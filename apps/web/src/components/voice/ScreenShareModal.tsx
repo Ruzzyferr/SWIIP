@@ -193,9 +193,9 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
                     <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
                       {isDesktop
                         ? isWindowCapture
-                          ? 'Captures all system audio — not just this window. Use headphones to prevent echo'
-                          : 'Captures system audio — use headphones to prevent echo'
-                        : 'Share tab or system audio (Chrome/Edge only)'}
+                          ? 'Captures audio from the selected window'
+                          : 'Captures all system audio except voice chat'
+                        : 'Window: captures window audio. Full screen: captures all system audio'}
                     </p>
                   </div>
                 </div>
