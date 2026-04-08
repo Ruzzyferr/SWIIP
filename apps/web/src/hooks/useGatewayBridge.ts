@@ -414,18 +414,38 @@ export function useGatewayBridge() {
     // --- Voice ---
     gw.on('voice_state_update', (data) => {
       const voiceStore = useVoiceStore.getState();
+      const localUserId = useAuthStore.getState().user?.id;
       if (data.channelId) {
-        voiceStore.setParticipant({
-          userId: data.userId,
-          channelId: data.channelId,
-          selfMute: data.selfMute,
-          selfDeaf: data.selfDeaf,
-          serverMute: data.serverMute,
-          serverDeaf: data.serverDeaf,
-          speaking: data.speaking,
-          selfVideo: data.selfVideo ?? false,
-          screenSharing: data.screenShare ?? false,
-        });
+        // For the local user, never override selfMute/selfDeaf from a gateway
+        // broadcast — it arrives with network delay and can revert intentional
+        // local changes, causing "random" muting.  Only accept serverMute/serverDeaf
+        // (admin actions) from the server for the local user.
+        if (data.userId === localUserId) {
+          const existing = voiceStore.participants[`${data.channelId}:${data.userId}`];
+          voiceStore.setParticipant({
+            userId: data.userId,
+            channelId: data.channelId,
+            selfMute: existing?.selfMute ?? voiceStore.selfMuted,
+            selfDeaf: existing?.selfDeaf ?? voiceStore.selfDeafened,
+            serverMute: data.serverMute,
+            serverDeaf: data.serverDeaf,
+            speaking: existing?.speaking ?? false,
+            selfVideo: existing?.selfVideo ?? false,
+            screenSharing: existing?.screenSharing ?? false,
+          });
+        } else {
+          voiceStore.setParticipant({
+            userId: data.userId,
+            channelId: data.channelId,
+            selfMute: data.selfMute,
+            selfDeaf: data.selfDeaf,
+            serverMute: data.serverMute,
+            serverDeaf: data.serverDeaf,
+            speaking: data.speaking,
+            selfVideo: data.selfVideo ?? false,
+            screenSharing: data.screenShare ?? false,
+          });
+        }
       } else {
         // User left voice — remove from all channels
         const participants = Object.values(voiceStore.participants).filter(

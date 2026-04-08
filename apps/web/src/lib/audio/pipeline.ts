@@ -108,13 +108,19 @@ export class AudioPipeline {
         await this.strategy.removeProcessors(this.room);
 
         const constraints = buildCaptureConstraints(this.platform, mode);
-        // Disable then re-enable mic with new constraints
+        // Disable then re-enable mic with new constraints.
+        // If re-enable fails, restore mic so the user isn't left muted.
         await this.room.localParticipant.setMicrophoneEnabled(false);
-        await this.room.localParticipant.setMicrophoneEnabled(true, {
-          echoCancellation: constraints.echoCancellation,
-          noiseSuppression: constraints.noiseSuppression,
-          autoGainControl: constraints.autoGainControl,
-        });
+        try {
+          await this.room.localParticipant.setMicrophoneEnabled(true, {
+            echoCancellation: constraints.echoCancellation,
+            noiseSuppression: constraints.noiseSuppression,
+            autoGainControl: constraints.autoGainControl,
+          });
+        } catch (republishErr) {
+          console.warn('[AudioPipeline] Mic republish failed, restoring mic:', republishErr);
+          await this.room.localParticipant.setMicrophoneEnabled(true).catch(() => {});
+        }
       } else {
         this.updateState({ requestedMode: mode, pipelineState: 'APPLYING' });
       }

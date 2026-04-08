@@ -154,8 +154,11 @@ export function useLiveKitRoom() {
     // Audio capture defaults — AGC always off (pumps floor noise).
     // Noise suppression is mode-controlled: standard=browser NS, enhanced=Krisp, raw=off.
     const room = new Room({
-      adaptiveStream: true,
-      dynacast: false,
+      // Disable adaptive stream — it aggressively downgrades/mutes screen share
+      // tracks on minor network fluctuations, causing "Stream reconnecting...".
+      // Dynacast handles bandwidth efficiently without muting tracks.
+      adaptiveStream: false,
+      dynacast: true,
       // Reconnect policy — platform-aware delays.
       // Desktop: faster initial retry, more attempts (always-on expectation).
       // Web: more conservative (browser tab may be backgrounded).
@@ -830,14 +833,14 @@ export function useLiveKitRoom() {
       }
     });
 
-    // MediaDevicesError: mic unplugged or permission revoked mid-call
+    // MediaDevicesError: mic unplugged or permission revoked mid-call.
+    // Never auto-mute — let the user decide.  Just show a warning.
     room.on(RoomEvent.MediaDevicesError, (error: Error) => {
       console.error('[LiveKit] Media device error:', error);
       if (error.name === 'NotAllowedError') {
         setError('Microphone permission was revoked. Please re-enable it in browser settings.');
       } else if (error.name === 'NotFoundError' || error.name === 'NotReadableError') {
         setError('Audio device disconnected. Plug in a microphone and try again.');
-        useVoiceStore.getState().setSelfMuted(true);
       } else {
         setError(`Audio device error: ${error.message}`);
       }
