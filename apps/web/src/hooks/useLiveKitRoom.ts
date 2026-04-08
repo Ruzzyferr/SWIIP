@@ -842,17 +842,30 @@ export function useLiveKitRoom() {
       }
     });
 
-    // MediaDevicesError: mic unplugged or permission revoked mid-call.
-    // Never auto-mute — let the user decide.  Just show a warning.
-    room.on(RoomEvent.MediaDevicesError, (error: Error) => {
-      console.error('[LiveKit] Media device error:', error);
-      if (error.name === 'NotAllowedError') {
-        setError('Microphone permission was revoked. Please re-enable it in browser settings.');
-      } else if (error.name === 'NotFoundError' || error.name === 'NotReadableError') {
-        setError('Audio device disconnected. Plug in a microphone and try again.');
-      } else {
-        setError(`Audio device error: ${error.message}`);
+    // MediaDevicesError: device unplugged or permission revoked mid-call.
+    // Only show relevant messages — don't scare users with mic errors
+    // when they're just trying to screen share.
+    room.on(RoomEvent.MediaDevicesError, (error: Error, kind?: MediaDeviceKind) => {
+      console.error('[LiveKit] Media device error:', error, 'kind:', kind);
+      // Ignore audio input (mic) errors if user doesn't have a mic — it's not
+      // required for screen sharing or listening. Only warn, don't block.
+      if (kind === 'audioinput') {
+        if (error.name === 'NotFoundError' || error.name === 'NotReadableError') {
+          console.warn('[LiveKit] No microphone found — voice input unavailable, but screen share and listening still work');
+          // Don't setError — mic is optional for screen share viewers
+          return;
+        }
+        if (error.name === 'NotAllowedError') {
+          setError('Microphone permission denied. You can still listen and watch streams.');
+          return;
+        }
       }
+      if (kind === 'videoinput') {
+        setError('Camera error: ' + error.message);
+        return;
+      }
+      // Generic fallback for unknown device kinds
+      setError(`Device error: ${error.message}`);
     });
 
     // AudioPlaybackStatusChanged: browser blocked autoplay — prompt user
