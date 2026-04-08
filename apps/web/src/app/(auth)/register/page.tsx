@@ -7,6 +7,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { motion } from 'framer-motion';
+import Image from 'next/image';
 import { Eye, EyeOff, Loader2, AtSign, Check, Mail, ArrowLeft } from 'lucide-react';
 import { MeshGradient } from '@/components/ui/MeshGradient';
 import { register as registerUser, verifyEmailCode, resendVerificationCode } from '@/lib/api/auth.api';

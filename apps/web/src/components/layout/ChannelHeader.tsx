@@ -11,7 +11,6 @@ import {
   Pin,
   Search,
   Inbox,
-  HelpCircle,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { motion, AnimatePresence } from 'framer-motion';
@@ -20,7 +19,7 @@ import { PinnedMessagesPanel } from '@/components/messaging/PinnedMessagesPanel'
 const SearchModal = dynamic(() => import('@/components/search/SearchModal').then(m => ({ default: m.SearchModal })), { ssr: false });
 import { useUIStore } from '@/stores/ui.store';
 import { useGuildsStore } from '@/stores/guilds.store';
-import { ChannelType, type ChannelPayload } from '@constchat/protocol';
+import { ChannelType } from '@constchat/protocol';
 
 function getChannelIcon(type: ChannelType) {
   switch (type) {

@@ -14,7 +14,7 @@ export function RolePicker({ guildId }: { guildId: string }) {
 
   const userId = useAuthStore((s) => s.user?.id);
   const member = useGuildsStore((s) => (userId ? s.members[guildId]?.[userId] : undefined));
-  const myRoles = (member as Record<string, unknown>)?.roles as string[] | undefined;
+  const myRoles = (member as unknown as Record<string, unknown>)?.roles as string[] | undefined;
 
   const load = useCallback(async () => {
     try {

@@ -4,14 +4,6 @@ import { useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MessageCircle, Mic, Users, Shield, Zap, Download } from 'lucide-react';
 
-interface Feature {
-  id: string;
-  icon: React.ReactNode;
-  title: string;
-  desc: string;
-  mockup: React.ReactNode;
-}
-
 interface FeatureShowcaseProps {
   features: { title: string; description: string }[];
   sectionTitle: string;

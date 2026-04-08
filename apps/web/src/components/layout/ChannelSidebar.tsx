@@ -7,7 +7,6 @@ import {
   Hash,
   Volume2,
   Megaphone,
-  Lock,
   ChevronDown,
   ChevronRight,
   Plus,
@@ -15,7 +14,7 @@ import {
   UserPlus,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Avatar } from '@/components/ui/Avatar';
+
 import { Tooltip } from '@/components/ui/Tooltip';
 import { UserPanel } from './UserPanel';
 import { DMConversationList } from './DMConversationList';
@@ -34,7 +33,7 @@ import { updateChannel as updateChannelApi } from '@/lib/api/channels.api';
 
 function GuildHeaderDropdown({
   guild,
-  guildId,
+  guildId: _guildId,
   onSettings,
   onInvite,
   onCreateChannel,
@@ -151,6 +150,7 @@ interface CategorySectionProps {
   onDrop?: (e: React.DragEvent, targetChannelId: string) => void;
 }
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 function CategorySection({
   name,
   categoryId,
@@ -274,6 +274,7 @@ function ChannelItem({
 
   // Unread detection: compare channel's lastMessageId with user's lastReadId
   const lastReadId = useMessagesStore((s) => s.channels[channel.id]?.lastReadId);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const lastMessageId = (channel as any).lastMessageId as string | undefined;
   const mentionCount = useMessagesStore((s) => s.channels[channel.id]?.mentionCount ?? 0);
   const hasUnread = !isActive && !isVoice && !!lastMessageId && lastMessageId !== lastReadId;
@@ -283,6 +284,7 @@ function ChannelItem({
     if (!isVoice) return 0;
     return Object.keys(s.participants).filter((k) => k.startsWith(`${channel.id}:`)).length;
   });
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const userLimit = (channel as any).userLimit as number | undefined;
 
   return (
@@ -420,7 +422,6 @@ interface ChannelSidebarProps {
 
 export function ChannelSidebar({ guildId }: ChannelSidebarProps) {
   const router = useRouter();
-  const t = useTranslations('servers');
   const tChannels = useTranslations('channels');
   const channels = useGuildsStore((s) => s.channels);
   const guilds = useGuildsStore((s) => s.guilds);
