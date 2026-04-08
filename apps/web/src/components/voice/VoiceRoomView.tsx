@@ -212,6 +212,10 @@ function ParticipantTile({
         },
       ];
 
+  const avatarSize = isCompact ? 'lg' : '2xl';
+  const badgeSize = isCompact ? 18 : 26;
+  const badgeIconSize = isCompact ? 9 : 13;
+
   const tile = (
     <motion.div
       layout
@@ -220,22 +224,14 @@ function ParticipantTile({
       initial="hidden"
       animate="visible"
       exit="exit"
-      className="flex flex-col items-center justify-center"
+      className="flex flex-col items-center"
       style={{
-        background: 'var(--color-surface-raised)',
-        borderRadius: 12,
-        padding: isCompact ? 12 : 16,
-        display: 'flex',
-        flexDirection: 'column',
-        alignItems: 'center',
-        gap: isCompact ? 6 : 8,
-        border: isSpeaking
-          ? '2px solid var(--color-accent-primary)'
-          : '2px solid var(--color-border-subtle)',
-        boxShadow: isSpeaking ? '0 0 20px rgba(16, 185, 129, 0.25)' : 'none',
-        transition: 'border-color 0.2s, box-shadow 0.2s',
-        minWidth: isCompact ? 80 : 0,
-        aspectRatio: isCompact ? undefined : '1 / 1',
+        padding: isCompact ? '10px 12px' : '20px 16px',
+        gap: isCompact ? 6 : 10,
+        minWidth: isCompact ? 72 : 100,
+        borderRadius: 16,
+        background: isSpeaking ? 'rgba(16, 185, 129, 0.06)' : 'transparent',
+        transition: 'background 0.3s ease',
       }}
     >
       {/* Avatar with speaking ring */}
@@ -244,16 +240,20 @@ function ParticipantTile({
           className="rounded-full"
           animate={{
             boxShadow: isSpeaking
-              ? '0 0 0 3px var(--color-voice-speaking), 0 0 16px var(--color-voice-speaking)'
-              : '0 0 0 0px transparent, 0 0 0px transparent',
+              ? [
+                  '0 0 0 3px var(--color-voice-speaking), 0 0 16px rgba(16, 185, 129, 0.25)',
+                  '0 0 0 4px var(--color-voice-speaking), 0 0 24px rgba(16, 185, 129, 0.15)',
+                  '0 0 0 3px var(--color-voice-speaking), 0 0 16px rgba(16, 185, 129, 0.25)',
+                ]
+              : '0 0 0 2px var(--color-border-subtle)',
           }}
-          transition={{ duration: 0.15 }}
+          transition={isSpeaking ? { duration: 2, repeat: Infinity, ease: 'easeInOut' } : { duration: 0.2 }}
         >
           <Avatar
             src={member?.user?.avatar ?? (member?.user as { avatarId?: string } | undefined)?.avatarId}
             userId={participant.userId}
             displayName={displayName}
-            size={isCompact ? 'md' : 'xl'}
+            size={avatarSize}
           />
         </motion.div>
 
@@ -262,18 +262,19 @@ function ParticipantTile({
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
             className="absolute -bottom-1 -right-1 rounded-full flex items-center justify-center"
             style={{
-              width: isCompact ? 18 : 24,
-              height: isCompact ? 18 : 24,
-              background: 'var(--color-surface-overlay)',
-              border: '2px solid var(--color-surface-raised)',
+              width: badgeSize,
+              height: badgeSize,
+              background: 'var(--color-danger-muted)',
+              border: '2px solid var(--color-surface-base)',
             }}
           >
             {participant.selfDeaf ? (
-              <EarOff size={isCompact ? 9 : 12} style={{ color: 'var(--color-danger-default)' }} />
+              <EarOff size={badgeIconSize} style={{ color: 'var(--color-danger-default)' }} />
             ) : (
-              <MicOff size={isCompact ? 9 : 12} style={{ color: 'var(--color-danger-default)' }} />
+              <MicOff size={badgeIconSize} style={{ color: 'var(--color-danger-default)' }} />
             )}
           </motion.div>
         )}
@@ -283,34 +284,36 @@ function ParticipantTile({
           <motion.div
             initial={{ scale: 0 }}
             animate={{ scale: 1 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
             className="absolute -bottom-1 -left-1 rounded-full flex items-center justify-center"
             style={{
-              width: isCompact ? 18 : 24,
-              height: isCompact ? 18 : 24,
+              width: badgeSize,
+              height: badgeSize,
               background: 'var(--color-surface-overlay)',
-              border: '2px solid var(--color-surface-raised)',
+              border: '2px solid var(--color-surface-base)',
             }}
           >
-            <Video size={isCompact ? 9 : 12} style={{ color: 'var(--color-success-default)' }} />
+            <Video size={badgeIconSize} style={{ color: 'var(--color-success-default)' }} />
           </motion.div>
         )}
 
         {/* Screen sharing LIVE badge */}
         {participant.screenSharing && (
           <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: 1 }}
-            className="absolute -top-1 -right-1 rounded flex items-center justify-center"
+            initial={{ scale: 0, y: 4 }}
+            animate={{ scale: 1, y: 0 }}
+            transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+            className="absolute -top-2 left-1/2 -translate-x-1/2 rounded-full flex items-center gap-1 px-2 py-0.5"
             style={{
-              padding: '1px 4px',
               background: 'var(--color-danger-default)',
               fontSize: isCompact ? 8 : 9,
               fontWeight: 700,
               color: '#fff',
-              lineHeight: 1.2,
               letterSpacing: '0.05em',
+              whiteSpace: 'nowrap',
             }}
           >
+            <Monitor size={isCompact ? 8 : 10} />
             LIVE
           </motion.div>
         )}
@@ -324,12 +327,12 @@ function ParticipantTile({
           color: isSpeaking
             ? 'var(--color-voice-speaking)'
             : 'var(--color-text-primary)',
-          transition: 'color 0.15s',
+          transition: 'color 0.2s ease',
         }}
       >
         {displayName}
         {isCurrentUser && (
-          <span style={{ color: 'var(--color-text-tertiary)' }}> (you)</span>
+          <span style={{ color: 'var(--color-text-tertiary)', fontWeight: 400 }}> (you)</span>
         )}
       </span>
     </motion.div>
@@ -407,6 +410,27 @@ function VoiceRoomContent({
   const watchingStreams = useVoiceStore((s) => s.watchingStreams);
   const setWatchingStream = useVoiceStore((s) => s.setWatchingStream);
 
+  // Stream start notification — track new screen sharers
+  const [streamNotif, setStreamNotif] = useState<{ userId: string; name: string } | null>(null);
+  const prevSharersRef = useRef<Set<string>>(new Set());
+  useEffect(() => {
+    const currentIds = new Set(screenSharers.map((s) => s.userId));
+    const prevIds = prevSharersRef.current;
+    // Find newly added sharers
+    for (const id of currentIds) {
+      if (!prevIds.has(id) && id !== userId) {
+        const m = members?.[id];
+        const name = m?.nick ?? m?.user?.globalName ?? m?.user?.username ?? id;
+        setStreamNotif({ userId: id, name });
+        // Auto-dismiss after 4s
+        const timer = setTimeout(() => setStreamNotif(null), 4000);
+        prevSharersRef.current = currentIds;
+        return () => clearTimeout(timer);
+      }
+    }
+    prevSharersRef.current = currentIds;
+  }, [screenSharers, userId, members]);
+
   const [narrow, setNarrow] = useState(false);
   useEffect(() => {
     const mq = window.matchMedia('(max-width: 639px)');
@@ -417,6 +441,57 @@ function VoiceRoomContent({
   }, []);
 
   if (participants.length === 0) return null;
+
+  // Stream start notification toast (rendered above all modes)
+  const streamNotifToast = (
+    <AnimatePresence>
+      {streamNotif && (
+        <motion.div
+          key={`notif-${streamNotif.userId}`}
+          initial={{ opacity: 0, y: -30, scale: 0.95 }}
+          animate={{ opacity: 1, y: 0, scale: 1 }}
+          exit={{ opacity: 0, y: -20, scale: 0.95 }}
+          transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+          className="absolute top-16 left-1/2 -translate-x-1/2 z-20 flex items-center gap-3 px-4 py-3 rounded-2xl"
+          style={{
+            background: 'var(--glass-bg, rgba(30, 30, 30, 0.85))',
+            backdropFilter: 'blur(12px)',
+            border: '1px solid var(--glass-border, rgba(255, 255, 255, 0.08))',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.4)',
+          }}
+        >
+          <div
+            className="flex items-center justify-center rounded-full"
+            style={{ width: 32, height: 32, background: 'var(--color-danger-muted)' }}
+          >
+            <Monitor size={16} style={{ color: 'var(--color-danger-default)' }} />
+          </div>
+          <div>
+            <p className="text-sm font-semibold" style={{ color: 'var(--color-text-primary)' }}>
+              {streamNotif.name} started streaming
+            </p>
+            <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+              Click Watch to view the stream
+            </p>
+          </div>
+          <button
+            onClick={() => {
+              setWatchingStream(streamNotif.userId, true);
+              setStreamNotif(null);
+            }}
+            className="ml-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
+            style={{
+              background: 'var(--color-accent-primary)',
+              color: '#fff',
+            }}
+          >
+            <Eye size={12} className="inline mr-1" />
+            Watch
+          </button>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
 
   // ── SPOTLIGHT MODE: Someone is screen sharing ──
   if (screenSharers.length > 0) {
@@ -435,7 +510,8 @@ function VoiceRoomContent({
 
     return (
       <LayoutGroup>
-        <div className="flex-1 flex flex-col gap-3 w-full max-w-6xl min-h-0 mx-auto px-1 sm:px-2">
+        <div className="flex-1 flex flex-col gap-3 w-full max-w-6xl min-h-0 mx-auto px-1 sm:px-2 relative">
+          {streamNotifToast}
           {/* Screen share area — single spotlight or grid */}
           {watchedSharers.length > 0 && (
           <div
@@ -769,36 +845,34 @@ function VoiceRoomContent({
   }
 
   // ── AUDIO-ONLY MODE: No video, just avatars in a flex grid ──
-  const { cols } = getGridLayout(participants.length, narrow);
-  const tileWidth = narrow ? 148 : 180;
-
   return (
     <LayoutGroup>
-      <div
-        className="flex-1 flex flex-wrap gap-3 sm:gap-4 justify-center items-center content-center px-2 w-full max-w-4xl mx-auto"
-        style={{
-          maxWidth: narrow ? '100%' : cols * (tileWidth + 16),
-        }}
-      >
-        <AnimatePresence mode="popLayout">
-          {participants.map((p) => (
-            <div
-              key={p.userId}
-              className="min-w-0"
-              style={{
-                width: narrow ? `calc((100% - ${(cols - 1) * 12}px) / ${cols})` : tileWidth,
-                maxWidth: narrow ? 180 : tileWidth,
-                flexShrink: 0,
-              }}
-            >
+      <div className="flex-1 flex items-center justify-center w-full relative">
+        {streamNotifToast}
+        {/* Ambient glow behind avatars */}
+        <div
+          className="absolute inset-0 pointer-events-none"
+          style={{
+            background: 'radial-gradient(ellipse 50% 40% at 50% 50%, rgba(16, 185, 129, 0.04) 0%, transparent 100%)',
+          }}
+        />
+        <div
+          className="flex flex-wrap gap-6 sm:gap-10 justify-center items-center content-center px-4 w-full relative z-[1]"
+          style={{
+            maxWidth: narrow ? '100%' : Math.min(participants.length * 160, 800),
+          }}
+        >
+          <AnimatePresence mode="popLayout">
+            {participants.map((p) => (
               <ParticipantTile
+                key={p.userId}
                 participant={p}
                 guildId={guildId}
                 isCurrentUser={p.userId === userId}
               />
-            </div>
-          ))}
-        </AnimatePresence>
+            ))}
+          </AnimatePresence>
+        </div>
       </div>
     </LayoutGroup>
   );
