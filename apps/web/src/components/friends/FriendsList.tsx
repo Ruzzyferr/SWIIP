@@ -70,9 +70,10 @@ function AddFriendForm() {
       setStatus('success');
       setMessage(`Friend request sent to ${input}!`);
       setInput('');
-    } catch (err: any) {
+    } catch (err: unknown) {
       setStatus('error');
-      setMessage(err?.response?.data?.message ?? err?.message ?? 'Failed to send friend request');
+      const e = err as Record<string, unknown>;
+      setMessage(((e?.response as Record<string, unknown>)?.data as Record<string, unknown>)?.message as string ?? (e?.message as string) ?? 'Failed to send friend request');
     }
   };
 
@@ -463,8 +464,8 @@ export function FriendsList() {
       await acceptFriendRequest(targetId);
       await refreshRelationships();
       toastSuccess('Friend request accepted!');
-    } catch (err: any) {
-      toastError(err?.response?.data?.message ?? err?.message ?? 'Failed to accept');
+    } catch (err: unknown) {
+      toastError((err as Error)?.message ?? 'Failed to accept');
     }
   }, [refreshRelationships]);
 
@@ -473,8 +474,8 @@ export function FriendsList() {
       await removeFriend(targetId);
       await refreshRelationships();
       toastSuccess('Removed successfully');
-    } catch (err: any) {
-      toastError(err?.response?.data?.message ?? err?.message ?? 'Failed to remove');
+    } catch (err: unknown) {
+      toastError((err as Error)?.message ?? 'Failed to remove');
     }
   }, [refreshRelationships]);
 
@@ -483,8 +484,8 @@ export function FriendsList() {
       await blockUser(targetId);
       await refreshRelationships();
       toastSuccess('User blocked');
-    } catch (err: any) {
-      toastError(err?.response?.data?.message ?? err?.message ?? 'Failed to block');
+    } catch (err: unknown) {
+      toastError((err as Error)?.message ?? 'Failed to block');
     }
   }, [refreshRelationships]);
 
@@ -493,8 +494,8 @@ export function FriendsList() {
       await unblockUser(targetId);
       await refreshRelationships();
       toastSuccess('User unblocked');
-    } catch (err: any) {
-      toastError(err?.response?.data?.message ?? err?.message ?? 'Failed to unblock');
+    } catch (err: unknown) {
+      toastError((err as Error)?.message ?? 'Failed to unblock');
     }
   }, [refreshRelationships]);
 

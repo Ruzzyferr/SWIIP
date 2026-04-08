@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { Eye, EyeOff, Loader2, Github, Chrome, Check } from 'lucide-react';
 import { login } from '@/lib/api/auth.api';
 import { useAuthStore } from '@/stores/auth.store';

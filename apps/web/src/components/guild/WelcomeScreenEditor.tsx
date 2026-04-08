@@ -2,7 +2,7 @@
 
 import { useEffect, useState, useCallback } from 'react';
 import { Hash, Plus, Trash2, Save, Loader2 } from 'lucide-react';
-import { getWelcomeScreen, updateWelcomeScreen, type WelcomeScreen, type WelcomeScreenChannel } from '@/lib/api/guilds.api';
+import { getWelcomeScreen, updateWelcomeScreen, type WelcomeScreenChannel } from '@/lib/api/guilds.api';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { ChannelType } from '@constchat/protocol';
 import { toastSuccess, toastError } from '@/lib/toast';
@@ -43,8 +43,8 @@ export function WelcomeScreenEditor({ guildId }: { guildId: string }) {
         channels,
       });
       toastSuccess('Welcome screen saved!');
-    } catch (err: any) {
-      toastError(err?.message ?? 'Failed to save');
+    } catch (err: unknown) {
+      toastError((err as Error)?.message ?? 'Failed to save');
     } finally {
       setSaving(false);
     }

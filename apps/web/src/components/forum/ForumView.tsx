@@ -18,7 +18,7 @@ interface ForumViewProps {
   channelName: string;
 }
 
-export function ForumView({ channelId, channelName }: ForumViewProps) {
+export function ForumView({ channelId: _channelId, channelName }: ForumViewProps) {
   const [posts] = useState<ForumPost[]>([]);
 
   return (

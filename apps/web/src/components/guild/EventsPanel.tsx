@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useState, useCallback } from 'react';
-import { Calendar, MapPin, Clock, Plus, Users, Star, Trash2, X } from 'lucide-react';
+import { Calendar, MapPin, Clock, Plus, Star, Trash2, X } from 'lucide-react';
 import { getGuildEvents, createGuildEvent, deleteGuildEvent, markEventInterested, type ScheduledEvent } from '@/lib/api/guilds.api';
 import { useAuthStore } from '@/stores/auth.store';
 import { formatDistanceToNow } from 'date-fns';
