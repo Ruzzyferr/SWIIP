@@ -21,6 +21,7 @@ export function useVoiceKeyboardShortcuts() {
   const connectionState = useVoiceStore((s) => s.connectionState);
   const pushToTalk = useVoiceStore((s) => s.settings.pushToTalk);
   const pttKey = useVoiceStore((s) => s.settings.pttKey);
+  const keyboardShortcutsEnabled = useVoiceStore((s) => s.settings.keyboardShortcutsEnabled);
   const { toggleMute, toggleDeafen, toggleCamera, toggleScreenShare, leaveVoiceChannel } = useVoiceActions();
   const pttActiveRef = useRef(false);
   const windowFocusedRef = useRef(true);
@@ -40,7 +41,7 @@ export function useVoiceKeyboardShortcuts() {
 
   // ── Desktop Global Shortcuts (Ctrl+Shift+M/D/H/G) ──
   useEffect(() => {
-    if (!platform.isDesktop || connectionState !== 'connected' || pushToTalk) return;
+    if (!platform.isDesktop || connectionState !== 'connected' || pushToTalk || !keyboardShortcutsEnabled) return;
 
     platform.registerGlobalShortcut('Ctrl+Shift+M', toggleMute);
     platform.registerGlobalShortcut('Ctrl+Shift+D', toggleDeafen);
@@ -53,11 +54,11 @@ export function useVoiceKeyboardShortcuts() {
       platform.unregisterGlobalShortcut('Ctrl+Shift+H');
       platform.unregisterGlobalShortcut('Ctrl+Shift+G');
     };
-  }, [platform, connectionState, pushToTalk, toggleMute, toggleDeafen, leaveVoiceChannel, toggleScreenShare]);
+  }, [platform, connectionState, pushToTalk, keyboardShortcutsEnabled, toggleMute, toggleDeafen, leaveVoiceChannel, toggleScreenShare]);
 
   // ── Push-to-Talk ──
   useEffect(() => {
-    if (connectionState !== 'connected' || !pushToTalk) return;
+    if (connectionState !== 'connected' || !pushToTalk || !keyboardShortcutsEnabled) return;
 
     // Start muted when PTT mode is active
     const store = useVoiceStore.getState();
@@ -115,11 +116,11 @@ export function useVoiceKeyboardShortcuts() {
       pttActiveRef.current = false;
       useVoiceStore.getState().setSelfMuted(false);
     };
-  }, [platform, connectionState, pushToTalk, pttKey]);
+  }, [platform, connectionState, pushToTalk, pttKey, keyboardShortcutsEnabled]);
 
   // ── Regular keyboard shortcuts (non-PTT, window-level) ──
   useEffect(() => {
-    if (connectionState !== 'connected' || pushToTalk) return;
+    if (connectionState !== 'connected' || pushToTalk || !keyboardShortcutsEnabled) return;
 
     const handleKeyDown = (e: KeyboardEvent) => {
       // Ctrl+Shift shortcuts — work even in input fields
@@ -171,7 +172,7 @@ export function useVoiceKeyboardShortcuts() {
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [connectionState, pushToTalk, toggleMute, toggleDeafen, toggleCamera, leaveVoiceChannel, toggleScreenShare]);
+  }, [connectionState, pushToTalk, keyboardShortcutsEnabled, toggleMute, toggleDeafen, toggleCamera, leaveVoiceChannel, toggleScreenShare]);
 }
 
 /**

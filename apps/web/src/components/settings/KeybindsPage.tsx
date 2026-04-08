@@ -1,6 +1,8 @@
 'use client';
 
+import { useCallback } from 'react';
 import { KeyRound } from 'lucide-react';
+import { useVoiceStore } from '@/stores/voice.store';
 
 interface Keybind {
   action: string;
@@ -39,6 +41,13 @@ function KeyCap({ children }: { children: string }) {
 }
 
 export function KeybindsPage() {
+  const shortcutsEnabled = useVoiceStore((s) => s.settings.keyboardShortcutsEnabled);
+  const updateSettings = useVoiceStore((s) => s.updateSettings);
+
+  const toggleShortcuts = useCallback(() => {
+    updateSettings({ keyboardShortcutsEnabled: !shortcutsEnabled });
+  }, [shortcutsEnabled, updateSettings]);
+
   return (
     <div className="space-y-8">
       <div>
@@ -46,8 +55,38 @@ export function KeybindsPage() {
           Keybinds
         </h2>
         <p className="text-sm mt-1" style={{ color: 'var(--color-text-secondary)' }}>
-          Keyboard shortcuts for quick actions. These cannot be customized yet.
+          Keyboard shortcuts for quick actions.
         </p>
+      </div>
+
+      {/* Enable/Disable toggle */}
+      <div
+        className="flex items-center justify-between p-4 rounded-xl"
+        style={{ background: 'var(--color-surface-raised)' }}
+      >
+        <div>
+          <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+            Voice Keyboard Shortcuts
+          </p>
+          <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
+            Disable to prevent accidental muting while gaming or using other apps
+          </p>
+        </div>
+        <button
+          onClick={toggleShortcuts}
+          className="relative w-11 h-6 rounded-full transition-colors"
+          style={{
+            background: shortcutsEnabled ? 'var(--color-accent-primary)' : 'var(--color-surface-overlay)',
+          }}
+        >
+          <div
+            className="absolute top-0.5 w-5 h-5 rounded-full transition-transform"
+            style={{
+              background: '#fff',
+              transform: shortcutsEnabled ? 'translateX(22px)' : 'translateX(2px)',
+            }}
+          />
+        </button>
       </div>
 
       <section>
@@ -105,10 +144,24 @@ export function KeybindsPage() {
             Push-to-Talk keybind
           </p>
           <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
-            Configure Push-to-Talk key in Voice & Video settings. Other custom keybinds coming soon.
+            Configure Push-to-Talk key in Voice & Video settings.
           </p>
         </div>
       </div>
+
+      {!shortcutsEnabled && (
+        <div
+          className="p-3 rounded-xl flex items-center gap-2"
+          style={{
+            background: 'var(--color-warning-muted)',
+            border: '1px solid var(--color-warning-default)',
+          }}
+        >
+          <span className="text-xs" style={{ color: 'var(--color-warning-default)' }}>
+            Voice shortcuts are currently disabled. You can still mute/deafen using the buttons in the voice panel.
+          </span>
+        </div>
+      )}
     </div>
   );
 }

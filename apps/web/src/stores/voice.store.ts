@@ -53,6 +53,8 @@ interface VoiceSettings {
   pushToTalk: boolean;
   /** Key to hold for push-to-talk (default: Space) */
   pttKey: string;
+  /** Enable keyboard shortcuts for voice controls (mute, deafen, etc.) */
+  keyboardShortcutsEnabled: boolean;
 }
 
 interface VoiceState {
@@ -163,6 +165,7 @@ const DEFAULT_SETTINGS: VoiceSettings = {
   noiseGateThreshold: -50,
   pushToTalk: false,
   pttKey: 'Space',
+  keyboardShortcutsEnabled: true,
 };
 
 function participantKey(channelId: string, userId: string) {
