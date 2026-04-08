@@ -471,23 +471,9 @@ function VoiceRoomContent({
               {streamNotif.name} started streaming
             </p>
             <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-              Click Watch to view the stream
+              Now watching
             </p>
           </div>
-          <button
-            onClick={() => {
-              setWatchingStream(streamNotif.userId, true);
-              setStreamNotif(null);
-            }}
-            className="ml-2 px-3 py-1.5 rounded-lg text-xs font-semibold transition-colors"
-            style={{
-              background: 'var(--color-accent-primary)',
-              color: '#fff',
-            }}
-          >
-            <Eye size={12} className="inline mr-1" />
-            Watch
-          </button>
         </motion.div>
       )}
     </AnimatePresence>
@@ -512,8 +498,8 @@ function VoiceRoomContent({
       <LayoutGroup>
         <div className="flex-1 flex flex-col gap-3 w-full max-w-6xl min-h-0 mx-auto px-1 sm:px-2 relative">
           {streamNotifToast}
-          {/* Screen share area — single spotlight or grid */}
-          {watchedSharers.length > 0 && (
+          {/* Screen share area — single spotlight or grid, or empty spacer */}
+          {watchedSharers.length > 0 ? (
           <div
             className="flex-1 min-h-0 grid gap-2"
             style={{
@@ -624,6 +610,9 @@ function VoiceRoomContent({
               })}
             </AnimatePresence>
           </div>
+          ) : (
+            /* Spacer when no watched streams — keeps bottom strip at the bottom */
+            <div className="flex-1" />
           )}
 
           {/* Bottom strip: All participants + unwatched stream tiles */}

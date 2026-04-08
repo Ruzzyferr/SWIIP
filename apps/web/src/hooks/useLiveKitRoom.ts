@@ -672,11 +672,11 @@ export function useLiveKitRoom() {
       if (!currentChannelId) return;
       if (publication.source === Track.Source.ScreenShare && publication.kind === Track.Kind.Video) {
         setParticipantScreenShare(currentChannelId, participant.identity, true);
-        // Default new screen shares to unwatched — user opts in via "Watch Stream" button.
-        // Immediately unsubscribe since autoSubscribe will have subscribed it.
+        // Auto-watch new screen shares so the stream is immediately visible.
+        // User can stop watching via context menu or the X button.
         const ws = useVoiceStore.getState().watchingStreams;
         if (ws[participant.identity] === undefined) {
-          useVoiceStore.getState().setWatchingStream(participant.identity, false);
+          useVoiceStore.getState().setWatchingStream(participant.identity, true);
         }
       }
     });
@@ -976,12 +976,11 @@ export function useLiveKitRoom() {
               screenSharing: participant.isScreenShareEnabled,
             });
             bindSpeakingListener(participant);
-            // Set default watching state for existing screen sharers so
-            // the subscription watcher doesn't auto-subscribe then loop.
+            // Auto-watch existing screen sharers when joining a room.
             if (participant.isScreenShareEnabled) {
               const ws = useVoiceStore.getState().watchingStreams;
               if (ws[participant.identity] === undefined) {
-                useVoiceStore.getState().setWatchingStream(participant.identity, false);
+                useVoiceStore.getState().setWatchingStream(participant.identity, true);
               }
             }
           }
