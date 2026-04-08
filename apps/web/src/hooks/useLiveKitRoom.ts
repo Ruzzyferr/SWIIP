@@ -654,6 +654,31 @@ export function useLiveKitRoom() {
       }
     });
 
+    // Track remote screen share PUBLICATIONS (not subscriptions) to know WHO is sharing.
+    // This fires when a remote participant publishes a track, before we subscribe.
+    room.on(RoomEvent.TrackPublished, (publication: RemoteTrackPublication, participant: RemoteParticipant) => {
+      if (!currentChannelId) return;
+      if (publication.source === Track.Source.ScreenShare && publication.kind === Track.Kind.Video) {
+        setParticipantScreenShare(currentChannelId, participant.identity, true);
+        // Default new screen shares to unwatched — user opts in via "Watch Stream" button.
+        // Immediately unsubscribe since autoSubscribe will have subscribed it.
+        const ws = useVoiceStore.getState().watchingStreams;
+        if (ws[participant.identity] === undefined) {
+          useVoiceStore.getState().setWatchingStream(participant.identity, false);
+        }
+      }
+    });
+
+    room.on(RoomEvent.TrackUnpublished, (publication: RemoteTrackPublication, participant: RemoteParticipant) => {
+      if (!currentChannelId) return;
+      if (publication.source === Track.Source.ScreenShare) {
+        setParticipantScreenShare(currentChannelId, participant.identity, false);
+        updateVideoTrack(participant.identity, 'screen', undefined);
+        // Clean up stream watching/volume state only when screen share truly ends
+        useVoiceStore.getState().clearStreamState(participant.identity);
+      }
+    });
+
     room.on(
       RoomEvent.TrackSubscribed,
       async (track: RemoteTrack, publication: RemoteTrackPublication, participant: RemoteParticipant) => {
@@ -664,18 +689,10 @@ export function useLiveKitRoom() {
             isScreen ? 'screen' : 'camera',
             track.mediaStreamTrack,
           );
-          if (currentChannelId) {
-            if (isScreen) {
-              setParticipantScreenShare(currentChannelId, participant.identity, true);
-              // Default new screen shares to unwatched — user opts in via "Watch Stream" button
-              const ws = useVoiceStore.getState().watchingStreams;
-              if (ws[participant.identity] === undefined) {
-                useVoiceStore.getState().setWatchingStream(participant.identity, false);
-              }
-            } else {
-              setParticipantVideo(currentChannelId, participant.identity, true);
-            }
+          if (currentChannelId && !isScreen) {
+            setParticipantVideo(currentChannelId, participant.identity, true);
           }
+          // Screen share screenSharing flag is managed by TrackPublished/TrackUnpublished
         }
         await attachAudio(track, participant);
         // Apply persisted volume to newly subscribed audio tracks.
@@ -699,15 +716,13 @@ export function useLiveKitRoom() {
           isScreen ? 'screen' : 'camera',
           undefined,
         );
-        if (currentChannelId) {
-          if (isScreen) {
-            setParticipantScreenShare(currentChannelId, participant.identity, false);
-            // Clean up stream volume/watching state when screen share ends
-            useVoiceStore.getState().clearStreamState(participant.identity);
-          } else {
-            setParticipantVideo(currentChannelId, participant.identity, false);
-          }
+        if (currentChannelId && !isScreen) {
+          setParticipantVideo(currentChannelId, participant.identity, false);
         }
+        // Screen share: DON'T clear screenSharing or watchingStreams here.
+        // The participant is still sharing — we just voluntarily unsubscribed.
+        // clearStreamState would delete watchingStreams[identity] → undefined →
+        // subscription watcher would re-subscribe (undefined !== false = true) → infinite loop.
       }
     });
 
@@ -929,6 +944,14 @@ export function useLiveKitRoom() {
               screenSharing: participant.isScreenShareEnabled,
             });
             bindSpeakingListener(participant);
+            // Set default watching state for existing screen sharers so
+            // the subscription watcher doesn't auto-subscribe then loop.
+            if (participant.isScreenShareEnabled) {
+              const ws = useVoiceStore.getState().watchingStreams;
+              if (ws[participant.identity] === undefined) {
+                useVoiceStore.getState().setWatchingStream(participant.identity, false);
+              }
+            }
           }
           for (const pub of participant.audioTrackPublications.values()) {
             if (pub.track) {
