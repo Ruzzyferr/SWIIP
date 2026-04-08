@@ -124,6 +124,15 @@ export const VideoTile = memo(function VideoTile({
   const [isPlaying, setIsPlaying] = useState(false);
   const [isFullscreen, setIsFullscreen] = useState(false);
   const [isVisible, setIsVisible] = useState(true);
+  // Debounced "reconnecting" state — avoids flashing overlay during brief mute/unmute cycles
+  const [showReconnecting, setShowReconnecting] = useState(false);
+  useEffect(() => {
+    if (isScreen && !isPlaying && track) {
+      const timer = setTimeout(() => setShowReconnecting(true), 2000);
+      return () => { clearTimeout(timer); setShowReconnecting(false); };
+    }
+    setShowReconnecting(false);
+  }, [isScreen, isPlaying, track]);
 
   // Track fullscreen state
   useEffect(() => {
@@ -254,8 +263,8 @@ export const VideoTile = memo(function VideoTile({
       }}
       onDoubleClick={handleDoubleClick}
     >
-      {/* Reconnecting overlay for screen shares */}
-      {isScreen && !isPlaying && track && (
+      {/* Reconnecting overlay for screen shares (debounced — only after 2s of no playback) */}
+      {showReconnecting && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 z-10"
           style={{ background: 'rgba(0,0,0,0.5)' }}>
           <div className="animate-spin w-6 h-6 border-2 border-current border-t-transparent rounded-full"

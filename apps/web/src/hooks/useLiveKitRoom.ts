@@ -157,9 +157,12 @@ export function useLiveKitRoom() {
     const room = new Room({
       // Disable adaptive stream — it aggressively downgrades/mutes screen share
       // tracks on minor network fluctuations, causing "Stream reconnecting...".
-      // Dynacast handles bandwidth efficiently without muting tracks.
       adaptiveStream: false,
-      dynacast: true,
+      // Disable dynacast — with adaptiveStream off, subscribers don't report
+      // viewport visibility to the SFU. Dynacast without that info causes the
+      // SFU to periodically pause/unpause the publisher's screen share track,
+      // triggering mute/unmute cycles every few seconds.
+      dynacast: false,
       // Reconnect policy — platform-aware delays.
       // Desktop: faster initial retry, more attempts (always-on expectation).
       // Web: more conservative (browser tab may be backgrounded).
