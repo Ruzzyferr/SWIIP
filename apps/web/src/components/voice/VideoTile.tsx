@@ -1,7 +1,10 @@
 'use client';
 
 import { useEffect, useRef, useState, useCallback, memo } from 'react';
-import { Mic, MicOff, Monitor, Pin, PinOff, Maximize2, Minimize2, PictureInPicture2, Eye } from 'lucide-react';
+import { Mic, MicOff, Monitor, Pin, PinOff, Maximize2, Minimize2, PictureInPicture2, Eye, Headphones, EarOff, MessageCircle } from 'lucide-react';
+import { useVoiceStore } from '@/stores/voice.store';
+import { useUIStore } from '@/stores/ui.store';
+import { useVoiceActions } from '@/hooks/useVoiceActions';
 
 interface VideoTileProps {
   participantId: string;
@@ -17,6 +20,85 @@ interface VideoTileProps {
   compact?: boolean;
   /** Number of viewers (for screen shares) */
   viewerCount?: number;
+}
+
+/** Floating controls shown when a screen share tile is in fullscreen mode. */
+function FullscreenControls() {
+  const selfMuted = useVoiceStore((s) => s.selfMuted);
+  const selfDeafened = useVoiceStore((s) => s.selfDeafened);
+  const isVoiceChatOpen = useUIStore((s) => s.isVoiceChatOpen);
+  const toggleVoiceChat = useUIStore((s) => s.toggleVoiceChat);
+  const { toggleMute, toggleDeafen } = useVoiceActions();
+  const [visible, setVisible] = useState(false);
+  const hideTimer = useRef<ReturnType<typeof setTimeout>>(undefined);
+
+  useEffect(() => {
+    const show = () => {
+      setVisible(true);
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+      hideTimer.current = setTimeout(() => setVisible(false), 3000);
+    };
+    document.addEventListener('mousemove', show);
+    show();
+    return () => {
+      document.removeEventListener('mousemove', show);
+      if (hideTimer.current) clearTimeout(hideTimer.current);
+    };
+  }, []);
+
+  return (
+    <div
+      className="absolute bottom-8 left-1/2 z-20 flex items-center gap-2 px-4 py-3 rounded-2xl"
+      style={{
+        transform: `translateX(-50%) translateY(${visible ? '0px' : '20px'})`,
+        opacity: visible ? 1 : 0,
+        background: 'rgba(0, 0, 0, 0.75)',
+        backdropFilter: 'blur(12px)',
+        border: '1px solid rgba(255, 255, 255, 0.1)',
+        transition: 'opacity 0.3s ease-out, transform 0.3s ease-out',
+        pointerEvents: visible ? 'auto' : 'none',
+      }}
+    >
+      <button
+        onClick={(e) => { e.stopPropagation(); toggleMute(); }}
+        className="flex items-center justify-center transition-colors"
+        style={{
+          width: 40, height: 40, borderRadius: 12,
+          color: selfMuted ? '#ed4245' : 'rgba(255,255,255,0.85)',
+          background: selfMuted ? 'rgba(237,66,69,0.2)' : 'rgba(255,255,255,0.1)',
+        }}
+        title={selfMuted ? 'Unmute' : 'Mute'}
+      >
+        {selfMuted ? <MicOff size={20} /> : <Mic size={20} />}
+      </button>
+
+      <button
+        onClick={(e) => { e.stopPropagation(); toggleDeafen(); }}
+        className="flex items-center justify-center transition-colors"
+        style={{
+          width: 40, height: 40, borderRadius: 12,
+          color: selfDeafened ? '#ed4245' : 'rgba(255,255,255,0.85)',
+          background: selfDeafened ? 'rgba(237,66,69,0.2)' : 'rgba(255,255,255,0.1)',
+        }}
+        title={selfDeafened ? 'Undeafen' : 'Deafen'}
+      >
+        {selfDeafened ? <EarOff size={20} /> : <Headphones size={20} />}
+      </button>
+
+      <button
+        onClick={(e) => { e.stopPropagation(); toggleVoiceChat(); }}
+        className="flex items-center justify-center transition-colors"
+        style={{
+          width: 40, height: 40, borderRadius: 12,
+          color: isVoiceChatOpen ? '#5865f2' : 'rgba(255,255,255,0.85)',
+          background: isVoiceChatOpen ? 'rgba(88,101,242,0.2)' : 'rgba(255,255,255,0.1)',
+        }}
+        title={isVoiceChatOpen ? 'Close Chat' : 'Open Chat'}
+      >
+        <MessageCircle size={20} />
+      </button>
+    </div>
+  );
 }
 
 /**
@@ -321,14 +403,17 @@ export const VideoTile = memo(function VideoTile({
         )}
       </div>
 
-      {/* Fullscreen exit hint overlay */}
+      {/* Fullscreen: hover-to-reveal control bar + exit hint */}
       {isFullscreen && (
-        <div
-          className="absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg text-xs text-white/70 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
-          style={{ background: 'rgba(0,0,0,0.7)' }}
-        >
-          Press Esc or double-click to exit fullscreen
-        </div>
+        <>
+          <FullscreenControls />
+          <div
+            className="absolute top-4 left-1/2 -translate-x-1/2 px-3 py-1.5 rounded-lg text-xs text-white/70 opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none"
+            style={{ background: 'rgba(0,0,0,0.7)' }}
+          >
+            Press Esc or double-click to exit fullscreen
+          </div>
+        </>
       )}
     </div>
   );

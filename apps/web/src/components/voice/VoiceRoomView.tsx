@@ -693,7 +693,7 @@ function VoiceRoomContent({
 
     return (
       <LayoutGroup>
-        <div className="flex-1 flex flex-col gap-3 w-full max-w-5xl min-h-0 px-1 sm:px-0">
+        <div className="flex-1 flex flex-col gap-3 w-full max-w-5xl min-h-0 px-1 sm:px-0 justify-center">
           {/* Video grid */}
           <div
             className="flex-1 flex flex-wrap gap-2 sm:gap-3 min-h-0 justify-center items-center content-center"
@@ -775,7 +775,7 @@ function VoiceRoomContent({
   return (
     <LayoutGroup>
       <div
-        className="flex flex-wrap gap-3 sm:gap-4 justify-center px-2 w-full max-w-4xl mx-auto"
+        className="flex-1 flex flex-wrap gap-3 sm:gap-4 justify-center items-center content-center px-2 w-full max-w-4xl mx-auto"
         style={{
           maxWidth: narrow ? '100%' : cols * (tileWidth + 16),
         }}
@@ -1027,7 +1027,7 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
       </AnimatePresence>
 
       {/* Main content area — grows but shrinks to keep controls visible */}
-      <div className="flex-1 flex flex-col items-center justify-center w-full min-h-0 overflow-hidden shrink">
+      <div className="flex-1 flex flex-col items-center w-full min-h-0 overflow-hidden shrink">
         {participants.length > 0 ? (
           <>
             <VoiceRoomContent
@@ -1041,23 +1041,27 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
             )}
           </>
         ) : !isInThisChannel ? (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="text-center space-y-3"
-          >
-            <div
-              className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
-              style={{ background: 'var(--color-surface-raised)' }}
+          <div className="flex-1 flex items-center justify-center w-full">
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              className="text-center space-y-3"
             >
-              <Phone size={28} style={{ color: 'var(--color-text-tertiary)' }} />
-            </div>
-            <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
-              No one is in this voice channel.
-            </p>
-          </motion.div>
+              <div
+                className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
+                style={{ background: 'var(--color-surface-raised)' }}
+              >
+                <Phone size={28} style={{ color: 'var(--color-text-tertiary)' }} />
+              </div>
+              <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
+                No one is in this voice channel.
+              </p>
+            </motion.div>
+          </div>
         ) : isInThisChannel && participants.length === 0 ? (
-          <EmptyRoomInvite />
+          <div className="flex-1 flex items-center justify-center w-full">
+            <EmptyRoomInvite />
+          </div>
         ) : null}
       </div>
 
