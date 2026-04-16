@@ -1,6 +1,6 @@
 {
   "name": "@constchat/desktop",
-  "version": "0.3.10",
+  "version": "0.3.11",
   "private": true,
   "description": "Swiip Desktop Application",
   "main": "src/main.js",

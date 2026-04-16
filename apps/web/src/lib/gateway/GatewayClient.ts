@@ -6,6 +6,7 @@ import {
   type GatewayEvent,
 } from '@constchat/protocol';
 import { getPlatformProvider } from '@/lib/platform';
+import { networkMonitor } from '@/lib/network/NetworkMonitor';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -96,6 +97,8 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
   private sendQueue: Array<{ op: OpCode; data: unknown }> = [];
   /** Bound visibility change handler for cleanup. */
   private _onVisibilityChange: (() => void) | null = null;
+  /** Unsubscribe from NetworkMonitor. */
+  private _unsubNetwork: (() => void) | null = null;
 
   constructor(gatewayUrl?: string) {
     super();
@@ -118,6 +121,26 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
         }
       });
     }
+
+    // Network change detection — reconnect immediately on network transitions
+    // instead of waiting for heartbeat timeout (~41s).
+    this._unsubNetwork = networkMonitor.subscribe((online, event) => {
+      if (this.destroyed || !this.token) return;
+
+      if (event === 'online') {
+        // Device came back online — reconnect immediately
+        console.info('[Gateway] Network online — triggering immediate reconnect');
+        this.forceReconnect();
+      } else if (event === 'change' && online) {
+        // Network interface changed (WiFi→cellular, VPN toggle) while still online.
+        // Current WS is likely stale — close and reconnect with fresh path.
+        console.info('[Gateway] Network interface changed — reconnecting');
+        if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+          this.ws.close(4000, 'Network change');
+        }
+        this.forceReconnect();
+      }
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -152,12 +175,24 @@ export class GatewayClient extends EventEmitter<GatewayEventMap> {
     this.missedHeartbeats = 0;
     this.lastStableAt = 0;
     this.lastAckAt = 0;
+    if (this._unsubNetwork) {
+      this._unsubNetwork();
+      this._unsubNetwork = null;
+    }
     if (this.ws) {
       this.ws.onclose = null;
       this.ws.close(1000, 'Client disconnect');
       this.ws = null;
     }
     this.emit('disconnected', 1000, 'Client disconnect');
+  }
+
+  /** Immediately reconnect with reset backoff — used by NetworkMonitor on network changes. */
+  forceReconnect(): void {
+    if (this.destroyed || !this.token) return;
+    this._clearReconnect();
+    this.reconnectAttempts = 0;
+    this._openWebSocket(this.resumeUrl ?? this.gatewayUrl);
   }
 
   send(op: OpCode, data: unknown): boolean {

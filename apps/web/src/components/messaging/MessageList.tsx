@@ -344,9 +344,16 @@ export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessa
     }
   }, [jumpToMessageId]);
 
-  const scrollToBottom = useCallback(() => {
+  const scrollToBottom = useCallback(async () => {
+    if (hasNewer) {
+      // We're viewing an older window — refetch the latest messages
+      try {
+        const fetched = await getMessages(channelId, { limit: 50 });
+        setMessages(channelId, fetched, fetched.length === 50);
+      } catch { /* ignore — still scroll to whatever we have */ }
+    }
     virtuosoRef.current?.scrollToIndex({ index: 'LAST', behavior: 'smooth' });
-  }, []);
+  }, [hasNewer, channelId, setMessages]);
 
   return (
     <div className="relative flex-1 overflow-hidden">
@@ -366,7 +373,10 @@ export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessa
           followOutput={hasNewer ? false : 'auto'}
           atBottomStateChange={(bottom) => {
             setAtBottom(bottom);
-            if (bottom) setUnreadCount(0);
+            if (bottom) {
+              setUnreadCount(0);
+              if (hasNewer) setHasNewer(channelId, false);
+            }
           }}
           startReached={loadMore}
           endReached={hasNewer ? loadNewer : undefined}

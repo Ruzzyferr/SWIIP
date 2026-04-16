@@ -120,6 +120,8 @@ export const useMessagesStore = create<MessagesState>()(
         }
         if (!exists) {
           msgs.push(message);
+          // Live gateway message → we have the newest messages by definition
+          ch.hasNewer = false;
         }
       }),
 

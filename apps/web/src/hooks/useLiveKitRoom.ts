@@ -11,6 +11,7 @@ import {
   AudioPresets,
   RemoteAudioTrack,
   RemoteTrackPublication,
+  VideoQuality,
   DefaultReconnectPolicy,
   type RemoteParticipant,
   type RemoteTrack,
@@ -33,6 +34,7 @@ import {
   requiresRepublish,
   type AudioPlatform,
 } from '@/lib/audio';
+import { networkMonitor } from '@/lib/network/NetworkMonitor';
 
 /** Create the appropriate strategy for the current platform. */
 function createStrategy(platform: AudioPlatform) {
@@ -155,14 +157,14 @@ export function useLiveKitRoom() {
     // Audio capture defaults — AGC always off (pumps floor noise).
     // Noise suppression is mode-controlled: standard=browser NS, enhanced=Krisp, raw=off.
     const room = new Room({
-      // Disable adaptive stream — it aggressively downgrades/mutes screen share
-      // tracks on minor network fluctuations, causing "Stream reconnecting...".
-      adaptiveStream: false,
-      // Disable dynacast — with adaptiveStream off, subscribers don't report
-      // viewport visibility to the SFU. Dynacast without that info causes the
-      // SFU to periodically pause/unpause the publisher's screen share track,
-      // triggering mute/unmute cycles every few seconds.
-      dynacast: false,
+      // Adaptive stream — let LiveKit adjust video quality based on subscriber
+      // bandwidth. Screen share tracks are pinned to HIGH quality in the
+      // TrackSubscribed handler to prevent downgrading.
+      adaptiveStream: { pixelDensity: 'screen' },
+      // Dynacast — server-side track optimization when subscribers aren't
+      // viewing. Works together with adaptiveStream; screen share is protected
+      // via the HIGH quality pin on the subscriber side.
+      dynacast: true,
       // Reconnect policy — platform-aware delays.
       // Desktop: faster initial retry, more attempts (always-on expectation).
       // Web: more conservative (browser tab may be backgrounded).
@@ -623,6 +625,35 @@ export function useLiveKitRoom() {
             }).catch(() => {});
           }
         }
+
+        // Proactive screen share degradation — reduce bitrate/resolution before
+        // the connection drops entirely. Zoom/Meet do this to keep the session
+        // alive on constrained networks.
+        const screenPub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+        if (screenPub?.track) {
+          if (effectiveQ <= 1) {
+            // POOR/LOST → drop screen share to 720p, 15fps to preserve connection
+            screenPub.track.mediaStreamTrack.applyConstraints({
+              width: { ideal: 1280 },
+              height: { ideal: 720 },
+              frameRate: { ideal: 15 },
+            }).catch(() => {});
+          } else {
+            // GOOD/EXCELLENT → restore to user's chosen quality
+            const quality = useVoiceStore.getState().screenShareQuality;
+            const presets = {
+              '720p30': { width: 1280, height: 720, fps: 30 },
+              '1080p30': { width: 1920, height: 1080, fps: 30 },
+              '1080p60': { width: 1920, height: 1080, fps: 60 },
+            };
+            const preset = presets[quality as keyof typeof presets] ?? presets['1080p30'];
+            screenPub.track.mediaStreamTrack.applyConstraints({
+              width: { ideal: preset.width },
+              height: { ideal: preset.height },
+              frameRate: { ideal: preset.fps },
+            }).catch(() => {});
+          }
+        }
       } else {
         // Still update store even if not changing video constraints
         setConnectionQuality(q);
@@ -703,6 +734,11 @@ export function useLiveKitRoom() {
           );
           if (currentChannelId && !isScreen) {
             setParticipantVideo(currentChannelId, participant.identity, true);
+          }
+          // Pin screen share to HIGH quality — prevent adaptiveStream from
+          // downgrading screen share (text/code must stay sharp).
+          if (isScreen) {
+            publication.setVideoQuality(VideoQuality.HIGH);
           }
           // Screen share screenSharing flag is managed by TrackPublished/TrackUnpublished
         }
@@ -906,10 +942,25 @@ export function useLiveKitRoom() {
     });
 
     setConnectionState('connecting');
+
+    // RTC connection timeout — if the WebRTC connection isn't established within
+    // 15 seconds (ICE negotiation hung, TURN unreachable, etc.), disconnect and
+    // surface an error instead of showing "connecting" indefinitely.
+    const RTC_CONNECT_TIMEOUT_MS = 15_000;
+    let rtcConnectTimer: ReturnType<typeof setTimeout> | null = setTimeout(() => {
+      if (room.state !== ConnectionState.Connected) {
+        console.warn('[LiveKit] RTC connection timeout — disconnecting');
+        room.disconnect();
+        setError('Voice connection timed out. Please try again.');
+      }
+      rtcConnectTimer = null;
+    }, RTC_CONNECT_TIMEOUT_MS);
+
     room
       .connect(livekitUrl, livekitToken)
       .then(async () => {
         console.debug('[LiveKit] Connected successfully');
+        if (rtcConnectTimer) { clearTimeout(rtcConnectTimer); rtcConnectTimer = null; }
         // Resume AudioContext if browser suspended it (autoplay policy)
         await room.startAudio().catch(() => {});
 
@@ -1030,8 +1081,37 @@ export function useLiveKitRoom() {
       }
     }, 10_000);
 
+    // Network change detection — trigger reconnect on network interface changes
+    // instead of waiting for LiveKit's internal ICE timeout.
+    const unsubNetwork = networkMonitor.subscribe((online, event) => {
+      if (event === 'change' && online && room.state === ConnectionState.Connected) {
+        // Network interface changed while connected (WiFi→cellular, VPN toggle).
+        // Stale ICE candidates make the existing connection unreliable — force a
+        // full LiveKit reconnect which will perform fresh ICE negotiation.
+        console.info('[LiveKit] Network interface changed — forcing reconnect');
+        room.engine?.client?.sendLeave?.();
+        room.disconnect().then(() => {
+          if (livekitToken && livekitUrl) {
+            room.connect(livekitUrl, livekitToken).catch((err) => {
+              console.error('[LiveKit] Reconnect after network change failed:', err);
+            });
+          }
+        });
+      } else if (event === 'online' && room.state !== ConnectionState.Connected) {
+        // Device came back online while disconnected — reconnect immediately
+        console.info('[LiveKit] Network online — attempting reconnect');
+        if (livekitToken && livekitUrl) {
+          room.connect(livekitUrl, livekitToken).catch((err) => {
+            console.error('[LiveKit] Reconnect on online event failed:', err);
+          });
+        }
+      }
+    });
+
     return () => {
       console.debug('[LiveKit] Cleaning up room');
+      if (rtcConnectTimer) { clearTimeout(rtcConnectTimer); rtcConnectTimer = null; }
+      unsubNetwork();
       clearInterval(healthCheckInterval);
       stopLocalVAD();
       // Persist pending audio mode change so it's applied on next join
