@@ -127,6 +127,10 @@ export function useLiveKitRoom() {
         // Only fire if we're still waiting (no credentials arrived)
         if (state.connectionState === 'connecting' && !state.livekitToken) {
           console.error('[LiveKit] Credential timeout — gateway never sent VOICE_SERVER_UPDATE');
+          // disconnect() clears currentChannelId so a rejoin attempt isn't silently blocked
+          // by the guard in useVoiceActions.joinVoiceChannel. setError() runs after to
+          // surface the message (disconnect resets error to null).
+          state.disconnect();
           state.setError('Voice server did not respond. Please try again.');
         }
       }, CREDENTIAL_TIMEOUT_MS);
@@ -173,7 +177,7 @@ export function useLiveKitRoom() {
         // Disable simulcast for screen share — send one high-quality stream
         screenShareSimulcastLayers: [],
         screenShareEncoding: {
-          maxBitrate: 4_000_000,
+          maxBitrate: 2_500_000,
           maxFramerate: 30,
         },
         // High-quality stereo audio for screen share by default
@@ -400,6 +404,13 @@ export function useLiveKitRoom() {
       }
     };
 
+    // Grace window before surfacing "Reconnecting…" to the UI. Most transient
+    // dips (<1.2s) that LiveKit self-heals would otherwise flicker through as
+    // a visible reconnecting state. Internal bookkeeping (screen-share grace)
+    // still runs immediately — only the user-visible flip is delayed.
+    let reconnectingUiTimer: ReturnType<typeof setTimeout> | null = null;
+    const RECONNECTING_UI_GRACE_MS = 1200;
+
     // --- Event handlers ---
     room.on(RoomEvent.ConnectionStateChanged, async (state: ConnectionState) => {
       console.debug('[LiveKit] Connection state:', state);
@@ -408,6 +419,7 @@ export function useLiveKitRoom() {
           setConnectionState('connecting');
           break;
         case ConnectionState.Connected:
+          if (reconnectingUiTimer) { clearTimeout(reconnectingUiTimer); reconnectingUiTimer = null; }
           setConnectionState('connected');
           // After reconnect, re-sync all remote participants AND video tracks.
           // During reconnection, ParticipantDisconnected / TrackUnsubscribed may
@@ -524,15 +536,22 @@ export function useLiveKitRoom() {
           }
           break;
         case ConnectionState.Reconnecting:
-          setConnectionState('reconnecting');
-          // Save screen share state before reconnect tears it down.
-          // Use a 30-second grace period so that late LocalTrackUnpublished
-          // events don't falsely stop the share after we transition to Connected.
+          // Save screen share state immediately — this is internal bookkeeping
+          // and must not wait for the UI grace window.
           if (useVoiceStore.getState().screenShareEnabled) {
             screenShareReconnectUntil.current = Date.now() + 30_000; // 30s grace
           }
+          // Delay the UI flip so brief self-healed blips stay invisible.
+          if (reconnectingUiTimer) clearTimeout(reconnectingUiTimer);
+          reconnectingUiTimer = setTimeout(() => {
+            reconnectingUiTimer = null;
+            if (room.state === ConnectionState.Reconnecting) {
+              setConnectionState('reconnecting');
+            }
+          }, RECONNECTING_UI_GRACE_MS);
           break;
         case ConnectionState.Disconnected:
+          if (reconnectingUiTimer) { clearTimeout(reconnectingUiTimer); reconnectingUiTimer = null; }
           setConnectionState('disconnected');
           screenShareReconnectUntil.current = 0;
           // If we were previously connected (i.e. reconnect failed), clean up properly
@@ -1081,24 +1100,40 @@ export function useLiveKitRoom() {
       }
     }, 10_000);
 
-    // Network change detection — trigger reconnect on network interface changes
-    // instead of waiting for LiveKit's internal ICE timeout.
+    // Network change detection — react to network interface changes without
+    // pre-empting LiveKit's built-in recovery on every minor blip.
+    //
+    // `navigator.connection.change` fires on RSSI swings, WiFi re-association,
+    // effectiveType shifts, VPN toggles, etc. A full disconnect+reconnect on
+    // each one presents as a visible "Reconnecting…" for 1–5s and cascades
+    // on flaky networks. Debounce 600ms; then only force a rebuild if the
+    // connection is actually struggling (quality ≤ 1 = poor/lost). Otherwise
+    // let LiveKit ride it out silently.
+    let networkChangeTimer: ReturnType<typeof setTimeout> | null = null;
     const unsubNetwork = networkMonitor.subscribe((online, event) => {
       if (event === 'change' && online && room.state === ConnectionState.Connected) {
-        // Network interface changed while connected (WiFi→cellular, VPN toggle).
-        // Stale ICE candidates make the existing connection unreliable — force a
-        // full LiveKit reconnect which will perform fresh ICE negotiation.
-        console.info('[LiveKit] Network interface changed — forcing reconnect');
-        room.engine?.client?.sendLeave?.();
-        room.disconnect().then(() => {
-          if (livekitToken && livekitUrl) {
-            room.connect(livekitUrl, livekitToken).catch((err) => {
-              console.error('[LiveKit] Reconnect after network change failed:', err);
-            });
+        if (networkChangeTimer) clearTimeout(networkChangeTimer);
+        networkChangeTimer = setTimeout(() => {
+          networkChangeTimer = null;
+          if (room.state !== ConnectionState.Connected) return;
+          const quality = useVoiceStore.getState().connectionQuality;
+          if (quality > 1) return;
+          console.info('[LiveKit] Network change persisted + quality poor — forcing reconnect');
+          if (useVoiceStore.getState().screenShareEnabled) {
+            screenShareReconnectUntil.current = Date.now() + 30_000;
           }
-        });
+          room.engine?.client?.sendLeave?.();
+          room.disconnect().then(() => {
+            if (livekitToken && livekitUrl) {
+              room.connect(livekitUrl, livekitToken).catch((err) => {
+                console.error('[LiveKit] Reconnect after network change failed:', err);
+              });
+            }
+          });
+        }, 600);
       } else if (event === 'online' && room.state !== ConnectionState.Connected) {
         // Device came back online while disconnected — reconnect immediately
+        if (networkChangeTimer) { clearTimeout(networkChangeTimer); networkChangeTimer = null; }
         console.info('[LiveKit] Network online — attempting reconnect');
         if (livekitToken && livekitUrl) {
           room.connect(livekitUrl, livekitToken).catch((err) => {
@@ -1111,6 +1146,8 @@ export function useLiveKitRoom() {
     return () => {
       console.debug('[LiveKit] Cleaning up room');
       if (rtcConnectTimer) { clearTimeout(rtcConnectTimer); rtcConnectTimer = null; }
+      if (networkChangeTimer) { clearTimeout(networkChangeTimer); networkChangeTimer = null; }
+      if (reconnectingUiTimer) { clearTimeout(reconnectingUiTimer); reconnectingUiTimer = null; }
       unsubNetwork();
       clearInterval(healthCheckInterval);
       stopLocalVAD();

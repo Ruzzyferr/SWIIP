@@ -93,7 +93,7 @@ function createWebProvider(): PlatformProvider {
       cap: 30000,
     },
 
-    livekitReconnectDelays: [200, 500, 1000, 2000, 4000, 8000, 10000, 10000, 10000, 10000],
+    livekitReconnectDelays: [750, 1500, 2500, 4000, 8000, 10000, 10000, 10000, 10000, 10000],
 
     aloneTimeoutSec: 300, // 5 minutes
 

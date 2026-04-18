@@ -174,7 +174,7 @@ export class WebhooksController {
     await pipeline.exec();
 
     // Publish VOICE_STATE_UPDATE to the guild topic via gateway pub/sub
-    await this.publishVoiceStateUpdate(guildId, {
+    await this.publishVoiceStateUpdate(guildId, channelId, {
       userId,
       channelId,
       guildId,
@@ -200,7 +200,7 @@ export class WebhooksController {
     await pipeline.exec();
 
     // channelId: null signals "left voice"
-    await this.publishVoiceStateUpdate(guildId, {
+    await this.publishVoiceStateUpdate(guildId, channelId, {
       userId,
       channelId: null,
       guildId,
@@ -270,7 +270,7 @@ export class WebhooksController {
 
       // Notify clients that all participants have left
       for (const userId of members) {
-        await this.publishVoiceStateUpdate(guildId, {
+        await this.publishVoiceStateUpdate(guildId, channelId, {
           userId,
           channelId: null,
           guildId,
@@ -294,6 +294,7 @@ export class WebhooksController {
    */
   private async publishVoiceStateUpdate(
     guildId: string,
+    channelIdForRouting: string,
     voiceState: {
       userId: string;
       channelId: string | null;
@@ -305,7 +306,7 @@ export class WebhooksController {
       speaking: boolean;
     },
   ): Promise<void> {
-    const topic = `guild:${guildId}`;
+    const topic = guildId === 'dm' ? `dm:${channelIdForRouting}` : `guild:${guildId}`;
     const event = {
       op: 0, // DISPATCH
       t: 'VOICE_STATE_UPDATE',
@@ -344,7 +345,7 @@ export class WebhooksController {
     const raw = await this.redis.hgetall(`swiip:voice:user:${userId}`);
     if (!raw || !raw['userId']) return;
 
-    await this.publishVoiceStateUpdate(guildId, {
+    await this.publishVoiceStateUpdate(guildId, channelId, {
       userId: raw['userId']!,
       channelId,
       guildId,
@@ -361,9 +362,11 @@ export class WebhooksController {
   // ---------------------------------------------------------------------------
 
   private parseRoomName(roomName: string): { guildId: string | null; channelId: string | null } {
-    const match = roomName.match(/^guild-([^-]+)-(.+)$/);
-    if (!match) return { guildId: null, channelId: null };
-    return { guildId: match[1] ?? null, channelId: match[2] ?? null };
+    const guildMatch = roomName.match(/^guild-([^-]+)-(.+)$/);
+    if (guildMatch) return { guildId: guildMatch[1] ?? null, channelId: guildMatch[2] ?? null };
+    const dmMatch = roomName.match(/^dm-(.+)$/);
+    if (dmMatch) return { guildId: 'dm', channelId: dmMatch[1] ?? null };
+    return { guildId: null, channelId: null };
   }
 
   private serializeVoiceState(vs: VoiceState): Record<string, string> {

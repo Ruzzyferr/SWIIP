@@ -303,7 +303,8 @@ export class GatewayServer {
         if (session.userId) {
           const guildIds = [...session.subscribedGuilds];
           const voiceGuildId = session.voiceGuildId;
-          this.cleanupSessionAsync(session.id, session.userId, guildIds, session.sequence, voiceGuildId).catch(
+          const voiceChannelId = session.voiceChannelId;
+          this.cleanupSessionAsync(session.id, session.userId, guildIds, session.sequence, voiceGuildId, voiceChannelId).catch(
             (err: unknown) =>
               log.error({ err, sessionId: session.id }, 'Error during async session cleanup'),
           );
@@ -426,6 +427,7 @@ export class GatewayServer {
     guildIds: string[],
     lastSequence: number,
     voiceGuildId: string | null,
+    voiceChannelId: string | null,
   ): Promise<void> {
     const redis = this.pubsub.getPublisher();
     const resumeWindowSec = GatewayServer.SESSION_RESUME_WINDOW_SEC;
@@ -463,7 +465,10 @@ export class GatewayServer {
       try {
         const removed = await redis.hdel(`swiip:voice_states:${voiceGuildId}`, userId);
         if (removed > 0) {
-          await this.pubsub.publish(`guild:${voiceGuildId}`, {
+          const topic = voiceGuildId === 'dm' && voiceChannelId
+            ? `dm:${voiceChannelId}`
+            : `guild:${voiceGuildId}`;
+          await this.pubsub.publish(topic, {
             op: OpCode.DISPATCH,
             t: ServerEventType.VOICE_STATE_UPDATE,
             d: {

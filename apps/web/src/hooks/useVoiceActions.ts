@@ -26,13 +26,27 @@ export function useVoiceActions() {
       }
       const state = useVoiceStore.getState();
 
-      // If already in this channel, do nothing
-      if (state.currentChannelId === channelId) return;
+      // Only short-circuit when actually connected (or mid-reconnect) to this channel.
+      // Allow rejoin from error / disconnected / stuck-connecting states so users
+      // can recover without an explicit hangup click.
+      if (
+        state.currentChannelId === channelId &&
+        (state.connectionState === 'connected' || state.connectionState === 'reconnecting')
+      ) {
+        return;
+      }
 
-      // If in another channel, leave first
+      // Any stale state — in a different channel OR the same channel but in a bad
+      // state — clear it before a fresh join. Sending VOICE_LEAVE also proactively
+      // cleans up any server-side zombie entry.
       if (state.currentChannelId) {
-        console.debug('[Voice] Leaving current channel before joining new one');
+        console.debug('[Voice] Clearing stale voice state before joining', {
+          current: state.currentChannelId,
+          target: channelId,
+          state: state.connectionState,
+        });
         gw.send(OpCode.DISPATCH, { t: 'VOICE_LEAVE', d: {} });
+        state.disconnect();
       }
 
       console.debug('[Voice] Joining voice channel', { channelId, guildId, isDM });
