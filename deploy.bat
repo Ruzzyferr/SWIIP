@@ -465,7 +465,7 @@ echo [OK] Migrations done
 
 echo.
 echo [*] Restarting services...
-ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% --profile voice up -d api gateway web workers media-signalling 2>&1"
+ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% --profile voice up -d api gateway web workers media-signalling livekit coturn 2>&1"
 if errorlevel 1 goto deploy_fail
 echo [OK] Services restarted
 

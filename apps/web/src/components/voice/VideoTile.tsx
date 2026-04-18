@@ -128,7 +128,7 @@ export const VideoTile = memo(function VideoTile({
   const [showReconnecting, setShowReconnecting] = useState(false);
   useEffect(() => {
     if (isScreen && !isPlaying && track) {
-      const timer = setTimeout(() => setShowReconnecting(true), 2000);
+      const timer = setTimeout(() => setShowReconnecting(true), 3500);
       return () => { clearTimeout(timer); setShowReconnecting(false); };
     }
     setShowReconnecting(false);
@@ -159,8 +159,10 @@ export const VideoTile = memo(function VideoTile({
     const el = videoRef.current;
     if (!el) return;
 
-    // Guard against stale or ended tracks, or tile not visible
-    if (!track || track.readyState === 'ended' || !isVisible) {
+    // Guard against stale or ended tracks, or tile not visible.
+    // Screen shares bypass the visibility gate — tearing down srcObject when
+    // the tile scrolls slightly off-screen caused 2–3 s freezes on return.
+    if (!track || track.readyState === 'ended' || (!isVisible && !isScreen)) {
       el.srcObject = null;
       setIsPlaying(false);
       return;
@@ -217,7 +219,7 @@ export const VideoTile = memo(function VideoTile({
       el.srcObject = null;
       setIsPlaying(false);
     };
-  }, [track, isVisible]);
+  }, [track, isVisible, isScreen]);
 
   const toggleFullscreen = useCallback(() => {
     if (!containerRef.current) return;

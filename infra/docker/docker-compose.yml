@@ -127,7 +127,14 @@ services:
     image: livekit/livekit-server:latest
     container_name: swiip-livekit
     restart: unless-stopped
-    command: --dev --bind 0.0.0.0
+    environment:
+      LIVEKIT_API_KEY: devkey
+      LIVEKIT_API_SECRET: devkeysecretdevkeysecretdevkeysec
+      TURN_PUBLIC_HOST: 127.0.0.1
+      TURN_SHARED_SECRET: dev-turn-secret-dev-turn-secret-1
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    command: --config /etc/livekit.yaml --bind 0.0.0.0 --dev
     ports:
       - '7880:7880'   # HTTP/WS
       - '7881:7881'   # RTC TCP
@@ -137,6 +144,22 @@ services:
       interval: 10s
       timeout: 5s
       retries: 5
+
+  # ─── coturn (TURN Server) ────────────────────────────────────────────────
+  # Relays WebRTC traffic for clients behind symmetric NAT (mobile carriers,
+  # corporate firewalls, some home routers). Without this, such clients fail
+  # ICE entirely or fall back to broken paths that cascade into pause loops.
+  coturn:
+    image: coturn/coturn:4.6-alpine
+    container_name: swiip-coturn
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+    command: >
+      -c /etc/coturn/turnserver.conf
+      --external-ip=127.0.0.1
+      --static-auth-secret=dev-turn-secret-dev-turn-secret-1
 
   # ─── Observability Stack ─────────────────────────────────────────────────
   # Prometheus

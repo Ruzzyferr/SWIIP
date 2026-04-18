@@ -160,11 +160,27 @@ services:
     image: livekit/livekit-server:latest
     container_name: swiip-livekit
     restart: unless-stopped
+    environment:
+      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
+      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      TURN_PUBLIC_HOST: ${TURN_PUBLIC_HOST}
+      TURN_SHARED_SECRET: ${TURN_SHARED_SECRET}
+    volumes:
+      - ./livekit.yaml:/etc/livekit.yaml:ro
+    command: --config /etc/livekit.yaml --bind 0.0.0.0
+
+  coturn:
+    profiles: ["voice"]
+    image: coturn/coturn:4.6-alpine
+    container_name: swiip-coturn
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
     command: >
-      --dev=false
-      --bind 0.0.0.0
-      --port 7880
-      --keys "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
+      -c /etc/coturn/turnserver.conf
+      --external-ip=${TURN_PUBLIC_IP}
+      --static-auth-secret=${TURN_SHARED_SECRET}
 
   # ─── Infrastructure ───────────────────────────────────────────────────────
 

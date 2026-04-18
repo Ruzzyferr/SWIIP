@@ -11,7 +11,6 @@ import {
   AudioPresets,
   RemoteAudioTrack,
   RemoteTrackPublication,
-  VideoQuality,
   DefaultReconnectPolicy,
   type RemoteParticipant,
   type RemoteTrack,
@@ -40,6 +39,22 @@ import { networkMonitor } from '@/lib/network/NetworkMonitor';
 function createStrategy(platform: AudioPlatform) {
   return platform === 'desktop' ? new DesktopAudioStrategy() : new BrowserAudioStrategy();
 }
+
+/**
+ * Pick the best available screen-share codec at runtime.
+ * AV1 ≈3× VP8 efficiency for text/UI content; VP9 ≈2×. LiveKit negotiates
+ * per subscriber, so choosing the strongest supported encoder is always safe.
+ */
+function pickScreenShareCodec(): 'av1' | 'vp9' | 'vp8' {
+  if (typeof RTCRtpSender === 'undefined' || !RTCRtpSender.getCapabilities) return 'vp8';
+  const caps = RTCRtpSender.getCapabilities('video');
+  const mimes = caps?.codecs.map((c) => c.mimeType.toLowerCase()) ?? [];
+  if (mimes.includes('video/av1')) return 'av1';
+  if (mimes.includes('video/vp9')) return 'vp9';
+  return 'vp8';
+}
+const SCREEN_SHARE_CODEC = typeof window === 'undefined' ? 'vp8' : pickScreenShareCodec();
+let codecLogged = false;
 
 /** Map of participantIdentity → { camera?: MediaStreamTrack, screen?: MediaStreamTrack } */
 export interface VideoTrackMap {
@@ -161,21 +176,21 @@ export function useLiveKitRoom() {
     // Audio capture defaults — AGC always off (pumps floor noise).
     // Noise suppression is mode-controlled: standard=browser NS, enhanced=Krisp, raw=off.
     const room = new Room({
-      // Adaptive stream — let LiveKit adjust video quality based on subscriber
-      // bandwidth. Screen share tracks are pinned to HIGH quality in the
-      // TrackSubscribed handler to prevent downgrading.
-      adaptiveStream: { pixelDensity: 'screen' },
-      // Dynacast — server-side track optimization when subscribers aren't
-      // viewing. Works together with adaptiveStream; screen share is protected
-      // via the HIGH quality pin on the subscriber side.
-      dynacast: true,
+      // adaptiveStream + dynacast cause a 2–3 s pause/unpause oscillation on
+      // screen share because the SFU pauses forwarding based on viewport
+      // heuristics. We already gate subscriptions explicitly via
+      // watchingStreams → setSubscribed, so layering these server-side
+      // heuristics on top adds only noise.
+      adaptiveStream: false,
+      dynacast: false,
       // Reconnect policy — platform-aware delays.
       // Desktop: faster initial retry, more attempts (always-on expectation).
       // Web: more conservative (browser tab may be backgrounded).
       reconnectPolicy: new DefaultReconnectPolicy(platform.livekitReconnectDelays),
       publishDefaults: {
-        // Disable simulcast for screen share — send one high-quality stream
-        screenShareSimulcastLayers: [],
+        // One fallback simulcast layer (~540p/~700 kbps) so subscribers on
+        // weak downlinks get a degraded-but-smooth feed instead of flicker.
+        screenShareSimulcastLayers: [VideoPresets.h540],
         screenShareEncoding: {
           maxBitrate: 2_500_000,
           maxFramerate: 30,
@@ -515,7 +530,9 @@ export function useLiveKitRoom() {
                 systemAudio: 'include',
                 preferCurrentTab: false,
               }, {
-                simulcast: false,
+                simulcast: true,
+                videoCodec: SCREEN_SHARE_CODEC,
+                videoSimulcastLayers: [VideoPresets.h540],
                 videoEncoding: { maxBitrate: preset.maxBitrate, maxFramerate: preset.fps },
                 audioPreset: AudioPresets.musicHighQualityStereo,
                 dtx: false,
@@ -753,11 +770,6 @@ export function useLiveKitRoom() {
           );
           if (currentChannelId && !isScreen) {
             setParticipantVideo(currentChannelId, participant.identity, true);
-          }
-          // Pin screen share to HIGH quality — prevent adaptiveStream from
-          // downgrading screen share (text/code must stay sharp).
-          if (isScreen) {
-            publication.setVideoQuality(VideoQuality.HIGH);
           }
           // Screen share screenSharing flag is managed by TrackPublished/TrackUnpublished
         }
@@ -1401,8 +1413,17 @@ export function useLiveKitRoom() {
         preferCurrentTab: false,
       });
 
+      if (!codecLogged) {
+        console.debug('[LiveKit] Screen share codec:', SCREEN_SHARE_CODEC);
+        codecLogged = true;
+      }
+
       const publishOpts = {
-        simulcast: false,
+        simulcast: true,
+        videoCodec: SCREEN_SHARE_CODEC,
+        // One low fallback layer — subscribers on weak downlinks get a
+        // degraded-but-smooth feed instead of flickering to full-off.
+        videoSimulcastLayers: [VideoPresets.h540],
         videoEncoding: {
           maxBitrate: preset.maxBitrate,
           maxFramerate: preset.fps,
@@ -1444,6 +1465,97 @@ export function useLiveKitRoom() {
     } else {
       room.localParticipant.setScreenShareEnabled(false).catch(console.error);
     }
+  }, [screenShareEnabled]);
+
+  // Dynamic screen-share bitrate probing — start low, ramp up with observed
+  // loss. Prevents the first-second saturation burst that triggers the SFU's
+  // pause/unpause loop on weak uplinks. Matches Meet/Zoom/Jitsi pattern.
+  useEffect(() => {
+    if (!screenShareEnabled) return;
+    const room = roomRef.current;
+    if (!room) return;
+
+    const presetCaps = {
+      '720p30': 2_500_000,
+      '1080p30': 4_000_000,
+      '1080p60': 6_000_000,
+    } as const;
+    const quality = useVoiceStore.getState().screenShareQuality;
+    const target = presetCaps[quality as keyof typeof presetCaps] ?? 4_000_000;
+    const minBps = 600_000;
+    let current = minBps;
+    let stopped = false;
+
+    const getSender = (): RTCRtpSender | undefined => {
+      const pc = (room.engine as any)?.pcManager?.publisher?._pc as RTCPeerConnection | undefined;
+      if (!pc) return undefined;
+      const pub = room.localParticipant.getTrackPublication(Track.Source.ScreenShare);
+      const mst = pub?.track?.mediaStreamTrack;
+      if (!mst) return undefined;
+      return pc.getSenders().find((s) => s.track === mst);
+    };
+
+    const applyCap = async (bps: number) => {
+      const sender = getSender();
+      if (!sender) return;
+      try {
+        const params = sender.getParameters();
+        if (!params.encodings || params.encodings.length === 0) return;
+        // With simulcast, cap the TOP layer only — leave the fallback h540 layer
+        // at its own preset so weak subscribers still get a smooth low-res feed.
+        let topIdx = 0;
+        for (let i = 1; i < params.encodings.length; i++) {
+          const a = params.encodings[topIdx];
+          const b = params.encodings[i];
+          if ((b?.maxBitrate ?? 0) > (a?.maxBitrate ?? 0)) topIdx = i;
+        }
+        const top = params.encodings[topIdx];
+        if (top) top.maxBitrate = bps;
+        await sender.setParameters(params);
+      } catch {
+        // setParameters races with encoder state during publish — safe to ignore
+      }
+    };
+
+    // Apply initial low cap as soon as the sender exists. The publish effect
+    // runs the getDisplayMedia prompt; the sender appears only after the user
+    // approves. Poll briefly until it's there, then start the ramp loop.
+    const waitAndStart = async () => {
+      for (let i = 0; i < 40 && !stopped; i++) {
+        if (getSender()) break;
+        await new Promise((r) => setTimeout(r, 250));
+      }
+      if (stopped) return;
+      await applyCap(current);
+    };
+    waitAndStart();
+
+    const interval = setInterval(async () => {
+      const sender = getSender();
+      if (!sender) return;
+      try {
+        const stats = await sender.getStats();
+        let lossFrac = 0;
+        stats.forEach((r: any) => {
+          if (r.type === 'remote-inbound-rtp' && r.kind === 'video') {
+            lossFrac = Math.max(lossFrac, r.fractionLost ?? 0);
+          }
+        });
+        if (lossFrac > 0.05) {
+          current = Math.max(minBps, Math.floor(current * 0.75));
+        } else if (lossFrac < 0.01 && current < target) {
+          current = Math.min(target, Math.floor(current * 1.15));
+        }
+        await applyCap(current);
+      } catch {
+        // ignore transient getStats failures
+      }
+    }, 2_000);
+
+    return () => {
+      stopped = true;
+      clearInterval(interval);
+    };
   }, [screenShareEnabled]);
 
   // Sync video device change
