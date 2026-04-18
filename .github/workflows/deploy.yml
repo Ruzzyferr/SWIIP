@@ -154,7 +154,7 @@ jobs:
             docker compose -f infra/docker/docker-compose.deploy.yml --env-file .env.production run --rm api migrate || true
 
             # Restart services with new images (zero-downtime for stateless services)
-            docker compose -f infra/docker/docker-compose.deploy.yml --env-file .env.production --profile voice up -d api gateway web workers media-signalling
+            docker compose -f infra/docker/docker-compose.deploy.yml --env-file .env.production --profile voice up -d api gateway web workers media-signalling livekit coturn
 
             # Cleanup old images
             docker image prune -f --filter "until=24h" > /dev/null 2>&1
