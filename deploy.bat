@@ -23,7 +23,7 @@ set /p CHOICE="  Select [1/2/3]: "
 
 if "%CHOICE%"=="2" goto ensure_docker
 if "%CHOICE%"=="3" goto redeploy
-goto git_step
+goto preflight
 
 :: ============================================================
 :: Ensure Docker Desktop is running
@@ -190,12 +190,126 @@ popd
 
 echo [OK] Installer published
 echo.
-goto git_step
+goto preflight
 
 :desktop_fail
 echo [!] Desktop build failed or no installer found. Continuing...
 cd /d "%~dp0"
 if exist "%BDIR%" rmdir /s /q "%BDIR%" 2>nul
+goto preflight
+
+:: ============================================================
+:: Preflight — validate infra files locally before pushing.
+:: Catches the kind of yaml/compose/Caddy errors that previously
+:: only surfaced on the server after GHA finished building images.
+:: ============================================================
+:preflight
+echo.
+echo ============================================================
+echo   STEP: Preflight Infra Validation
+echo ============================================================
+echo.
+
+set "PREFLIGHT_FAILED=0"
+
+:: 1) docker-compose.deploy.yml — uses dummy env file so config can resolve placeholders
+echo [*] Validating docker-compose.deploy.yml...
+set "DUMMY_ENV=%TEMP%\swiip_dummy.env"
+> "%DUMMY_ENV%" echo DATABASE_URL=postgres://x:x@db/x
+>> "%DUMMY_ENV%" echo REDIS_URL=redis://x
+>> "%DUMMY_ENV%" echo JWT_SECRET=dummy
+>> "%DUMMY_ENV%" echo JWT_REFRESH_SECRET=dummy
+>> "%DUMMY_ENV%" echo CORS_ORIGIN=https://x
+>> "%DUMMY_ENV%" echo S3_ENDPOINT=https://x
+>> "%DUMMY_ENV%" echo S3_ACCESS_KEY=x
+>> "%DUMMY_ENV%" echo S3_SECRET_KEY=x
+>> "%DUMMY_ENV%" echo SMTP_PASS=x
+>> "%DUMMY_ENV%" echo DB_USER=x
+>> "%DUMMY_ENV%" echo DB_PASSWORD=x
+>> "%DUMMY_ENV%" echo DB_NAME=x
+>> "%DUMMY_ENV%" echo REDIS_PASSWORD=x
+>> "%DUMMY_ENV%" echo PUBLIC_API_URL=https://x
+>> "%DUMMY_ENV%" echo PUBLIC_GATEWAY_URL=wss://x
+>> "%DUMMY_ENV%" echo LIVEKIT_WS_URL=wss://x
+>> "%DUMMY_ENV%" echo LIVEKIT_API_KEY=x
+>> "%DUMMY_ENV%" echo LIVEKIT_API_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+>> "%DUMMY_ENV%" echo TURN_PUBLIC_HOST=x
+>> "%DUMMY_ENV%" echo TURN_PUBLIC_IP=1.1.1.1
+>> "%DUMMY_ENV%" echo TURN_SHARED_SECRET=xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+docker compose -f infra/docker/docker-compose.deploy.yml --env-file "%DUMMY_ENV%" --profile voice config >nul 2>"%TEMP%\swiip_compose_err.txt"
+if errorlevel 1 (
+    echo [!] docker-compose.deploy.yml is invalid:
+    type "%TEMP%\swiip_compose_err.txt"
+    set "PREFLIGHT_FAILED=1"
+) else (
+    echo [OK] docker-compose.deploy.yml parses cleanly
+)
+del "%DUMMY_ENV%" 2>nul
+del "%TEMP%\swiip_compose_err.txt" 2>nul
+
+:: 2) Cross-check GHA deploy.yml restarts every voice-profile service
+::    so an addition to the compose file doesn't get silently skipped on deploy
+::    (commit 7da46b5 was exactly this kind of drift).
+echo [*] Cross-checking GHA deploy.yml service list...
+findstr /C:"livekit" .github\workflows\deploy.yml >nul && findstr /C:"coturn" .github\workflows\deploy.yml >nul
+if errorlevel 1 (
+    echo [!] .github/workflows/deploy.yml is missing 'livekit' or 'coturn' in the
+    echo     'docker compose ... up -d' service list. Add them or option 2 will
+    echo     deploy stale voice infra.
+    set "PREFLIGHT_FAILED=1"
+) else (
+    echo [OK] GHA deploy.yml restarts livekit + coturn
+)
+
+:: 3) livekit.yaml — schema validation by actually booting livekit-server.
+::    No --validate flag exists. We render the template, start the server in
+::    the background, and 3s later check whether it's still running. A clean
+::    parse keeps it running; bad fields make it exit immediately
+::    (commit 9895eea was this exact class of bug).
+echo [*] Validating livekit.yaml against livekit-server schema...
+set "LK_RENDERED=%TEMP%\swiip_livekit_rendered.yaml"
+set "LK_LOG=%TEMP%\swiip_lk_err.txt"
+powershell -NoProfile -Command "(Get-Content 'infra/docker/livekit.yaml' -Raw) -replace '\$\{TURN_PUBLIC_HOST\}','127.0.0.1' -replace '\$\{TURN_SHARED_SECRET\}','xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx' | Set-Content -NoNewline -Encoding utf8 '%LK_RENDERED%'" >nul 2>&1
+docker rm -f swiip-lk-validate >nul 2>&1
+docker run --name swiip-lk-validate -d ^
+  -v "%LK_RENDERED%:/etc/livekit.yaml:ro" ^
+  -e LIVEKIT_KEYS="dummy: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" ^
+  livekit/livekit-server:latest --config /etc/livekit.yaml --bind 127.0.0.1 --node-ip 127.0.0.1 >nul 2>&1
+timeout /t 3 /nobreak >nul
+set "LK_RUNNING=missing"
+for /f "delims=" %%R in ('docker inspect -f "{{.State.Running}}" swiip-lk-validate 2^>nul') do set "LK_RUNNING=%%R"
+docker logs swiip-lk-validate > "%LK_LOG%" 2>&1
+docker rm -f swiip-lk-validate >nul 2>&1
+if /i not "!LK_RUNNING!"=="true" (
+    echo [!] livekit-server exited — config likely has schema errors:
+    type "%LK_LOG%"
+    set "PREFLIGHT_FAILED=1"
+) else (
+    echo [OK] livekit.yaml parses cleanly
+)
+del "%LK_RENDERED%" 2>nul
+del "%LK_LOG%" 2>nul
+
+:: 4) Caddyfile syntax
+echo [*] Validating Caddyfile...
+docker run --rm -v "%~dp0infra\docker\Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile --adapter caddyfile >nul 2>"%TEMP%\swiip_caddy_err.txt"
+if errorlevel 1 (
+    echo [!] Caddyfile is invalid:
+    type "%TEMP%\swiip_caddy_err.txt"
+    set "PREFLIGHT_FAILED=1"
+) else (
+    echo [OK] Caddyfile is valid
+)
+del "%TEMP%\swiip_caddy_err.txt" 2>nul
+
+if !PREFLIGHT_FAILED!==1 (
+    echo.
+    echo [!] Preflight failed. Fix the errors above before pushing.
+    pause
+    exit /b 1
+)
+echo.
+echo [OK] All infra files validated
 goto git_step
 
 :: ============================================================
@@ -371,6 +485,61 @@ goto ci_watch_next
 del "!RUN_LIST!" 2>nul
 
 if !ANY_FAILED!==1 goto ci_fail
+
+:: ============================================================
+:: Post-deploy verification — confirm the server actually serves
+:: traffic and all voice services are running. Catches the case
+:: where GHA reports green but the server failed to bring infra up
+:: (the LIVEKIT_KEYS / coturn class of bugs we hit before).
+:: ============================================================
+echo.
+echo ============================================================
+echo   STEP: Post-deploy Verification
+echo ============================================================
+echo.
+
+set "VERIFY_FAILED=0"
+
+echo [*] Hitting https://swiip.app/ ...
+curl -sf -o NUL -w "HTTP %%{http_code}\n" https://swiip.app/ 2>nul
+if errorlevel 1 (
+    echo [!] swiip.app did not respond with 2xx
+    set "VERIFY_FAILED=1"
+)
+
+echo [*] Hitting https://swiip.app/api/health ...
+curl -sf -o NUL -w "HTTP %%{http_code}\n" https://swiip.app/api/health 2>nul
+if errorlevel 1 (
+    echo [!] /api/health did not respond with 2xx
+    set "VERIFY_FAILED=1"
+)
+
+echo [*] Checking server-side service status...
+ssh -o ConnectTimeout=10 %SERVER% "docker ps --format '{{.Names}}\t{{.Status}}' | grep -E 'swiip-(api|gateway|web|workers|media-signalling|livekit|coturn|caddy)'" 2>nul
+echo.
+
+:: Each voice-profile service must be running. `docker inspect` returns "true"
+:: only if the container exists and is running — no regex/escape gymnastics.
+:: RUNSTATE is reset each iteration so a missing container doesn't inherit the
+:: previous "true" reading.
+for %%S in (swiip-api swiip-gateway swiip-web swiip-workers swiip-media-signalling swiip-livekit swiip-coturn) do (
+    set "RUNSTATE=missing"
+    for /f "delims=" %%R in ('ssh %SERVER% "docker inspect -f '{{.State.Running}}' %%S 2>/dev/null"') do set "RUNSTATE=%%R"
+    if /i not "!RUNSTATE!"=="true" (
+        echo [!] %%S is NOT running on the server ^(state=!RUNSTATE!^)
+        set "VERIFY_FAILED=1"
+    )
+)
+
+if !VERIFY_FAILED!==1 (
+    echo.
+    echo [!] Post-deploy verification failed. Check server logs:
+    echo     ssh %SERVER% "docker logs swiip-livekit --tail 30"
+    echo.
+    pause
+    exit /b 1
+)
+echo [OK] All services healthy
 
 :ci_done
 echo.

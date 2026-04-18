@@ -51,9 +51,11 @@ swiip.app {
     }
 
     # ── LiveKit WebSocket/HTTP ────────────────────────────────────────────
+    # LiveKit runs in host network mode (required for WebRTC ICE), so the
+    # docker DNS name doesn't resolve — proxy through host.docker.internal.
     handle /livekit* {
         uri strip_prefix /livekit
-        reverse_proxy livekit:7880
+        reverse_proxy host.docker.internal:7880
     }
 
     # ── Web frontend (catch-all) ──────────────────────────────────────────
