@@ -161,13 +161,18 @@ services:
     container_name: swiip-livekit
     restart: unless-stopped
     environment:
-      LIVEKIT_API_KEY: ${LIVEKIT_API_KEY}
-      LIVEKIT_API_SECRET: ${LIVEKIT_API_SECRET}
+      LIVEKIT_KEYS: "${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}"
       TURN_PUBLIC_HOST: ${TURN_PUBLIC_HOST}
       TURN_SHARED_SECRET: ${TURN_SHARED_SECRET}
     volumes:
-      - ./livekit.yaml:/etc/livekit.yaml:ro
-    command: --config /etc/livekit.yaml --bind 0.0.0.0
+      - ./livekit.yaml:/etc/livekit.yaml.tmpl:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sed -e "s|\$${TURN_PUBLIC_HOST}|$$TURN_PUBLIC_HOST|g" \
+            -e "s|\$${TURN_SHARED_SECRET}|$$TURN_SHARED_SECRET|g" \
+            /etc/livekit.yaml.tmpl > /tmp/livekit.yaml
+        exec /livekit-server --config /tmp/livekit.yaml --bind 0.0.0.0
 
   coturn:
     profiles: ["voice"]

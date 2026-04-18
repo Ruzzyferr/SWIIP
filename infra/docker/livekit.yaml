@@ -17,9 +17,6 @@ room:
   max_participants: 50
   empty_timeout: 300
 
-keys:
-  ${LIVEKIT_API_KEY}: ${LIVEKIT_API_SECRET}
-
 logging:
   json: true
   level: info

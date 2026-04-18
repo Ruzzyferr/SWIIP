@@ -128,13 +128,18 @@ services:
     container_name: swiip-livekit
     restart: unless-stopped
     environment:
-      LIVEKIT_API_KEY: devkey
-      LIVEKIT_API_SECRET: devkeysecretdevkeysecretdevkeysec
+      LIVEKIT_KEYS: "devkey: devkeysecretdevkeysecretdevkeysec"
       TURN_PUBLIC_HOST: 127.0.0.1
       TURN_SHARED_SECRET: dev-turn-secret-dev-turn-secret-1
     volumes:
-      - ./livekit.yaml:/etc/livekit.yaml:ro
-    command: --config /etc/livekit.yaml --bind 0.0.0.0 --dev
+      - ./livekit.yaml:/etc/livekit.yaml.tmpl:ro
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        sed -e "s|\$${TURN_PUBLIC_HOST}|$$TURN_PUBLIC_HOST|g" \
+            -e "s|\$${TURN_SHARED_SECRET}|$$TURN_SHARED_SECRET|g" \
+            /etc/livekit.yaml.tmpl > /tmp/livekit.yaml
+        exec /livekit-server --config /tmp/livekit.yaml --bind 0.0.0.0 --dev
     ports:
       - '7880:7880'   # HTTP/WS
       - '7881:7881'   # RTC TCP
