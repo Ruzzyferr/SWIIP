@@ -5,6 +5,10 @@ www.swiip.app {
 
 swiip.app {
     # ── Security Headers (all responses) ──────────────────────────────────
+    # CSP is set per-request by Next.js middleware (apps/web/src/middleware.ts)
+    # so it can mint a fresh nonce for each response. Don't add it back here —
+    # two CSP headers will be merged by browsers and the strictest rules win,
+    # which would re-block the nonce'd inline scripts.
     header {
         X-Content-Type-Options "nosniff"
         X-Frame-Options "DENY"
@@ -12,7 +16,6 @@ swiip.app {
         Referrer-Policy "strict-origin-when-cross-origin"
         Permissions-Policy "camera=(self), microphone=(self), display-capture=(self), geolocation=(), payment=()"
         Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
-        Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' https: data: blob:; font-src 'self' data:; connect-src 'self' ws: wss:; media-src 'self' blob:; worker-src 'self' blob:; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; upgrade-insecure-requests"
         -Server
     }
 
