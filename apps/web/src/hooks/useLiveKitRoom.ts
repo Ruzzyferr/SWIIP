@@ -77,6 +77,15 @@ export function useLiveKitRoom() {
   const pipelineRef = useRef<AudioPipeline | null>(null);
   const credentialTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const audioElementsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
+  /**
+   * Screen-share audio plays through a Web Audio graph (AudioContext + MediaStreamSource
+   * + GainNode → destination) instead of an HTML <audio> element. The <audio> element
+   * route still goes through Chrome's WebRTC voice renderer, which ducks the music when
+   * other participants speak. The Web Audio path bypasses that renderer entirely.
+   */
+  const screenShareAudioRef = useRef<
+    Map<string, { ctx: AudioContext; source: MediaStreamAudioSourceNode; gain: GainNode }>
+  >(new Map());
   const trackOwnerRef = useRef<Map<string, string>>(new Map()); // trackSid -> userId
   const trackSourceRef = useRef<Map<string, 'mic' | 'screen'>>(new Map()); // trackSid -> source type
   /** Timestamp until which screen-share unpublish events should be suppressed (reconnect grace). */
@@ -222,16 +231,26 @@ export function useLiveKitRoom() {
       if (existing) {
         try {
           existing.pause();
-          // Clear srcObject for raw screen share audio elements
           if (existing.srcObject) existing.srcObject = null;
           existing.remove();
         } catch {
           // ignore cleanup failures
         }
         audioElementsRef.current.delete(trackSid);
-        trackOwnerRef.current.delete(trackSid);
-        trackSourceRef.current.delete(trackSid);
       }
+      const screenAudio = screenShareAudioRef.current.get(trackSid);
+      if (screenAudio) {
+        try {
+          screenAudio.source.disconnect();
+          screenAudio.gain.disconnect();
+          void screenAudio.ctx.close();
+        } catch {
+          // ignore cleanup failures
+        }
+        screenShareAudioRef.current.delete(trackSid);
+      }
+      trackOwnerRef.current.delete(trackSid);
+      trackSourceRef.current.delete(trackSid);
     };
 
     const attachAudio = async (track: RemoteTrack, participant?: RemoteParticipant) => {
@@ -246,27 +265,34 @@ export function useLiveKitRoom() {
       trackSourceRef.current.set(trackSid, isScreenShareAudio ? 'screen' : 'mic');
 
       if (isScreenShareAudio) {
-        // Screen share audio bypasses LiveKit's audio pipeline entirely.
-        // This prevents noise suppression/processing from cutting the stream audio
-        // when other participants speak.
-        const element = document.createElement('audio');
-        element.autoplay = true;
-        element.setAttribute('playsinline', 'true');
-        const stream = new MediaStream([track.mediaStreamTrack]);
-        element.srcObject = stream;
-        element.muted = false;
+        // Render screen-share audio through the Web Audio API. The HTML <audio>
+        // element route still feeds Chrome's WebRTC voice renderer, which ducks
+        // music when other participants speak. AudioContext bypasses that path.
+        const ctx = new AudioContext({ sampleRate: 48000, latencyHint: 'playback' });
+        const source = ctx.createMediaStreamSource(
+          new MediaStream([track.mediaStreamTrack]),
+        );
+        const gain = ctx.createGain();
         const state = useVoiceStore.getState();
         const globalVol = state.selfDeafened ? 0 : state.settings.outputVolume / 100;
         const streamVol = (state.streamVolumes[participant?.identity ?? ''] ?? 100) / 100;
-        element.volume = Math.min(globalVol * streamVol, 1);
-        document.body.appendChild(element);
-        applySinkId(element);
-        audioElementsRef.current.set(trackSid, element);
-        try {
-          await element.play();
-        } catch {
-          room.startAudio().catch(() => {});
+        gain.gain.value = Math.min(globalVol * streamVol, 1);
+        source.connect(gain);
+        gain.connect(ctx.destination);
+
+        // Honor selected output device — Chrome 110+ only.
+        const deviceId = state.settings.outputDeviceId;
+        if (deviceId && deviceId !== 'default' && 'setSinkId' in ctx) {
+          (ctx as AudioContext & { setSinkId: (id: string) => Promise<void> })
+            .setSinkId(deviceId)
+            .catch((err) => console.warn('[LiveKit] AudioContext.setSinkId failed:', err));
         }
+
+        if (ctx.state === 'suspended') {
+          ctx.resume().catch(() => room.startAudio().catch(() => {}));
+        }
+
+        screenShareAudioRef.current.set(trackSid, { ctx, source, gain });
         return;
       }
 
@@ -583,7 +609,11 @@ export function useLiveKitRoom() {
 
     room.on(RoomEvent.Disconnected, () => {
       console.debug('[LiveKit] Disconnected from room');
-      for (const sid of audioElementsRef.current.keys()) {
+      const sids = new Set<string>([
+        ...audioElementsRef.current.keys(),
+        ...screenShareAudioRef.current.keys(),
+      ]);
+      for (const sid of sids) {
         detachAudio(sid);
       }
     });
@@ -1176,7 +1206,11 @@ export function useLiveKitRoom() {
       }
       room.disconnect();
       room.removeAllListeners();
-      for (const sid of audioElementsRef.current.keys()) {
+      const sids = new Set<string>([
+        ...audioElementsRef.current.keys(),
+        ...screenShareAudioRef.current.keys(),
+      ]);
+      for (const sid of sids) {
         detachAudio(sid);
       }
       roomRef.current = null;
@@ -1215,36 +1249,42 @@ export function useLiveKitRoom() {
     const state = useVoiceStore.getState();
     const globalVol = state.selfDeafened ? 0 : state.settings.outputVolume / 100;
 
-    // Apply via LiveKit's RemoteAudioTrack.setVolume (Web Audio API GainNode)
-    // Screen share audio and mic audio use independent volume controls.
+    // Mic audio: LiveKit's RemoteAudioTrack.setVolume (Web Audio GainNode).
+    // Screen-share audio is handled separately via screenShareAudioRef below
+    // because it bypasses LiveKit's pipeline to avoid receive-side voice ducking.
     for (const [, participant] of room.remoteParticipants) {
       const userVol = (state.userVolumes[participant.identity] ?? 100) / 100;
-      const streamVol = (state.streamVolumes[participant.identity] ?? 100) / 100;
 
       for (const pub of participant.audioTrackPublications.values()) {
+        if (pub.source === Track.Source.ScreenShareAudio) {
+          if (pub.track?.sid) {
+            trackOwnerRef.current.set(pub.track.sid, participant.identity);
+            trackSourceRef.current.set(pub.track.sid, 'screen');
+          }
+          continue;
+        }
         if (pub.track && pub.track instanceof RemoteAudioTrack) {
-          const isScreenAudio = pub.source === Track.Source.ScreenShareAudio;
-          const trackVol = isScreenAudio ? streamVol : userVol;
-          pub.track.setVolume(globalVol * trackVol);
-          // Keep trackOwnerRef in sync in case SID was assigned after initial mapping
+          pub.track.setVolume(globalVol * userVol);
           if (pub.track.sid) {
             trackOwnerRef.current.set(pub.track.sid, participant.identity);
-            trackSourceRef.current.set(pub.track.sid, isScreenAudio ? 'screen' : 'mic');
+            trackSourceRef.current.set(pub.track.sid, 'mic');
           }
         }
       }
     }
 
-    // Also update raw HTMLAudioElement volumes (used for screen share audio bypass)
+    // Mic raw HTMLAudioElement volumes.
     for (const [trackSid, audioElement] of audioElementsRef.current.entries()) {
       const ownerId = trackOwnerRef.current.get(trackSid);
-      const isScreen = trackSourceRef.current.get(trackSid) === 'screen';
-      const vol = ownerId
-        ? ((isScreen
-            ? (state.streamVolumes[ownerId] ?? 100)
-            : (state.userVolumes[ownerId] ?? 100)) / 100)
-        : 1;
-      audioElement.volume = Math.min(globalVol * vol, 1);
+      const userVol = ownerId ? (state.userVolumes[ownerId] ?? 100) / 100 : 1;
+      audioElement.volume = Math.min(globalVol * userVol, 1);
+    }
+
+    // Screen-share audio GainNodes.
+    for (const [trackSid, { gain }] of screenShareAudioRef.current.entries()) {
+      const ownerId = trackOwnerRef.current.get(trackSid);
+      const streamVol = ownerId ? (state.streamVolumes[ownerId] ?? 100) / 100 : 1;
+      gain.gain.value = Math.min(globalVol * streamVol, 1);
     }
   }, []);
 
@@ -1317,6 +1357,14 @@ export function useLiveKitRoom() {
     for (const audioElement of audioElementsRef.current.values()) {
       if (typeof audioElement.setSinkId === 'function') {
         audioElement.setSinkId(outputDeviceId).catch(console.error);
+      }
+    }
+    // Screen-share AudioContexts — Chrome 110+ only.
+    for (const { ctx } of screenShareAudioRef.current.values()) {
+      if ('setSinkId' in ctx) {
+        (ctx as AudioContext & { setSinkId: (id: string) => Promise<void> })
+          .setSinkId(outputDeviceId)
+          .catch((err) => console.warn('[LiveKit] AudioContext.setSinkId failed:', err));
       }
     }
   }, [outputDeviceId]);
@@ -1406,7 +1454,19 @@ export function useLiveKitRoom() {
 
       const captureOpts = (audio: boolean) => ({
         contentHint: (preset.fps >= 60 ? 'motion' : 'detail') as 'motion' | 'detail',
-        audio,
+        // Explicit constraints keep the captured stream in "music" mode end-to-end.
+        // Without them, Chrome may apply default voice processing (AGC/NS/AEC) and
+        // classify the Opus payload as voice — which triggers receive-side ducking
+        // on the subscriber when other participants speak.
+        audio: audio
+          ? {
+              echoCancellation: false,
+              noiseSuppression: false,
+              autoGainControl: false,
+              channelCount: 2,
+              sampleRate: 48000,
+            }
+          : false,
         suppressLocalAudioPlayback: true,
         selfBrowserSurface: 'exclude' as const,
         surfaceSwitching: 'include' as const,
@@ -1602,7 +1662,13 @@ export function useLiveKitRoom() {
               try { el.pause(); el.remove(); } catch { /* ignore cleanup errors */ }
             }
             audioElementsRef.current.clear();
+            for (const { source, gain, ctx } of screenShareAudioRef.current.values()) {
+              try { source.disconnect(); gain.disconnect(); void ctx.close(); }
+              catch { /* ignore cleanup errors */ }
+            }
+            screenShareAudioRef.current.clear();
             trackOwnerRef.current.clear();
+            trackSourceRef.current.clear();
             roomRef.current = null;
             setVideoTracks({});
             disconnect();
@@ -1667,7 +1733,18 @@ export function useLiveKitRoom() {
         }
       }
       audioElementsRef.current.clear();
+      for (const { source, gain, ctx } of screenShareAudioRef.current.values()) {
+        try {
+          source.disconnect();
+          gain.disconnect();
+          void ctx.close();
+        } catch {
+          // ignore cleanup failures
+        }
+      }
+      screenShareAudioRef.current.clear();
       trackOwnerRef.current.clear();
+      trackSourceRef.current.clear();
       roomRef.current = null;
     }
     setVideoTracks({});
