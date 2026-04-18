@@ -20,7 +20,7 @@ const qualityOptions: { value: ScreenShareQuality; label: string; desc: string }
 
 export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalProps) {
   const [quality, setQuality] = useState<ScreenShareQuality>('1080p30');
-  const [shareAudio, setShareAudio] = useState(false);
+  const [shareAudio, setShareAudio] = useState(true);
   const [sources, setSources] = useState<DesktopSource[]>([]);
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [loadingSources, setLoadingSources] = useState(false);
@@ -188,14 +188,14 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
                   )}
                   <div>
                     <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                      Also share audio
+                      Sistem sesini de paylaş
                     </p>
                     <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
                       {isDesktop
                         ? isWindowCapture
-                          ? 'Captures audio from the selected window'
-                          : 'Captures all system audio except voice chat'
-                        : 'Window: captures window audio. Full screen: captures all system audio'}
+                          ? 'Seçili pencerenin sesi izleyenlere gider'
+                          : 'Bilgisayarınızda çalan ses (YouTube, oyun, müzik) izleyenlere gider'
+                        : 'Tarayıcı seçim ekranında "Sekme/Ekran sesini paylaş" tikini açmayı unutmayın'}
                     </p>
                   </div>
                 </div>
@@ -215,7 +215,12 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
               </div>
               {isDesktop && shareAudio && (
                 <p className="text-xs px-1" style={{ color: 'var(--color-warning-default, #faa61a)' }}>
-                  Use headphones to prevent echo. Voice chat audio is routed to your selected output device.
+                  Yankıyı önlemek için kulaklık kullanın. Sesli sohbet sesi seçili çıkış aygıtınıza yönlendirilir.
+                </p>
+              )}
+              {!isDesktop && shareAudio && (
+                <p className="text-xs px-1" style={{ color: 'var(--color-warning-default, #faa61a)' }}>
+                  Tarayıcı "Tüm Ekran" veya "Sekme" seçerken "Sistem sesini paylaş" seçeneğini de işaretleyin.
                 </p>
               )}
             </div>

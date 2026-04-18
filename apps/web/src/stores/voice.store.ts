@@ -186,7 +186,7 @@ export const useVoiceStore = create<VoiceState>()(
     cameraEnabled: false,
     screenShareEnabled: false,
     screenShareQuality: '1080p30' as ScreenShareQuality,
-    screenShareAudio: false,
+    screenShareAudio: true,
     pinnedParticipantId: null,
     participants: {},
     connectionQuality: 3,

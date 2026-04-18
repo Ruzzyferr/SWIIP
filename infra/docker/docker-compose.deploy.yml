@@ -182,10 +182,13 @@ services:
     network_mode: host
     volumes:
       - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+    # NOTE: TURN_SHARED_SECRET is now used as the static long-term password
+    # for the `livekit` user (matching what LiveKit sends literally), not as
+    # a REST hashed secret. Same env var, different semantic.
     command: >
       -c /etc/coturn/turnserver.conf
       --external-ip=${TURN_PUBLIC_IP}
-      --static-auth-secret=${TURN_SHARED_SECRET}
+      --user=livekit:${TURN_SHARED_SECRET}
 
   # ─── Infrastructure ───────────────────────────────────────────────────────
 

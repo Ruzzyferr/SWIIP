@@ -128,7 +128,7 @@ export const VideoTile = memo(function VideoTile({
   const [showReconnecting, setShowReconnecting] = useState(false);
   useEffect(() => {
     if (isScreen && !isPlaying && track) {
-      const timer = setTimeout(() => setShowReconnecting(true), 3500);
+      const timer = setTimeout(() => setShowReconnecting(true), 6000);
       return () => { clearTimeout(timer); setShowReconnecting(false); };
     }
     setShowReconnecting(false);

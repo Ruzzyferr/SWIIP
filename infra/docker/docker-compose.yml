@@ -161,10 +161,12 @@ services:
     network_mode: host
     volumes:
       - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+    # See compose.deploy.yml — TURN_SHARED_SECRET is the static long-term
+    # password for the `livekit` user, matching what LiveKit sends literally.
     command: >
       -c /etc/coturn/turnserver.conf
       --external-ip=127.0.0.1
-      --static-auth-secret=dev-turn-secret-dev-turn-secret-1
+      --user=livekit:dev-turn-secret-dev-turn-secret-1
 
   # ─── Observability Stack ─────────────────────────────────────────────────
   # Prometheus

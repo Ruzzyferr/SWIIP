@@ -1010,9 +1010,10 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
         </div>
       </div>
 
-      {/* Status messages */}
+      {/* Status messages — only show during INITIAL connect; transient reconnects
+          stay invisible (status pill in VoiceConnectionPanel carries the signal) */}
       <AnimatePresence>
-        {isConnecting && (
+        {isInThisChannel && connectionState === 'connecting' && (
           <motion.div
             initial={{ opacity: 0, y: -10 }}
             animate={{ opacity: 1, y: 0 }}
@@ -1021,9 +1022,7 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
             style={{ color: 'var(--color-status-idle)' }}
           >
             <Loader2 size={16} className="animate-spin" />
-            <span className="text-sm">
-              {connectionState === 'reconnecting' ? 'Reconnecting...' : 'Connecting...'}
-            </span>
+            <span className="text-sm">Connecting...</span>
           </motion.div>
         )}
 

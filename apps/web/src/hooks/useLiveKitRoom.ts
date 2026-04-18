@@ -419,12 +419,13 @@ export function useLiveKitRoom() {
       }
     };
 
-    // Grace window before surfacing "Reconnecting…" to the UI. Most transient
-    // dips (<1.2s) that LiveKit self-heals would otherwise flicker through as
-    // a visible reconnecting state. Internal bookkeeping (screen-share grace)
-    // still runs immediately — only the user-visible flip is delayed.
+    // Grace window before surfacing "Reconnecting…" to the UI. ICE renegotiation
+    // typically completes in 1.5–3.5s; a 4.5s grace covers the overwhelming majority
+    // of self-healed blips while still surfacing genuinely-broken connections.
+    // Internal bookkeeping (screen-share grace) still runs immediately — only the
+    // user-visible flip is delayed.
     let reconnectingUiTimer: ReturnType<typeof setTimeout> | null = null;
-    const RECONNECTING_UI_GRACE_MS = 1200;
+    const RECONNECTING_UI_GRACE_MS = 4500;
 
     // --- Event handlers ---
     room.on(RoomEvent.ConnectionStateChanged, async (state: ConnectionState) => {

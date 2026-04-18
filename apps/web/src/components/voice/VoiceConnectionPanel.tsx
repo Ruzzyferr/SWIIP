@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useState } from 'react';
 import {
   PhoneOff,
   Mic,
@@ -91,13 +92,29 @@ export function VoiceConnectionPanel() {
     }
   };
 
+  // Hide the explicit "Reconnecting…" wording for the first 8s of a reconnect.
+  // Most ICE renegotiations self-heal in <5s; surfacing the word during that
+  // window creates visible churn for what is effectively invisible to media.
+  // The status colour stays yellow throughout — there is still *some* signal.
+  const [showReconnectingText, setShowReconnectingText] = useState(false);
+  useEffect(() => {
+    if (connectionState !== 'reconnecting') {
+      setShowReconnectingText(false);
+      return;
+    }
+    const timer = setTimeout(() => setShowReconnectingText(true), 8000);
+    return () => clearTimeout(timer);
+  }, [connectionState]);
+
   if (connectionState === 'disconnected' && !currentChannelId) return null;
 
   const statusText =
     connectionState === 'connecting'
       ? t('connecting')
       : connectionState === 'reconnecting'
-      ? t('reconnecting')
+      ? showReconnectingText
+        ? t('reconnecting')
+        : t('connected')
       : connectionState === 'error'
       ? t('disconnected')
       : t('connected');
@@ -110,7 +127,8 @@ export function VoiceConnectionPanel() {
       : 'var(--color-status-idle)';
 
   const isTransitioning =
-    connectionState === 'connecting' || connectionState === 'reconnecting';
+    connectionState === 'connecting' ||
+    (connectionState === 'reconnecting' && showReconnectingText);
 
   const btnClass =
     'w-8 h-8 rounded-lg flex items-center justify-center transition-all duration-150';
