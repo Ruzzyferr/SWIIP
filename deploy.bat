@@ -247,18 +247,25 @@ if errorlevel 1 (
 del "%DUMMY_ENV%" 2>nul
 del "%TEMP%\swiip_compose_err.txt" 2>nul
 
-:: 2) Cross-check GHA deploy.yml restarts every voice-profile service
-::    so an addition to the compose file doesn't get silently skipped on deploy
-::    (commit 7da46b5 was exactly this kind of drift).
+:: 2) Cross-check GHA deploy.yml restarts every required service.
+::    Drift here causes the worst kind of bug: GHA reports green but the
+::    skipped service stays stale on the server. Past hits:
+::      - 7da46b5: livekit + coturn missing → voice infra never restarted
+::      - this session: caddy missing → reverse proxy kept old upstream IPs
 echo [*] Cross-checking GHA deploy.yml service list...
-findstr /C:"livekit" .github\workflows\deploy.yml >nul && findstr /C:"coturn" .github\workflows\deploy.yml >nul
-if errorlevel 1 (
-    echo [!] .github/workflows/deploy.yml is missing 'livekit' or 'coturn' in the
-    echo     'docker compose ... up -d' service list. Add them or option 2 will
-    echo     deploy stale voice infra.
+set "DEPLOY_YML=.github\workflows\deploy.yml"
+set "GHA_MISSING="
+for %%S in (api gateway web workers media-signalling livekit coturn caddy) do (
+    findstr /C:"up -d" "%DEPLOY_YML%" | findstr /C:"%%S" >nul
+    if errorlevel 1 set "GHA_MISSING=!GHA_MISSING! %%S"
+)
+if defined GHA_MISSING (
+    echo [!] .github/workflows/deploy.yml's 'docker compose ... up -d' line is
+    echo     missing these services:!GHA_MISSING!
+    echo     Add them or option 2 will deploy stale infra.
     set "PREFLIGHT_FAILED=1"
 ) else (
-    echo [OK] GHA deploy.yml restarts livekit + coturn
+    echo [OK] GHA deploy.yml restarts every required service
 )
 
 :: 3) livekit.yaml — schema validation by actually booting livekit-server.
@@ -514,6 +521,16 @@ if errorlevel 1 (
     set "VERIFY_FAILED=1"
 )
 
+:: LiveKit is reached through Caddy's /livekit reverse proxy. A 200 here proves
+:: Caddy was recreated with the latest Caddyfile and can resolve the upstream
+:: (the bug class we hit when caddy was missing from the GHA up -d list).
+echo [*] Hitting https://swiip.app/livekit/ ...
+curl -sf -o NUL -w "HTTP %%{http_code}\n" https://swiip.app/livekit/ 2>nul
+if errorlevel 1 (
+    echo [!] /livekit/ did not respond with 2xx — Caddy may not be reaching LiveKit
+    set "VERIFY_FAILED=1"
+)
+
 echo [*] Checking server-side service status...
 ssh -o ConnectTimeout=10 %SERVER% "docker ps --format '{{.Names}}\t{{.Status}}' | grep -E 'swiip-(api|gateway|web|workers|media-signalling|livekit|coturn|caddy)'" 2>nul
 echo.
@@ -522,7 +539,9 @@ echo.
 :: only if the container exists and is running — no regex/escape gymnastics.
 :: RUNSTATE is reset each iteration so a missing container doesn't inherit the
 :: previous "true" reading.
-for %%S in (swiip-api swiip-gateway swiip-web swiip-workers swiip-media-signalling swiip-livekit swiip-coturn) do (
+:: NOTE: caddy's container is named docker-caddy-1 (no container_name in compose,
+:: project = "docker"). All other voice services have explicit swiip-* names.
+for %%S in (swiip-api swiip-gateway swiip-web swiip-workers swiip-media-signalling swiip-livekit swiip-coturn docker-caddy-1) do (
     set "RUNSTATE=missing"
     for /f "delims=" %%R in ('ssh %SERVER% "docker inspect -f '{{.State.Running}}' %%S 2>/dev/null"') do set "RUNSTATE=%%R"
     if /i not "!RUNSTATE!"=="true" (

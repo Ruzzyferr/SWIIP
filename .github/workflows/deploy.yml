@@ -153,8 +153,11 @@ jobs:
             # Run migrations
             docker compose -f infra/docker/docker-compose.deploy.yml --env-file .env.production run --rm api migrate || true
 
-            # Restart services with new images (zero-downtime for stateless services)
-            docker compose -f infra/docker/docker-compose.deploy.yml --env-file .env.production --profile voice up -d api gateway web workers media-signalling livekit coturn
+            # Restart services with new images (zero-downtime for stateless services).
+            # `caddy` MUST be included — it mounts the Caddyfile read-only and caches
+            # upstream resolution, so a stale container will keep routing to old
+            # service IPs / hostnames after the rest get recreated.
+            docker compose -f infra/docker/docker-compose.deploy.yml --env-file .env.production --profile voice up -d api gateway web workers media-signalling livekit coturn caddy
 
             # Cleanup old images
             docker image prune -f --filter "until=24h" > /dev/null 2>&1
