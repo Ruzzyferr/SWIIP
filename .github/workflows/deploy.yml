@@ -162,10 +162,25 @@ jobs:
             # Caddy reload — `up -d caddy` above is a no-op when the caddy service
             # definition is unchanged, so a Caddyfile-only edit won't be picked up
             # (the running process keeps the old config in memory). `caddy reload`
-            # is a graceful in-process reload with zero downtime. Falls back to
-            # --force-recreate if reload fails (e.g., first deploy, missing binary).
-            docker exec docker-caddy-1 caddy reload --config /etc/caddy/Caddyfile \
-              || docker compose -f infra/docker/docker-compose.deploy.yml --env-file .env.production --profile voice up -d --force-recreate caddy
+            # is a graceful in-process reload. We CANNOT trust its exit code alone:
+            # reload can return 0 while the in-memory config stays stale (admin-API
+            # timing / edge cases), and then the `||` fallback never fires. So we
+            # reload, then assert the live response actually reflects the new config
+            # by checking the CSP header. If the nonce-based CSP from Next.js middleware
+            # isn't coming through, Caddy is still injecting its old static CSP and
+            # we force-recreate the container to drop the in-memory state.
+            docker exec docker-caddy-1 caddy reload --config /etc/caddy/Caddyfile || true
+            sleep 3
+            if ! curl -sfI https://swiip.app/ | grep -i '^content-security-policy:' | grep -q 'strict-dynamic'; then
+              echo "::warning::Caddy reload did not apply — live CSP still lacks 'strict-dynamic'. Force-recreating caddy."
+              docker compose -f infra/docker/docker-compose.deploy.yml --env-file .env.production --profile voice up -d --force-recreate --no-deps caddy
+              sleep 5
+              if ! curl -sfI https://swiip.app/ | grep -i '^content-security-policy:' | grep -q 'strict-dynamic'; then
+                echo "::error::CSP still stale after force-recreate. Inspect: docker logs docker-caddy-1"
+                exit 1
+              fi
+            fi
+            echo "Caddy CSP verified (nonce + strict-dynamic)."
 
             # Cleanup old images
             docker image prune -f --filter "until=24h" > /dev/null 2>&1

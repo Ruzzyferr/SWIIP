@@ -534,13 +534,24 @@ if errorlevel 1 (
 :: CSP must come from Next.js middleware (per-request nonce + 'strict-dynamic').
 :: If we still see Caddy's old static CSP here, Caddy didn't reload its config —
 :: that's the bug class where `up -d caddy` is a no-op for Caddyfile-only edits.
+:: Auto-remediate: force-recreate caddy then re-check. No manual SSH step.
 echo [*] Verifying CSP is the per-request nonce variant ^(not stale Caddy CSP^)...
 curl -sI https://swiip.app/login 2>nul | findstr /I "content-security-policy" | findstr /C:"strict-dynamic" >nul
 if errorlevel 1 (
     echo [!] CSP header is stale — does not contain 'strict-dynamic'.
-    echo     Caddy needs an explicit reload after Caddyfile edits.
-    echo     Try: ssh %SERVER% "docker exec docker-caddy-1 caddy reload --config /etc/caddy/Caddyfile"
-    set "VERIFY_FAILED=1"
+    echo [*] Auto-remediating: force-recreating caddy on server...
+    ssh %SERVER% "cd %REPO_DIR% && docker compose -f %COMPOSE_FILE% --env-file %ENV_FILE% --profile voice up -d --force-recreate --no-deps caddy"
+    timeout /t 5 /nobreak >nul
+    curl -sI https://swiip.app/login 2>nul | findstr /I "content-security-policy" | findstr /C:"strict-dynamic" >nul
+    if errorlevel 1 (
+        echo [!] CSP still stale after force-recreate. Inspect server manually:
+        echo     ssh %SERVER% "docker logs docker-caddy-1 --tail 50"
+        set "VERIFY_FAILED=1"
+    ) else (
+        echo [OK] CSP restored after caddy force-recreate
+    )
+) else (
+    echo [OK] CSP has strict-dynamic ^(middleware is live^)
 )
 
 echo [*] Checking server-side service status...

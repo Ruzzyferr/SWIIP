@@ -1,9 +1,9 @@
 'use client';
 
 import { useState, useEffect, useCallback, useMemo } from 'react';
-import { Monitor, Volume2, VolumeX } from 'lucide-react';
+import { Monitor, Volume2, VolumeX, MicOff } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
-import type { ScreenShareQuality } from '@/stores/voice.store';
+import { useVoiceStore, type ScreenShareQuality } from '@/stores/voice.store';
 
 
 interface ScreenShareModalProps {
@@ -26,6 +26,8 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
   const [loadingSources, setLoadingSources] = useState(false);
   const [sourceTab, setSourceTab] = useState<'screens' | 'windows'>('screens');
   const isDesktop = typeof window !== 'undefined' && window.constchat?.platform === 'desktop';
+  const suppressVoice = useVoiceStore((s) => s.settings.suppressVoiceDuringShare);
+  const updateSettings = useVoiceStore((s) => s.updateSettings);
 
   const screenSources = useMemo(() => sources.filter((s) => s.id.startsWith('screen:')), [sources]);
   const windowSources = useMemo(() => sources.filter((s) => s.id.startsWith('window:')), [sources]);
@@ -213,9 +215,33 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
                   />
                 </button>
               </div>
-              {isDesktop && shareAudio && (
+              {isDesktop && shareAudio && !isWindowCapture && (
+                <div
+                  className="text-xs p-3 rounded-lg space-y-1.5"
+                  style={{
+                    color: 'var(--color-warning-default, #faa61a)',
+                    background: 'color-mix(in srgb, var(--color-warning-default, #faa61a) 10%, transparent)',
+                    border: '1px solid color-mix(in srgb, var(--color-warning-default, #faa61a) 30%, transparent)',
+                  }}
+                >
+                  <p className="font-semibold">⚠️ Voice chat sesi de paylaşıma karışabilir</p>
+                  <p>
+                    Tam ekran + ses modu <strong>tüm sistem sesini</strong> yakalar — voice chat dahil.
+                    İzleyenler aynı sesi iki kez duyabilir. Engellemek için:
+                  </p>
+                  <ul className="list-disc pl-4 space-y-0.5">
+                    <li>
+                      <strong>İki ses cihazın varsa:</strong> Ayarlar → Ses → Çıkış Cihazı'nı voice chat için ayrı bir cihaza al.
+                    </li>
+                    <li>
+                      <strong>Tek cihazın varsa:</strong> aşağıdaki "Paylaşırken voice chat'i yerel olarak sustur" seçeneğini aç.
+                    </li>
+                  </ul>
+                </div>
+              )}
+              {isDesktop && shareAudio && isWindowCapture && (
                 <p className="text-xs px-1" style={{ color: 'var(--color-warning-default, #faa61a)' }}>
-                  Yankıyı önlemek için kulaklık kullanın. Sesli sohbet sesi seçili çıkış aygıtınıza yönlendirilir.
+                  Yankıyı önlemek için kulaklık kullan. Sesli sohbet sesi seçili çıkış aygıtına yönlendirilir.
                 </p>
               )}
               {!isDesktop && shareAudio && (
@@ -226,6 +252,42 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
             </div>
           );
         })()}
+
+        {/* Suppress-voice-during-share toggle — only for full-screen desktop captures with audio */}
+        {isDesktop && shareAudio && !(isDesktop && selectedSourceId?.startsWith('window:')) && (
+          <div
+            className="flex items-center justify-between p-3 rounded-lg"
+            style={{ background: 'var(--color-surface-raised)' }}
+          >
+            <div className="flex items-center gap-2.5">
+              <MicOff
+                size={18}
+                style={{ color: suppressVoice ? 'var(--color-accent-primary)' : 'var(--color-text-tertiary)' }}
+              />
+              <div>
+                <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                  Paylaşırken voice chat'i yerel olarak sustur
+                </p>
+                <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+                  Paylaşım süresince diğerlerini duymazsın ama sesleri paylaşıma karışmaz. İzleyenler voice chat'i LiveKit üzerinden normal duyar.
+                </p>
+              </div>
+            </div>
+            <button
+              onClick={() => updateSettings({ suppressVoiceDuringShare: !suppressVoice })}
+              className="relative w-10 h-5 rounded-full transition-colors shrink-0"
+              style={{
+                background: suppressVoice ? 'var(--color-accent-primary)' : 'var(--color-surface-overlay)',
+                cursor: 'pointer',
+              }}
+            >
+              <span
+                className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                style={{ transform: suppressVoice ? 'translateX(20px)' : 'translateX(0)' }}
+              />
+            </button>
+          </div>
+        )}
 
         {/* Actions */}
         <div className="flex justify-end gap-3">

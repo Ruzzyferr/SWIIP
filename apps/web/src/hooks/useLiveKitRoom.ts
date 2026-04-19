@@ -100,6 +100,8 @@ export function useLiveKitRoom() {
   const selfDeafened = useVoiceStore((s) => s.selfDeafened);
   const cameraEnabled = useVoiceStore((s) => s.cameraEnabled);
   const screenShareEnabled = useVoiceStore((s) => s.screenShareEnabled);
+  const screenShareAudio = useVoiceStore((s) => s.screenShareAudio);
+  const suppressVoiceDuringShare = useVoiceStore((s) => s.settings.suppressVoiceDuringShare);
   const inputDeviceId = useVoiceStore((s) => s.settings.inputDeviceId);
   const outputDeviceId = useVoiceStore((s) => s.settings.outputDeviceId);
   const videoDeviceId = useVoiceStore((s) => s.settings.videoDeviceId);
@@ -218,12 +220,14 @@ export function useLiveKitRoom() {
 
     /** Route an audio element to the user's selected output device (isolates from loopback capture). */
     const applySinkId = (element: HTMLAudioElement) => {
+      if (typeof element.setSinkId !== 'function') return;
       const deviceId = useVoiceStore.getState().settings.outputDeviceId;
-      if (deviceId && deviceId !== 'default' && typeof element.setSinkId === 'function') {
-        element.setSinkId(deviceId).catch((err: any) => {
-          console.warn('[LiveKit] Failed to set audio output device:', err);
-        });
-      }
+      // Empty string resets to system default — required so switching from a non-default
+      // device back to 'default' actually moves playback back instead of sticking on the old sink.
+      const target = deviceId && deviceId !== 'default' ? deviceId : '';
+      element.setSinkId(target).catch((err: any) => {
+        console.warn('[LiveKit] Failed to set audio output device:', err);
+      });
     };
 
     const detachAudio = (trackSid: string) => {
@@ -281,10 +285,12 @@ export function useLiveKitRoom() {
         gain.connect(ctx.destination);
 
         // Honor selected output device — Chrome 110+ only.
-        const deviceId = state.settings.outputDeviceId;
-        if (deviceId && deviceId !== 'default' && 'setSinkId' in ctx) {
+        // Empty string resets to system default; needed when user switches back from a non-default device.
+        if ('setSinkId' in ctx) {
+          const deviceId = state.settings.outputDeviceId;
+          const target = deviceId && deviceId !== 'default' ? deviceId : '';
           (ctx as AudioContext & { setSinkId: (id: string) => Promise<void> })
-            .setSinkId(deviceId)
+            .setSinkId(target)
             .catch((err) => console.warn('[LiveKit] AudioContext.setSinkId failed:', err));
         }
 
@@ -1247,7 +1253,15 @@ export function useLiveKitRoom() {
     if (!room || room.state !== ConnectionState.Connected) return;
 
     const state = useVoiceStore.getState();
-    const globalVol = state.selfDeafened ? 0 : state.settings.outputVolume / 100;
+    // Suppress voice chat locally while the sharer is screen-sharing WITH audio: desktop
+    // loopback would otherwise pick up remote voices and duplicate them in the share's
+    // audio track. Viewers still hear voice normally via LiveKit — only the sharer's
+    // local playback is silenced for the share duration.
+    const suppress =
+      state.settings.suppressVoiceDuringShare &&
+      state.screenShareEnabled &&
+      state.screenShareAudio;
+    const globalVol = state.selfDeafened || suppress ? 0 : state.settings.outputVolume / 100;
 
     // Mic audio: LiveKit's RemoteAudioTrack.setVolume (Web Audio GainNode).
     // Screen-share audio is handled separately via screenShareAudioRef below
@@ -1288,10 +1302,18 @@ export function useLiveKitRoom() {
     }
   }, []);
 
-  // React to deafen/volume changes
+  // React to deafen/volume changes, and to screen-share toggles that gate the
+  // suppressVoiceDuringShare muting.
   useEffect(() => {
     applyVolumes();
-  }, [selfDeafened, outputVolume, applyVolumes]);
+  }, [
+    selfDeafened,
+    outputVolume,
+    screenShareEnabled,
+    screenShareAudio,
+    suppressVoiceDuringShare,
+    applyVolumes,
+  ]);
 
   // Single combined subscribe for per-user volumes, stream volumes, and watchingStreams.
   // Avoids 3 separate subscriptions each evaluating on every store update.
@@ -1351,19 +1373,20 @@ export function useLiveKitRoom() {
     }
   }, [inputDeviceId]);
 
-  // Sync output device to all audio elements
+  // Sync output device to all audio elements. Empty string resets to system default —
+  // needed so switching from a non-default device back to 'default' actually moves playback.
   useEffect(() => {
-    if (!outputDeviceId || outputDeviceId === 'default') return;
+    const target = outputDeviceId && outputDeviceId !== 'default' ? outputDeviceId : '';
     for (const audioElement of audioElementsRef.current.values()) {
       if (typeof audioElement.setSinkId === 'function') {
-        audioElement.setSinkId(outputDeviceId).catch(console.error);
+        audioElement.setSinkId(target).catch(console.error);
       }
     }
     // Screen-share AudioContexts — Chrome 110+ only.
     for (const { ctx } of screenShareAudioRef.current.values()) {
       if ('setSinkId' in ctx) {
         (ctx as AudioContext & { setSinkId: (id: string) => Promise<void> })
-          .setSinkId(outputDeviceId)
+          .setSinkId(target)
           .catch((err) => console.warn('[LiveKit] AudioContext.setSinkId failed:', err));
       }
     }

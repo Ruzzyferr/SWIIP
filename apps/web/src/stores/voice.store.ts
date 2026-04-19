@@ -55,6 +55,12 @@ interface VoiceSettings {
   pttKey: string;
   /** Enable keyboard shortcuts for voice controls (mute, deafen, etc.) */
   keyboardShortcutsEnabled: boolean;
+  /**
+   * Single-device fallback: while locally screen-sharing WITH audio, mute remote voice
+   * tracks on the sharer's machine so desktop loopback can't capture them. Viewers still
+   * hear voice chat directly via LiveKit — only the sharer's local playback is silenced.
+   */
+  suppressVoiceDuringShare: boolean;
 }
 
 interface VoiceState {
@@ -166,6 +172,7 @@ const DEFAULT_SETTINGS: VoiceSettings = {
   pushToTalk: false,
   pttKey: 'Space',
   keyboardShortcutsEnabled: true,
+  suppressVoiceDuringShare: false,
 };
 
 function participantKey(channelId: string, userId: string) {
