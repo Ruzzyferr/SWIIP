@@ -600,6 +600,19 @@ async function handleClientDispatch(
       if (voiceGuildId) {
         try {
           const leaveRedis = context.pubsub.getPublisher();
+          // Inspect the stored state BEFORE deleting so we can tell whether the
+          // user was mid-screen-share. Without this, remote clients keep the
+          // LIVE badge on the leaver's tile because no SCREEN_SHARE_STOPPED
+          // ever reaches them.
+          const leaveExisting = await leaveRedis.hget(`swiip:voice_states:${voiceGuildId}`, userId);
+          let wasSharing = false;
+          if (leaveExisting) {
+            try {
+              wasSharing = JSON.parse(leaveExisting).screenShare === true;
+            } catch {
+              wasSharing = false;
+            }
+          }
           await leaveRedis.hdel(`swiip:voice_states:${voiceGuildId}`, userId);
 
           const leaveTopic = isDMLeave && voiceChannelId ? `dm:${voiceChannelId}` : `guild:${voiceGuildId}`;
@@ -615,8 +628,21 @@ async function handleClientDispatch(
               serverMute: false,
               serverDeaf: false,
               speaking: false,
+              screenShare: false,
             },
           });
+
+          if (wasSharing && voiceChannelId) {
+            await context.pubsub.publish(leaveTopic, {
+              op: OpCode.DISPATCH,
+              t: ServerEventType.SCREEN_SHARE_STOPPED,
+              d: {
+                userId,
+                channelId: voiceChannelId,
+                guildId: voiceGuildId,
+              },
+            });
+          }
         } catch (err) {
           log.warn(
             { err, guildId: voiceGuildId, userId },

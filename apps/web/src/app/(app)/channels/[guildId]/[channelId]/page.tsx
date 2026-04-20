@@ -223,7 +223,28 @@ export default function ChannelPage() {
         )}
       </AnimatePresence>
 
-      {/* Member sidebar — slide-over drawer (hidden when voice chat is open) */}
+      {/* Member sidebar — desktop: flex sibling that reflows the message column
+          (so the composer stays fully visible). Mobile: keeps the original
+          slide-over drawer behavior. Hidden whenever the voice chat panel is
+          already occupying the right edge. */}
+      <motion.div
+        className="hidden md:flex overflow-hidden shrink-0"
+        initial={false}
+        animate={{
+          width: isMemberSidebarOpen && !isVoiceChatOpen ? 280 : 0,
+        }}
+        transition={spring}
+        style={{ borderLeft: '1px solid var(--glass-border)' }}
+      >
+        <div className="w-[280px] h-full shrink-0">
+          <MemberSidebar
+            guildId={guildId}
+            channelId={isVoiceChannel ? channelId : undefined}
+            isVoiceChannel={isVoiceChannel}
+          />
+        </div>
+      </motion.div>
+
       <AnimatePresence>
         {isMemberSidebarOpen && !isVoiceChatOpen && (
           <motion.div
@@ -231,13 +252,18 @@ export default function ChannelPage() {
             animate={{ x: 0, opacity: 1 }}
             exit={{ x: '100%', opacity: 0 }}
             transition={spring}
-            className="absolute right-0 top-0 bottom-0 z-30"
+            className="md:hidden absolute right-0 top-0 z-30"
             style={{
               width: 'min(280px, 80vw)',
+              bottom: 'calc(56px + env(safe-area-inset-bottom))',
               boxShadow: '-8px 0 40px rgba(0,0,0,0.4)',
             }}
           >
-            <MemberSidebar guildId={guildId} channelId={isVoiceChannel ? channelId : undefined} isVoiceChannel={isVoiceChannel} />
+            <MemberSidebar
+              guildId={guildId}
+              channelId={isVoiceChannel ? channelId : undefined}
+              isVoiceChannel={isVoiceChannel}
+            />
           </motion.div>
         )}
       </AnimatePresence>

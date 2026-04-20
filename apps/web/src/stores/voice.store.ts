@@ -163,8 +163,9 @@ interface VoiceState {
   // Selectors
   getChannelParticipants: (channelId: string) => VoiceParticipant[];
 
-  // Full disconnect
-  disconnect: () => void;
+  // Full disconnect. Pass the local user's id to immediately remove them from
+  // the participants map — avoids a stale tile during the gateway echo roundtrip.
+  disconnect: (userId?: string) => void;
 }
 
 const DEFAULT_SETTINGS: VoiceSettings = {
@@ -419,16 +420,19 @@ export const useVoiceStore = create<VoiceState>()(
       };
     })(),
 
-    disconnect: () =>
+    disconnect: (userId) =>
       set((state) => {
         // Only remove SELF from the channel participants.
         // Other users' voice states must stay — they're still in the channel.
         // Gateway voice_state_update events manage remote participants.
-        // We need userId from auth store to identify self.
         const leavingChannel = state.currentChannelId;
-        // Note: we can't easily get userId here from another store inside immer,
-        // so we clear only the LiveKit connection state. The gateway will send
-        // a voice_state_update for our departure which removes our participant entry.
+        // When the caller passes our own userId, remove ourselves immediately
+        // so the local UI doesn't show a ghost tile while waiting for the
+        // gateway echo. If no userId is supplied, fall back to the old behavior.
+        if (userId && leavingChannel) {
+          const selfKey = `${leavingChannel}:${userId}`;
+          delete state.participants[selfKey];
+        }
         state.connectionState = 'disconnected';
         state.currentChannelId = null;
         state.currentGuildId = null;

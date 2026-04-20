@@ -5,6 +5,7 @@ import { OpCode, ClientEventType } from '@constchat/protocol';
 import { getGatewayClient } from '@/lib/gateway/GatewayClient';
 import { useVoiceStore, type ScreenShareQuality } from '@/stores/voice.store';
 import { useGuildsStore } from '@/stores/guilds.store';
+import { useAuthStore } from '@/stores/auth.store';
 import { playDisconnectSound } from '@/lib/sounds';
 
 /**
@@ -46,7 +47,7 @@ export function useVoiceActions() {
           state: state.connectionState,
         });
         gw.send(OpCode.DISPATCH, { t: 'VOICE_LEAVE', d: {} });
-        state.disconnect();
+        state.disconnect(useAuthStore.getState().user?.id);
       }
 
       console.debug('[Voice] Joining voice channel', { channelId, guildId, isDM });
@@ -71,7 +72,7 @@ export function useVoiceActions() {
     const gw = getGatewayClient();
     gw.send(OpCode.DISPATCH, { t: 'VOICE_LEAVE', d: {} });
     playDisconnectSound();
-    state.disconnect();
+    state.disconnect(useAuthStore.getState().user?.id);
   }, []);
 
   // Use getState() inside callbacks to avoid re-creating on every mute/deafen change.

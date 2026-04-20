@@ -17,7 +17,6 @@ import {
   MonitorOff,
   Eye,
   EyeOff,
-  UserPlus,
   MessageCircle,
 } from 'lucide-react';
 import { motion, AnimatePresence, LayoutGroup } from 'framer-motion';
@@ -33,6 +32,7 @@ import { useUIStore } from '@/stores/ui.store';
 import { useVoiceActions } from '@/hooks/useVoiceActions';
 import { useLiveKitContext } from '@/contexts/LiveKitContext';
 import { updateMember } from '@/lib/api/guilds.api';
+import { EmptyRoomStage } from './EmptyRoomStage';
 
 // ---------------------------------------------------------------------------
 // Animation variants
@@ -822,24 +822,6 @@ function VoiceRoomContent({
   );
 }
 
-function EmptyRoomInvite() {
-  return (
-    <div className="flex flex-col items-center gap-3 mt-8">
-      <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
-        No one else in this room yet.
-      </p>
-      <button className="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium"
-        style={{
-          border: '1.5px solid var(--color-accent-primary)',
-          color: 'var(--color-accent-primary)',
-          background: 'transparent',
-        }}>
-        <UserPlus size={14} />
-        Invite to Join
-      </button>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Screen Share Button
@@ -1044,42 +1026,35 @@ export function VoiceRoomView({ channelId, guildId }: VoiceRoomViewProps) {
       </AnimatePresence>
 
       {/* Main content area — grows but shrinks to keep controls visible */}
-      <div className="flex-1 flex flex-col items-center w-full min-h-0 overflow-hidden shrink">
-        {participants.length > 0 ? (
-          <>
-            <VoiceRoomContent
-              participants={participants}
+      <div className="flex-1 flex flex-col items-center w-full min-h-0 overflow-hidden shrink pb-28 px-4">
+        {participants.length > 0 &&
+        !(participants.length === 1 && participants[0]?.userId === userId) ? (
+          <VoiceRoomContent
+            participants={participants}
+            guildId={guildId}
+            userId={userId}
+          />
+        ) : !isInThisChannel && participants.length === 0 ? (
+          <div className="flex-1 flex items-center justify-center w-full">
+            <EmptyRoomStage
+              channelName={channel?.name || 'Voice Channel'}
+              channelId={channelId}
               guildId={guildId}
-              userId={userId}
+              capacity={channel?.userLimit ?? null}
+              isConnected={false}
             />
-            {/* Empty state: only self in the room */}
-            {participants.length === 1 && participants[0]?.userId === userId && (
-              <EmptyRoomInvite />
-            )}
-          </>
-        ) : !isInThisChannel ? (
-          <div className="flex-1 flex items-center justify-center w-full">
-            <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              className="text-center space-y-3"
-            >
-              <div
-                className="w-16 h-16 rounded-full flex items-center justify-center mx-auto"
-                style={{ background: 'var(--color-surface-raised)' }}
-              >
-                <Phone size={28} style={{ color: 'var(--color-text-tertiary)' }} />
-              </div>
-              <p className="text-sm" style={{ color: 'var(--color-text-tertiary)' }}>
-                No one is in this voice channel.
-              </p>
-            </motion.div>
           </div>
-        ) : isInThisChannel && participants.length === 0 ? (
+        ) : (
           <div className="flex-1 flex items-center justify-center w-full">
-            <EmptyRoomInvite />
+            <EmptyRoomStage
+              channelName={channel?.name || 'Voice Channel'}
+              channelId={channelId}
+              guildId={guildId}
+              capacity={channel?.userLimit ?? null}
+              isConnected={isInThisChannel}
+            />
           </div>
-        ) : null}
+        )}
       </div>
 
       {/* Floating Control Bar */}

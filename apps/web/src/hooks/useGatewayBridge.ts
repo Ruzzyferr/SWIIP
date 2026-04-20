@@ -447,11 +447,15 @@ export function useGatewayBridge() {
           });
         }
       } else {
-        // User left voice — remove from all channels
+        // User left voice — remove from all channels. Clear the screenSharing
+        // flag first so any selector reading it during the same render sees
+        // the user as not sharing before the entry disappears (defensive
+        // against missed SCREEN_SHARE_STOPPED events on leave).
         const participants = Object.values(voiceStore.participants).filter(
           (p) => p.userId === data.userId
         );
         for (const p of participants) {
+          voiceStore.setParticipantScreenShare(p.channelId, data.userId, false);
           voiceStore.removeParticipant(p.channelId, data.userId);
         }
       }

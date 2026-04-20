@@ -230,6 +230,13 @@ export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessa
     prevMessageCountRef.current = newCount;
   }, [messages.length, atBottom]);
 
+  // Switching channels resets the unread-pill counter so it doesn't carry
+  // over from a previous conversation.
+  useEffect(() => {
+    setUnreadCount(0);
+    prevMessageCountRef.current = 0;
+  }, [channelId]);
+
   // Initial load — show cached messages first, then fetch fresh from API
   useEffect(() => {
     if (messages.length > 0) return;
@@ -370,7 +377,13 @@ export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessa
           style={{ height: '100%' }}
           totalCount={listItems.length}
           initialTopMostItemIndex={listItems.length - 1}
-          followOutput={hasNewer ? false : 'auto'}
+          followOutput={(isAtBottom) => {
+            // Only auto-scroll when the user is already at the bottom. When
+            // scrolled up (searching history) we let the "N new messages"
+            // pill surface instead of yanking the viewport back down.
+            if (hasNewer || !isAtBottom) return false;
+            return 'smooth';
+          }}
           atBottomStateChange={(bottom) => {
             setAtBottom(bottom);
             if (bottom) {
@@ -419,6 +432,7 @@ export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessa
             );
           }}
           components={{
+            Footer: () => <div className="h-4" />,
             Header: () =>
               loading ? (
                 <div className="flex justify-center p-3">
@@ -458,16 +472,42 @@ export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessa
         />
       )}
 
-      {/* Jump to bottom FAB */}
+      {/* New-messages pill — centered, prominent when there are unread
+          arrivals while scrolled up. Falls back to a quiet corner arrow
+          when the user is simply scrolled up without new traffic. */}
       <AnimatePresence>
-        {!atBottom && (
+        {!atBottom && unreadCount > 0 && (
           <motion.button
+            key="unread-pill"
+            initial={{ opacity: 0, y: 12 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 12 }}
+            transition={{ duration: 0.18, ease: [0, 0, 0.2, 1] }}
+            onClick={scrollToBottom}
+            className="absolute bottom-4 left-1/2 -translate-x-1/2 flex items-center gap-2 px-4 py-2 rounded-full font-medium text-sm"
+            style={{
+              background: 'var(--color-accent-primary)',
+              color: '#fff',
+              boxShadow: '0 12px 28px -10px var(--color-accent-primary)',
+              zIndex: 20,
+            }}
+            aria-label={`${unreadCount} new message${unreadCount === 1 ? '' : 's'} — jump to bottom`}
+          >
+            <ArrowDown size={14} />
+            <span className="font-semibold">
+              {unreadCount} new message{unreadCount === 1 ? '' : 's'}
+            </span>
+          </motion.button>
+        )}
+        {!atBottom && unreadCount === 0 && (
+          <motion.button
+            key="jump-fab"
             initial={{ opacity: 0, scale: 0.8, y: 8 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
             exit={{ opacity: 0, scale: 0.8, y: 8 }}
             transition={{ duration: 0.15, ease: [0, 0, 0.2, 1] }}
             onClick={scrollToBottom}
-            className="absolute bottom-6 right-6 flex items-center gap-1.5 px-3 py-2 rounded-full font-medium text-sm shadow-lg"
+            className="absolute bottom-6 right-6 flex items-center justify-center w-9 h-9 rounded-full"
             style={{
               background: 'var(--color-surface-floating)',
               border: '1px solid var(--color-border-default)',
@@ -476,14 +516,6 @@ export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessa
             }}
             aria-label="Jump to bottom"
           >
-            {unreadCount > 0 && (
-              <span
-                className="font-semibold text-xs"
-                style={{ color: 'var(--color-accent-primary)' }}
-              >
-                {unreadCount} new
-              </span>
-            )}
             <ArrowDown size={14} />
           </motion.button>
         )}

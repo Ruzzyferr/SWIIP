@@ -577,7 +577,8 @@ export function MessageComposer({
 
   return (
     <div
-      className="px-2 sm:px-4 pb-3 sm:pb-4 pt-2 flex-shrink-0 min-w-0"
+      className="px-2 sm:px-4 pt-2 flex-shrink-0 min-w-0"
+      style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
       {...getRootProps()}
     >
       <input {...getInputProps()} />
@@ -726,10 +727,10 @@ export function MessageComposer({
               onBlur={() => setIsFocused(false)}
               placeholder={t('placeholder', { channel: channelName })}
               rows={1}
-              className="w-full bg-transparent resize-none outline-none text-sm py-2 px-1"
+              className="w-full bg-transparent resize-none outline-none text-sm py-2 px-1 max-h-[50vh]"
               style={{
                 color: 'var(--color-text-primary)',
-                maxHeight: 'var(--layout-message-input-max-height)',
+                maxHeight: 'min(var(--layout-message-input-max-height, 50vh), 50vh)',
                 minHeight: 'var(--layout-message-input-min-height)',
                 lineHeight: '1.5',
                 overflow: 'auto',

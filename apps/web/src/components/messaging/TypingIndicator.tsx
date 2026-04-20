@@ -37,7 +37,7 @@ export function TypingIndicator({ channelId, guildId }: TypingIndicatorProps) {
     (uid) => uid !== currentUserId
   );
 
-  if (typingUserIds.length === 0) return null;
+  const isActive = typingUserIds.length > 0;
 
   const getName = (userId: string): string => {
     if (members) {
@@ -47,33 +47,40 @@ export function TypingIndicator({ channelId, guildId }: TypingIndicatorProps) {
     return userId;
   };
 
-  let text: string;
+  let text = '';
   if (typingUserIds.length === 1) {
     text = `${getName(typingUserIds[0]!)} is typing`;
   } else if (typingUserIds.length === 2) {
     text = `${getName(typingUserIds[0]!)} and ${getName(typingUserIds[1]!)} are typing`;
   } else if (typingUserIds.length === 3) {
     text = `${getName(typingUserIds[0]!)}, ${getName(typingUserIds[1]!)}, and ${getName(typingUserIds[2]!)} are typing`;
-  } else {
+  } else if (typingUserIds.length >= 4) {
     text = 'Several people are typing';
   }
 
   // More bars for more users typing
   const barCount = Math.min(typingUserIds.length + 4, 8);
 
+  // Always occupy the same 24px slot so the message list doesn't jump
+  // when the indicator appears/disappears.
   return (
-    <AnimatePresence>
-      <motion.div
-        className="flex items-center gap-2.5 px-4 h-6 flex-shrink-0"
-        style={{ color: 'var(--color-text-tertiary)' }}
-        initial={{ opacity: 0, y: 8 }}
-        animate={{ opacity: 1, y: 0 }}
-        exit={{ opacity: 0, y: 8 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 25 }}
-      >
-        <SoundWaveBars count={barCount} />
-        <span className="text-xs font-medium truncate">{text}</span>
-      </motion.div>
-    </AnimatePresence>
+    <div className="h-6 flex-shrink-0 relative" aria-live="polite">
+      <AnimatePresence>
+        {isActive && (
+          <motion.div
+            key="typing"
+            className="absolute inset-0 flex items-center gap-2.5 px-4"
+            style={{ color: 'var(--color-text-tertiary)' }}
+            initial={{ opacity: 0, y: 4 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 4 }}
+            transition={{ type: 'spring', stiffness: 400, damping: 25 }}
+          >
+            <SoundWaveBars count={barCount} />
+            <span className="text-xs font-medium truncate">{text}</span>
+          </motion.div>
+        )}
+      </AnimatePresence>
+    </div>
   );
 }

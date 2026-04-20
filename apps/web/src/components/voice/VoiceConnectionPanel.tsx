@@ -86,6 +86,11 @@ export function VoiceConnectionPanel() {
 
   // Can navigate back to voice channel if user is viewing a different page
   const canNavigateToVoice = currentChannelId && currentGuildId && activeChannelId !== currentChannelId;
+  // When the user is already standing in their own voice channel, the
+  // VoiceRoomView shows a dedicated floating control bar. Collapsing this
+  // dock to a status-only pill keeps the controls un-duplicated.
+  const isViewingOwnVoiceChannel =
+    !!currentChannelId && activeChannelId === currentChannelId;
   const navigateToVoiceChannel = () => {
     if (canNavigateToVoice) {
       router.push(`/channels/${currentGuildId}/${currentChannelId}`);
@@ -235,7 +240,9 @@ export function VoiceConnectionPanel() {
         </div>
       </button>
 
-      {/* Controls */}
+      {/* Controls — hidden when user is viewing the voice room itself (the
+          page-level floating bar takes over there). */}
+      {!isViewingOwnVoiceChannel && (
       <div className="flex flex-wrap items-center justify-center gap-1.5 sm:gap-2 relative max-w-full">
         <Tooltip content={selfMuted ? t('unmute') : t('mute')} placement="top">
           <button
@@ -399,6 +406,7 @@ export function VoiceConnectionPanel() {
           </button>
         </Tooltip>
       </div>
+      )}
     </div>
   );
 }
