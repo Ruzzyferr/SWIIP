@@ -129,8 +129,8 @@ services:
     restart: unless-stopped
     environment:
       LIVEKIT_KEYS: "devkey: devkeysecretdevkeysecretdevkeysec"
-      TURN_PUBLIC_HOST: 127.0.0.1
-      TURN_SHARED_SECRET: dev-turn-secret-dev-turn-secret-1
+      TURN_PUBLIC_HOST: ${TURN_PUBLIC_HOST:-127.0.0.1}
+      TURN_SHARED_SECRET: ${TURN_SHARED_SECRET:-dev-turn-secret-dev-turn-secret-1}
     volumes:
       - ./livekit.yaml:/etc/livekit.yaml.tmpl:ro
     entrypoint: ["/bin/sh", "-c"]
@@ -159,14 +159,20 @@ services:
     container_name: swiip-coturn
     restart: unless-stopped
     network_mode: host
+    environment:
+      TURN_PUBLIC_HOST: ${TURN_PUBLIC_HOST:-127.0.0.1}
+      TURN_SHARED_SECRET: ${TURN_SHARED_SECRET:-dev-turn-secret-dev-turn-secret-1}
     volumes:
       - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
     # See compose.deploy.yml — TURN_SHARED_SECRET is the static long-term
     # password for the `livekit` user, matching what LiveKit sends literally.
-    command: >
-      -c /etc/coturn/turnserver.conf
-      --external-ip=127.0.0.1
-      --user=livekit:dev-turn-secret-dev-turn-secret-1
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        exec turnserver \
+          -c /etc/coturn/turnserver.conf \
+          --external-ip=$$TURN_PUBLIC_HOST \
+          --user=livekit:$$TURN_SHARED_SECRET
 
   # ─── Observability Stack ─────────────────────────────────────────────────
   # Prometheus

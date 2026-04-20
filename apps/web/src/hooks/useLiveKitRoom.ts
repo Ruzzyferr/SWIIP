@@ -36,6 +36,9 @@ import {
 import { networkMonitor } from '@/lib/network/NetworkMonitor';
 import {
   createProcessLoopbackTrack,
+  createExcludeLoopbackTrack,
+  getSwiipOwnPid,
+  isExcludeLoopbackSupported,
   type ProcessLoopbackTrack,
 } from '@/lib/audio/process-loopback-track';
 
@@ -46,14 +49,15 @@ function createStrategy(platform: AudioPlatform) {
 
 /**
  * Pick the best available screen-share codec at runtime.
- * AV1 ≈3× VP8 efficiency for text/UI content; VP9 ≈2×. LiveKit negotiates
- * per subscriber, so choosing the strongest supported encoder is always safe.
+ * VP9 ≈2× VP8 efficiency and has stable hardware decode across Chromium.
+ * AV1 is intentionally excluded for screen share — Electron/Chromium AV1
+ * encoders stall on screen content and surface as TrackUnpublished cycles,
+ * which tear down the viewer's spotlight state.
  */
-function pickScreenShareCodec(): 'av1' | 'vp9' | 'vp8' {
+function pickScreenShareCodec(): 'vp9' | 'vp8' {
   if (typeof RTCRtpSender === 'undefined' || !RTCRtpSender.getCapabilities) return 'vp8';
   const caps = RTCRtpSender.getCapabilities('video');
   const mimes = caps?.codecs.map((c) => c.mimeType.toLowerCase()) ?? [];
-  if (mimes.includes('video/av1')) return 'av1';
   if (mimes.includes('video/vp9')) return 'vp9';
   return 'vp8';
 }
@@ -70,6 +74,14 @@ export interface VideoTrackMap {
 
 /** How long to wait for LiveKit credentials after VOICE_JOIN before giving up */
 const CREDENTIAL_TIMEOUT_MS = 12_000;
+
+/**
+ * Grace window for transient remote ScreenShare TrackUnpublished events.
+ * Publishers under bandwidth/ICE pressure can briefly unpublish then republish;
+ * within this window we hold the viewer's spotlight state so the UI doesn't
+ * flicker back to the "Watch Stream" lobby tile on every cycle.
+ */
+const SCREEN_SHARE_REMOTE_UNPUBLISH_GRACE_MS = 8_000;
 
 /**
  * Manages the LiveKit Room instance lifecycle.
@@ -100,10 +112,22 @@ export function useLiveKitRoom() {
     track: ProcessLoopbackTrack;
     publication: LocalTrackPublication | null;
   } | null>(null);
+  /**
+   * Cached Electron PID passed to exclude-mode loopback so Windows strips
+   * Swiip's own process tree from the shared system audio (Discord-parity,
+   * full-screen + audio without self-echo). null on non-Windows, in browser,
+   * or when AppLoopbackEx.exe hasn't been built yet.
+   */
+  const excludeLoopbackOwnPidRef = useRef<number | null>(null);
   const trackOwnerRef = useRef<Map<string, string>>(new Map()); // trackSid -> userId
   const trackSourceRef = useRef<Map<string, 'mic' | 'screen'>>(new Map()); // trackSid -> source type
   /** Timestamp until which screen-share unpublish events should be suppressed (reconnect grace). */
   const screenShareReconnectUntil = useRef(0);
+  /**
+   * Per-remote-participant grace timers for transient ScreenShare TrackUnpublished events.
+   * Delays the teardown so a quick republish keeps the viewer's spotlight state intact.
+   */
+  const screenShareRemoteUnpublishTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [videoTracks, setVideoTracks] = useState<VideoTrackMap>({});
 
   const livekitToken = useVoiceStore((s) => s.livekitToken);
@@ -159,6 +183,26 @@ export function useLiveKitRoom() {
   }, []);
 
   // Timeout: if we're in "connecting" state but credentials never arrive, bail out
+  // Mount-time detection for Windows exclude-mode loopback. Cached here so
+  // screen-share effects can decide synchronously whether to route through it.
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        if (!(await isExcludeLoopbackSupported())) return;
+        const pid = await getSwiipOwnPid();
+        if (cancelled) return;
+        excludeLoopbackOwnPidRef.current = pid;
+        if (pid !== null) {
+          console.debug('[LiveKit] Exclude-mode loopback available (ownPid=%s)', pid);
+        }
+      } catch {
+        /* non-win32 / browser — ignore */
+      }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
   useEffect(() => {
     if (connectionState === 'connecting' && currentChannelId && !livekitToken) {
       console.debug('[LiveKit] Waiting for credentials from gateway…');
@@ -570,7 +614,10 @@ export function useLiveKitRoom() {
               const preset = presets[quality as keyof typeof presets] ?? presets['1080p30'];
               const wantAudio = useVoiceStore.getState().screenShareAudio;
               const plPid = useVoiceStore.getState().selectedProcessId;
-              const useProcessLoopback = wantAudio && plPid !== null;
+              const excludePid = excludeLoopbackOwnPidRef.current;
+              const useInclude = wantAudio && plPid !== null;
+              const useExclude = wantAudio && !useInclude && excludePid !== null;
+              const useProcessLoopback = useInclude || useExclude;
               // Drop any stale ProcessLoopback publication that survived into
               // the new connection — we'll rebuild it fresh.
               const stalePl = processLoopbackRef.current;
@@ -594,9 +641,11 @@ export function useLiveKitRoom() {
                 dtx: false,
               }).then(async () => {
                 console.debug('[LiveKit] Screen share re-published successfully');
-                if (useProcessLoopback && plPid !== null) {
+                if (useProcessLoopback) {
                   try {
-                    const track = await createProcessLoopbackTrack(plPid);
+                    const track = useInclude
+                      ? await createProcessLoopbackTrack(plPid!)
+                      : await createExcludeLoopbackTrack(String(excludePid!));
                     const publication = await room.localParticipant.publishTrack(track.track, {
                       source: Track.Source.ScreenShareAudio,
                       audioPreset: AudioPresets.musicHighQualityStereo,
@@ -816,9 +865,17 @@ export function useLiveKitRoom() {
     room.on(RoomEvent.TrackPublished, (publication: RemoteTrackPublication, participant: RemoteParticipant) => {
       if (!currentChannelId) return;
       if (publication.source === Track.Source.ScreenShare && publication.kind === Track.Kind.Video) {
+        // A republish during the grace window cancels the pending teardown — the
+        // viewer's prior state (spotlight, watchingStreams) survives the transient blip.
+        const pendingTimer = screenShareRemoteUnpublishTimers.current.get(participant.identity);
+        if (pendingTimer) {
+          clearTimeout(pendingTimer);
+          screenShareRemoteUnpublishTimers.current.delete(participant.identity);
+        }
+
         setParticipantScreenShare(currentChannelId, participant.identity, true);
         // Default to unwatched — user opts in via "Watch Stream" on the tile.
-        // This keeps the normal lobby view until the user chooses to watch.
+        // Only applies to first-ever publish for this identity; republishes keep prior value.
         const ws = useVoiceStore.getState().watchingStreams;
         if (ws[participant.identity] === undefined) {
           useVoiceStore.getState().setWatchingStream(participant.identity, false);
@@ -829,10 +886,20 @@ export function useLiveKitRoom() {
     room.on(RoomEvent.TrackUnpublished, (publication: RemoteTrackPublication, participant: RemoteParticipant) => {
       if (!currentChannelId) return;
       if (publication.source === Track.Source.ScreenShare) {
-        setParticipantScreenShare(currentChannelId, participant.identity, false);
-        updateVideoTrack(participant.identity, 'screen', undefined);
-        // Clean up stream watching/volume state only when screen share truly ends
-        useVoiceStore.getState().clearStreamState(participant.identity);
+        const identity = participant.identity;
+        // Debounce teardown: if a republish arrives within the grace window, the
+        // pending timer in TrackPublished gets cancelled and state stays intact.
+        const existing = screenShareRemoteUnpublishTimers.current.get(identity);
+        if (existing) clearTimeout(existing);
+
+        const channelIdForTimer = currentChannelId;
+        const timer = setTimeout(() => {
+          screenShareRemoteUnpublishTimers.current.delete(identity);
+          setParticipantScreenShare(channelIdForTimer, identity, false);
+          updateVideoTrack(identity, 'screen', undefined);
+          useVoiceStore.getState().clearStreamState(identity);
+        }, SCREEN_SHARE_REMOTE_UNPUBLISH_GRACE_MS);
+        screenShareRemoteUnpublishTimers.current.set(identity, timer);
       }
     });
 
@@ -848,6 +915,15 @@ export function useLiveKitRoom() {
           );
           if (currentChannelId && !isScreen) {
             setParticipantVideo(currentChannelId, participant.identity, true);
+          }
+          // Subscribing to a screen-share means it's actively flowing again —
+          // cancel any pending unpublish teardown from a prior transient blip.
+          if (isScreen) {
+            const pendingTimer = screenShareRemoteUnpublishTimers.current.get(participant.identity);
+            if (pendingTimer) {
+              clearTimeout(pendingTimer);
+              screenShareRemoteUnpublishTimers.current.delete(participant.identity);
+            }
           }
           // Screen share screenSharing flag is managed by TrackPublished/TrackUnpublished
         }
@@ -1238,6 +1314,10 @@ export function useLiveKitRoom() {
       if (rtcConnectTimer) { clearTimeout(rtcConnectTimer); rtcConnectTimer = null; }
       if (networkChangeTimer) { clearTimeout(networkChangeTimer); networkChangeTimer = null; }
       if (reconnectingUiTimer) { clearTimeout(reconnectingUiTimer); reconnectingUiTimer = null; }
+      for (const timer of screenShareRemoteUnpublishTimers.current.values()) {
+        clearTimeout(timer);
+      }
+      screenShareRemoteUnpublishTimers.current.clear();
       unsubNetwork();
       clearInterval(healthCheckInterval);
       stopLocalVAD();
@@ -1515,11 +1595,23 @@ export function useLiveKitRoom() {
       const preset = presets[quality as keyof typeof presets] ?? presets['1080p30'];
 
       const wantAudio = useVoiceStore.getState().screenShareAudio;
-      // ProcessLoopback path: window capture on Windows 10 2004+ publishes
-      // the selected process's audio directly, bypassing system loopback so
-      // voice chat playback is excluded from the shared stream.
+      // ProcessLoopback audio paths (Windows 10 2004+ x64):
+      //
+      // - INCLUDE: user picked a window → capture only that process tree's
+      //   audio. Cleanest option for per-app sharing.
+      // - EXCLUDE: full-screen share + audio → capture system audio minus
+      //   Swiip's own process tree, so voice chat playback doesn't loop back
+      //   into the mix. Requires AppLoopbackEx.exe to be built (ref cached
+      //   at mount). Matches Discord full-screen+audio behaviour.
+      //
+      // Falls back to classic getDisplayMedia systemAudio:'include' when
+      // neither path applies (non-Windows, or binary missing).
       const processLoopbackPid = useVoiceStore.getState().selectedProcessId;
-      const useProcessLoopback = wantAudio && processLoopbackPid !== null;
+      const excludeOwnPid = excludeLoopbackOwnPidRef.current;
+      const useProcessLoopbackInclude = wantAudio && processLoopbackPid !== null;
+      const useProcessLoopbackExclude =
+        wantAudio && !useProcessLoopbackInclude && excludeOwnPid !== null;
+      const useProcessLoopback = useProcessLoopbackInclude || useProcessLoopbackExclude;
 
       const captureOpts = (audio: boolean) => ({
         contentHint: (preset.fps >= 60 ? 'motion' : 'detail') as 'motion' | 'detail',
@@ -1582,9 +1674,11 @@ export function useLiveKitRoom() {
       const captureAudio = useProcessLoopback ? false : wantAudio;
 
       const publishProcessLoopback = async () => {
-        if (!useProcessLoopback || processLoopbackPid === null) return;
+        if (!useProcessLoopback) return;
         try {
-          const track = await createProcessLoopbackTrack(processLoopbackPid);
+          const track = useProcessLoopbackInclude
+            ? await createProcessLoopbackTrack(processLoopbackPid!)
+            : await createExcludeLoopbackTrack(String(excludeOwnPid!));
           const publication = await room.localParticipant.publishTrack(track.track, {
             source: Track.Source.ScreenShareAudio,
             audioPreset: AudioPresets.musicHighQualityStereo,

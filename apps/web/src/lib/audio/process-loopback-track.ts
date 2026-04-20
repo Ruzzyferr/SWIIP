@@ -3,6 +3,16 @@
 // MediaStreamAudioDestinationNode chain, exposes the resulting audio track to
 // be published to LiveKit as ScreenShareAudio.
 //
+// Two capture modes are exposed:
+//
+// - include (createProcessLoopbackTrack): capture the window's process tree
+//   only. Clean per-app audio. Used when user picks a specific window.
+//
+// - exclude (createExcludeLoopbackTrack): capture all system audio EXCEPT a
+//   target process tree. We pass Electron's own PID so Swiip's voice-chat
+//   playback is stripped from the mix. Used for full-screen shares with
+//   "share audio" enabled — the Discord-parity path.
+//
 // PCM format delivered by the main process: int16LE, 48kHz, stereo interleaved.
 
 export interface ProcessLoopbackWindow {
@@ -18,8 +28,11 @@ export interface ProcessLoopbackTrack {
 
 interface ConstchatProcessLoopback {
   isSupported: () => Promise<boolean>;
+  isExcludeSupported?: () => Promise<boolean>;
+  getOwnPid?: () => Promise<number>;
   listWindows: () => Promise<ProcessLoopbackWindow[]>;
   start: (pid: string) => Promise<{ ok: true; format: unknown } | { ok: false; error: string }>;
+  startExclude?: (pid: string) => Promise<{ ok: true; format: unknown } | { ok: false; error: string }>;
   stop: () => Promise<boolean>;
   onChunk: (cb: (chunk: Uint8Array) => void) => () => void;
   onEnd: (cb: () => void) => () => void;
@@ -41,16 +54,41 @@ export async function isProcessLoopbackSupported(): Promise<boolean> {
   }
 }
 
+export async function isExcludeLoopbackSupported(): Promise<boolean> {
+  const pl = bridge();
+  if (!pl?.isExcludeSupported) return false;
+  try {
+    return await pl.isExcludeSupported();
+  } catch {
+    return false;
+  }
+}
+
+export async function getSwiipOwnPid(): Promise<number | null> {
+  const pl = bridge();
+  if (!pl?.getOwnPid) return null;
+  try {
+    const pid = await pl.getOwnPid();
+    return typeof pid === 'number' && pid > 0 ? pid : null;
+  } catch {
+    return null;
+  }
+}
+
 export async function listProcessLoopbackWindows(): Promise<ProcessLoopbackWindow[]> {
   const pl = bridge();
   if (!pl) return [];
   return pl.listWindows();
 }
 
-export async function createProcessLoopbackTrack(pid: string): Promise<ProcessLoopbackTrack> {
-  const pl = bridge();
-  if (!pl) throw new Error('ProcessLoopback bridge unavailable');
-
+// Shared construction for both include and exclude modes. The only difference
+// is which IPC starter we call; the AudioContext → worklet → destination chain
+// is identical.
+async function buildTrackFromLoopback(
+  pl: ConstchatProcessLoopback,
+  starter: () => Promise<{ ok: true; format: unknown } | { ok: false; error: string }>,
+  modeLabel: string,
+): Promise<ProcessLoopbackTrack> {
   // Force 48kHz so the int16 PCM we receive doesn't need resampling.
   const ctx = new AudioContext({ sampleRate: 48000 });
   await ctx.audioWorklet.addModule('/audio-worklets/pcm-feeder.js');
@@ -63,12 +101,12 @@ export async function createProcessLoopbackTrack(pid: string): Promise<ProcessLo
   const dest = ctx.createMediaStreamDestination();
   node.connect(dest);
 
-  const result = await pl.start(pid);
+  const result = await starter();
   if (!result.ok) {
     try { node.disconnect(); } catch { /* noop */ }
     try { dest.disconnect(); } catch { /* noop */ }
     try { await ctx.close(); } catch { /* noop */ }
-    throw new Error(`ProcessLoopback start failed: ${result.error}`);
+    throw new Error(`ProcessLoopback ${modeLabel} start failed: ${result.error}`);
   }
 
   const cleanupChunk = pl.onChunk((chunk) => {
@@ -107,4 +145,17 @@ export async function createProcessLoopbackTrack(pid: string): Promise<ProcessLo
   };
 
   return { track, dispose };
+}
+
+export async function createProcessLoopbackTrack(pid: string): Promise<ProcessLoopbackTrack> {
+  const pl = bridge();
+  if (!pl) throw new Error('ProcessLoopback bridge unavailable');
+  return buildTrackFromLoopback(pl, () => pl.start(pid), 'include');
+}
+
+export async function createExcludeLoopbackTrack(pid: string): Promise<ProcessLoopbackTrack> {
+  const pl = bridge();
+  if (!pl) throw new Error('ProcessLoopback bridge unavailable');
+  if (!pl.startExclude) throw new Error('ProcessLoopback exclude mode not available');
+  return buildTrackFromLoopback(pl, () => pl.startExclude!(pid), 'exclude');
 }

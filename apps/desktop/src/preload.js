@@ -30,10 +30,19 @@ contextBridge.exposeInMainWorld('constchat', {
   setSelectedSource: (sourceId) => ipcRenderer.invoke('set-selected-source', sourceId),
   // ProcessLoopback (Windows 10 2004+ x64) — per-process audio capture that
   // excludes voice chat playback from the shared screen audio.
+  //
+  // isExcludeSupported / startExclude use a custom AppLoopbackEx.exe (see
+  // apps/desktop/native/app-loopback-ex/) to run in EXCLUDE mode. The renderer
+  // passes Electron's own PID via getOwnPid so Windows strips Swiip's process
+  // tree from the system mix — that's what gives us echo-free full-screen
+  // + system audio on Windows.
   processLoopback: {
     isSupported: () => ipcRenderer.invoke('process-loopback-supported'),
+    isExcludeSupported: () => ipcRenderer.invoke('process-loopback-exclude-supported'),
+    getOwnPid: () => ipcRenderer.invoke('process-loopback-own-pid'),
     listWindows: () => ipcRenderer.invoke('process-loopback-list-windows'),
     start: (pid) => ipcRenderer.invoke('process-loopback-start', pid),
+    startExclude: (pid) => ipcRenderer.invoke('process-loopback-start-exclude', pid),
     stop: () => ipcRenderer.invoke('process-loopback-stop'),
     onChunk: (callback) => createIPCListener('process-loopback-chunk', callback),
     onEnd: (callback) => createIPCListener('process-loopback-end', callback),

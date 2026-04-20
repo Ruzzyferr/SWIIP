@@ -664,19 +664,23 @@ ipcMain.handle('get-desktop-sources', async () => {
 // 'loopback' for window captures so that voice chat playback is NOT included
 // in the shared audio.
 ipcMain.handle('process-loopback-supported', () => processLoopback.isSupported());
+ipcMain.handle('process-loopback-exclude-supported', () => processLoopback.isExcludeSupported());
+
+// Renderer passes this to the exclude-mode capture so Windows can strip our
+// own process tree from the mix (kills voice-chat echo during full-screen share).
+ipcMain.handle('process-loopback-own-pid', () => process.pid);
 
 ipcMain.handle('process-loopback-list-windows', async () => {
   return processLoopback.listWindows();
 });
 
-ipcMain.handle('process-loopback-start', (event, pid) => {
+function startCaptureViaIpc(event, starter) {
   if (processLoopback.getActivePid() !== null) {
     processLoopback.stop();
   }
   const sender = event.sender;
   try {
-    processLoopback.start(
-      pid,
+    starter(
       (chunk) => {
         if (sender.isDestroyed()) return;
         sender.send('process-loopback-chunk', chunk);
@@ -690,6 +694,14 @@ ipcMain.handle('process-loopback-start', (event, pid) => {
     return { ok: false, error: String(err.message || err) };
   }
   return { ok: true, format: processLoopback.PCM_FORMAT };
+}
+
+ipcMain.handle('process-loopback-start', (event, pid) => {
+  return startCaptureViaIpc(event, (onChunk, onEnd) => processLoopback.start(pid, onChunk, onEnd));
+});
+
+ipcMain.handle('process-loopback-start-exclude', (event, pid) => {
+  return startCaptureViaIpc(event, (onChunk, onEnd) => processLoopback.startExclude(pid, onChunk, onEnd));
 });
 
 ipcMain.handle('process-loopback-stop', () => {

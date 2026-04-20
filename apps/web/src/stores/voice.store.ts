@@ -56,9 +56,11 @@ interface VoiceSettings {
   /** Enable keyboard shortcuts for voice controls (mute, deafen, etc.) */
   keyboardShortcutsEnabled: boolean;
   /**
-   * Single-device fallback: while locally screen-sharing WITH audio, mute remote voice
-   * tracks on the sharer's machine so desktop loopback can't capture them. Viewers still
-   * hear voice chat directly via LiveKit — only the sharer's local playback is silenced.
+   * Opt-in echo guard for single-device setups that play voice chat through speakers.
+   * When ON and the user screen-shares WITH system audio, remote voice is locally muted
+   * on the sharer's machine so the loopback capture can't pick it up.
+   * DEFAULT OFF: the mute is worse UX than the echo for headphone users (the majority).
+   * For clean per-app audio without echo, use Window Share (ProcessLoopback path).
    */
   suppressVoiceDuringShare: boolean;
 }
@@ -180,7 +182,7 @@ const DEFAULT_SETTINGS: VoiceSettings = {
   pushToTalk: false,
   pttKey: 'Space',
   keyboardShortcutsEnabled: true,
-  suppressVoiceDuringShare: true,
+  suppressVoiceDuringShare: false,
 };
 
 function participantKey(channelId: string, userId: string) {
@@ -449,7 +451,7 @@ export const useVoiceStore = create<VoiceState>()(
   })),
   {
     name: 'voice-settings',
-    version: 2,
+    version: 3,
     partialize: (state) => ({
       settings: state.settings,
       userVolumes: state.userVolumes,
@@ -457,24 +459,34 @@ export const useVoiceStore = create<VoiceState>()(
       selfMuted: state.selfMuted,
       selfDeafened: state.selfDeafened,
     }),
-    // v1 → v2: flip suppressVoiceDuringShare default from false to true so
-    // users on non-ProcessLoopback platforms get safe-by-default behavior.
-    // Users who explicitly opted in stay on true; anyone still on the old
-    // false default migrates to true. (We can't distinguish explicit-false
-    // from default-false in v1, so this is an accepted one-time nudge.)
+    // v1 → v2 (historical): flipped suppressVoiceDuringShare default false→true.
+    // v2 → v3: reverts that nudge. Muting the sharer's own voice playback turned
+    // out to be worse UX than the echo it prevented — headphone users (majority)
+    // don't create echo at all. Force everyone back to false; users who actually
+    // need the guard can re-enable it explicitly from the share modal.
     migrate: (persisted, version) => {
       if (!persisted || typeof persisted !== 'object') return persisted;
       const p = persisted as Record<string, any>;
+      let next = p;
       if (version < 2) {
-        return {
-          ...p,
+        next = {
+          ...next,
           settings: {
-            ...(p.settings ?? {}),
+            ...(next.settings ?? {}),
             suppressVoiceDuringShare: true,
           },
         };
       }
-      return p;
+      if (version < 3) {
+        next = {
+          ...next,
+          settings: {
+            ...(next.settings ?? {}),
+            suppressVoiceDuringShare: false,
+          },
+        };
+      }
+      return next;
     },
     merge: (persisted, current) => {
       const p = persisted as Record<string, any> | undefined;

@@ -136,11 +136,29 @@ if errorlevel 1 (
 )
 popd
 
+:: Build the native AppLoopbackEx.exe (Windows per-process loopback, exclude mode).
+:: Output lands at apps\desktop\bin\win32-x64\AppLoopbackEx.exe.
+:: Requires VS 2022 Build Tools + Win10/11 SDK; build.ps1 fails with a clear
+:: message if the toolchain is missing.
+echo [*] Building native AppLoopbackEx.exe (exclude-mode loopback)...
+powershell -NoProfile -ExecutionPolicy Bypass -File "%~dp0apps\desktop\native\app-loopback-ex\build.ps1"
+if errorlevel 1 (
+  echo [!] Native binary build failed. Install VS 2022 Build Tools with "Desktop development with C++".
+  goto desktop_fail
+)
+if not exist "%~dp0apps\desktop\bin\win32-x64\AppLoopbackEx.exe" (
+  echo [!] AppLoopbackEx.exe not found after build.
+  goto desktop_fail
+)
+
 set "BDIR=C:\tmp\swiip-build"
 if exist "%BDIR%" rmdir /s /q "%BDIR%"
 mkdir "%BDIR%"
 xcopy /E /I /Q "%~dp0apps\desktop\src" "%BDIR%\src" >nul
 xcopy /E /I /Q "%~dp0apps\desktop\build" "%BDIR%\build" >nul
+:: Native binary (AppLoopbackEx.exe) — electron-builder expects it under bin/
+:: per the asarUnpack config in apps/desktop/package.json.
+xcopy /E /I /Q "%~dp0apps\desktop\bin" "%BDIR%\bin" >nul
 copy /Y "%~dp0apps\desktop\package.json" "%BDIR%\package.json" >nul
 
 :: Copy standalone output as web-bundle (preserves monorepo structure)

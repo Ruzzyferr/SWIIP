@@ -6,6 +6,7 @@ import { Modal } from '@/components/ui/Modal';
 import { useVoiceStore, type ScreenShareQuality } from '@/stores/voice.store';
 import {
   isProcessLoopbackSupported,
+  isExcludeLoopbackSupported,
   listProcessLoopbackWindows,
   type ProcessLoopbackWindow,
 } from '@/lib/audio/process-loopback-track';
@@ -41,6 +42,9 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
   const [sourceTab, setSourceTab] = useState<'screens' | 'windows'>('screens');
   const [plSupported, setPlSupported] = useState(false);
   const [plWindows, setPlWindows] = useState<ProcessLoopbackWindow[]>([]);
+  // Exclude-mode loopback availability — drives the full-screen + echo-free
+  // system audio path on Windows (AppLoopbackEx.exe must be built).
+  const [excludeSupported, setExcludeSupported] = useState(false);
   const isDesktop = typeof window !== 'undefined' && window.constchat?.platform === 'desktop';
   const suppressVoice = useVoiceStore((s) => s.settings.suppressVoiceDuringShare);
   const updateSettings = useVoiceStore((s) => s.updateSettings);
@@ -78,6 +82,7 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
     if (!open || !isDesktop) {
       setPlSupported(false);
       setPlWindows([]);
+      setExcludeSupported(false);
       return;
     }
     let cancelled = false;
@@ -90,6 +95,9 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
         if (cancelled) return;
         setPlWindows(list);
       }
+      const excl = await isExcludeLoopbackSupported();
+      if (cancelled) return;
+      setExcludeSupported(excl);
     })();
     return () => {
       cancelled = true;
@@ -104,6 +112,13 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
     return plWindows.find((w) => w.hwnd === hwnd)?.processId ?? null;
   }, [plSupported, isWindowCapture, selectedSourceId, plWindows]);
   const processLoopbackActive = shareAudio && plPidForSelected !== null;
+  // Full-screen share with exclude-mode loopback → captures system audio MINUS
+  // Swiip's own process tree. Gives us echo-free "share entire screen + audio"
+  // (Discord parity) on Windows when AppLoopbackEx.exe is present.
+  const excludeLoopbackActive =
+    shareAudio && isDesktop && !isWindowCapture && excludeSupported;
+  // Either loopback mode guarantees no voice-chat echo in the shared stream.
+  const cleanAudioMode = processLoopbackActive || excludeLoopbackActive;
 
   const handleStart = useCallback(async () => {
     // On desktop, send selected source and audio preference to main process
@@ -249,7 +264,9 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
                       ? processLoopbackActive
                         ? 'Sadece seçili uygulamanın sesi paylaşılır — voice chat karışmaz'
                         : 'Seçili pencerenin sesi izleyenlere gider'
-                      : 'Bilgisayarınızda çalan ses (YouTube, oyun, müzik) izleyenlere gider'
+                      : excludeLoopbackActive
+                        ? 'Bilgisayarınızda çalan ses izleyenlere gider — voice chat karışmaz'
+                        : 'Bilgisayarınızda çalan ses (YouTube, oyun, müzik) izleyenlere gider'
                     : 'Tarayıcı seçim ekranında "Sekme/Ekran sesini paylaş" tikini açmayı unutmayın'}
                 </p>
               </div>
@@ -268,7 +285,7 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
               />
             </button>
           </div>
-          {processLoopbackActive && (
+          {cleanAudioMode && (
             <div
               className="text-xs p-3 rounded-lg"
               style={{
@@ -277,13 +294,19 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
                 border: '1px solid var(--color-accent-primary)',
               }}
             >
-              <p className="font-semibold">✓ Temiz uygulama sesi (ProcessLoopback)</p>
+              <p className="font-semibold">
+                {processLoopbackActive
+                  ? '✓ Temiz uygulama sesi (ProcessLoopback)'
+                  : '✓ Temiz sistem sesi (yankı yok)'}
+              </p>
               <p style={{ color: 'var(--color-text-secondary)' }}>
-                Yalnızca seçili uygulamanın sesi yakalanır. Voice chat, müzik veya diğer uygulamalar paylaşıma karışmaz — Teams/Meet gibi.
+                {processLoopbackActive
+                  ? 'Yalnızca seçili uygulamanın sesi yakalanır. Voice chat, müzik veya diğer uygulamalar paylaşıma karışmaz — Teams/Meet gibi.'
+                  : 'Bilgisayarınızdaki tüm ses izleyenlere gider — Swiip\'in kendi voice chat sesi hariç. Yankı yapmaz.'}
               </p>
             </div>
           )}
-          {isDesktop && shareAudio && !isWindowCapture && (
+          {isDesktop && shareAudio && !isWindowCapture && !excludeLoopbackActive && (
             <div
               className="text-xs p-3 rounded-lg space-y-1.5"
               style={{
@@ -312,8 +335,8 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
           )}
         </div>
 
-        {/* Suppress-voice-during-share toggle — only when ProcessLoopback can't isolate audio */}
-        {isDesktop && shareAudio && !processLoopbackActive && (
+        {/* Suppress-voice-during-share toggle — only when neither loopback mode can isolate audio */}
+        {isDesktop && shareAudio && !cleanAudioMode && (
           <div
             className="flex items-center justify-between p-3 rounded-lg"
             style={{ background: 'var(--color-surface-raised)' }}

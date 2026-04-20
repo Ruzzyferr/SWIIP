@@ -1,6 +1,6 @@
 {
   "name": "@constchat/desktop",
-  "version": "0.3.21",
+  "version": "0.3.22",
   "private": true,
   "description": "Swiip Desktop Application",
   "main": "src/main.js",
@@ -36,10 +36,12 @@
     "files": [
       "src/**/*",
       "build/**/*",
-      "web-bundle/**/*"
+      "web-bundle/**/*",
+      "bin/**/*"
     ],
     "asarUnpack": [
-      "node_modules/application-loopback/bin/**"
+      "node_modules/application-loopback/bin/**",
+      "bin/**"
     ],
     "win": {
       "target": [
