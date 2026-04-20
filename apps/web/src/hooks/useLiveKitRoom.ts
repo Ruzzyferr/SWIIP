@@ -128,6 +128,11 @@ export function useLiveKitRoom() {
    * Delays the teardown so a quick republish keeps the viewer's spotlight state intact.
    */
   const screenShareRemoteUnpublishTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
+  // Defers clearing videoTracks[id].screen on TrackUnsubscribed so a transient
+  // republish (Unsubscribe → Unpublish → Publish → Subscribe, which can cycle
+  // every 1–3 s on shaky publisher networks) doesn't blank the track reference
+  // and flicker VideoTile's isPlaying between the video and the avatar fallback.
+  const screenShareRemoteUnsubscribeTimers = useRef<Map<string, ReturnType<typeof setTimeout>>>(new Map());
   const [videoTracks, setVideoTracks] = useState<VideoTrackMap>({});
 
   const livekitToken = useVoiceStore((s) => s.livekitToken);
@@ -895,6 +900,13 @@ export function useLiveKitRoom() {
         const channelIdForTimer = currentChannelId;
         const timer = setTimeout(() => {
           screenShareRemoteUnpublishTimers.current.delete(identity);
+          // Publisher truly stopped — supersede any pending unsubscribe-grace
+          // timer and tear everything down now.
+          const pendingSubTimer = screenShareRemoteUnsubscribeTimers.current.get(identity);
+          if (pendingSubTimer) {
+            clearTimeout(pendingSubTimer);
+            screenShareRemoteUnsubscribeTimers.current.delete(identity);
+          }
           setParticipantScreenShare(channelIdForTimer, identity, false);
           updateVideoTrack(identity, 'screen', undefined);
           useVoiceStore.getState().clearStreamState(identity);
@@ -917,12 +929,18 @@ export function useLiveKitRoom() {
             setParticipantVideo(currentChannelId, participant.identity, true);
           }
           // Subscribing to a screen-share means it's actively flowing again —
-          // cancel any pending unpublish teardown from a prior transient blip.
+          // cancel any pending unpublish teardown AND any pending unsubscribe
+          // track-clear from a prior transient blip.
           if (isScreen) {
-            const pendingTimer = screenShareRemoteUnpublishTimers.current.get(participant.identity);
-            if (pendingTimer) {
-              clearTimeout(pendingTimer);
+            const pendingPubTimer = screenShareRemoteUnpublishTimers.current.get(participant.identity);
+            if (pendingPubTimer) {
+              clearTimeout(pendingPubTimer);
               screenShareRemoteUnpublishTimers.current.delete(participant.identity);
+            }
+            const pendingSubTimer = screenShareRemoteUnsubscribeTimers.current.get(participant.identity);
+            if (pendingSubTimer) {
+              clearTimeout(pendingSubTimer);
+              screenShareRemoteUnsubscribeTimers.current.delete(participant.identity);
             }
           }
           // Screen share screenSharing flag is managed by TrackPublished/TrackUnpublished
@@ -944,13 +962,25 @@ export function useLiveKitRoom() {
       }
       if (track.kind === Track.Kind.Video) {
         const isScreen = publication.source === Track.Source.ScreenShare;
-        updateVideoTrack(
-          participant.identity,
-          isScreen ? 'screen' : 'camera',
-          undefined,
-        );
-        if (currentChannelId && !isScreen) {
-          setParticipantVideo(currentChannelId, participant.identity, false);
+        if (isScreen) {
+          // Defer the track-clear. On publisher republishes LiveKit fires
+          // Unsubscribe → Unpublish → Publish → Subscribe in quick succession;
+          // wiping the MediaStreamTrack reference immediately causes VideoTile
+          // to flip isPlaying to false and back, which the user sees as a
+          // continuous flicker between the video and the avatar fallback.
+          const identity = participant.identity;
+          const existing = screenShareRemoteUnsubscribeTimers.current.get(identity);
+          if (existing) clearTimeout(existing);
+          const timer = setTimeout(() => {
+            screenShareRemoteUnsubscribeTimers.current.delete(identity);
+            updateVideoTrack(identity, 'screen', undefined);
+          }, SCREEN_SHARE_REMOTE_UNPUBLISH_GRACE_MS);
+          screenShareRemoteUnsubscribeTimers.current.set(identity, timer);
+        } else {
+          updateVideoTrack(participant.identity, 'camera', undefined);
+          if (currentChannelId) {
+            setParticipantVideo(currentChannelId, participant.identity, false);
+          }
         }
         // Screen share: DON'T clear screenSharing or watchingStreams here.
         // The participant is still sharing — we just voluntarily unsubscribed.
@@ -1318,6 +1348,10 @@ export function useLiveKitRoom() {
         clearTimeout(timer);
       }
       screenShareRemoteUnpublishTimers.current.clear();
+      for (const timer of screenShareRemoteUnsubscribeTimers.current.values()) {
+        clearTimeout(timer);
+      }
+      screenShareRemoteUnsubscribeTimers.current.clear();
       unsubNetwork();
       clearInterval(healthCheckInterval);
       stopLocalVAD();
