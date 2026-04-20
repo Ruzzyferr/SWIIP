@@ -28,6 +28,16 @@ contextBridge.exposeInMainWorld('constchat', {
   getDesktopSources: () => ipcRenderer.invoke('get-desktop-sources'),
   setScreenShareAudio: (enabled) => ipcRenderer.invoke('set-screen-share-audio', enabled),
   setSelectedSource: (sourceId) => ipcRenderer.invoke('set-selected-source', sourceId),
+  // ProcessLoopback (Windows 10 2004+ x64) — per-process audio capture that
+  // excludes voice chat playback from the shared screen audio.
+  processLoopback: {
+    isSupported: () => ipcRenderer.invoke('process-loopback-supported'),
+    listWindows: () => ipcRenderer.invoke('process-loopback-list-windows'),
+    start: (pid) => ipcRenderer.invoke('process-loopback-start', pid),
+    stop: () => ipcRenderer.invoke('process-loopback-stop'),
+    onChunk: (callback) => createIPCListener('process-loopback-chunk', callback),
+    onEnd: (callback) => createIPCListener('process-loopback-end', callback),
+  },
   // Global keyboard shortcuts
   registerGlobalShortcut: (accelerator) => ipcRenderer.invoke('register-global-shortcut', accelerator),
   unregisterGlobalShortcut: (accelerator) => ipcRenderer.invoke('unregister-global-shortcut', accelerator),

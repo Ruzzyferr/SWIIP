@@ -1,6 +1,6 @@
 {
   "name": "@constchat/desktop",
-  "version": "0.3.20",
+  "version": "0.3.21",
   "private": true,
   "description": "Swiip Desktop Application",
   "main": "src/main.js",
@@ -17,6 +17,7 @@
     "verify:update-server": "node scripts/verify-update-endpoint.mjs"
   },
   "dependencies": {
+    "application-loopback": "^1.2.7",
     "electron-store": "^8.2.0",
     "electron-updater": "^6.2.0"
   },
@@ -36,6 +37,9 @@
       "src/**/*",
       "build/**/*",
       "web-bundle/**/*"
+    ],
+    "asarUnpack": [
+      "node_modules/application-loopback/bin/**"
     ],
     "win": {
       "target": [

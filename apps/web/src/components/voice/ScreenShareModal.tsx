@@ -4,6 +4,20 @@ import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Monitor, Volume2, VolumeX, MicOff } from 'lucide-react';
 import { Modal } from '@/components/ui/Modal';
 import { useVoiceStore, type ScreenShareQuality } from '@/stores/voice.store';
+import {
+  isProcessLoopbackSupported,
+  listProcessLoopbackWindows,
+  type ProcessLoopbackWindow,
+} from '@/lib/audio/process-loopback-track';
+
+// Electron's desktopCapturer source.id format for windows: "window:<HWND>:<idx>".
+// Parse the HWND so we can cross-reference it with application-loopback's
+// getActiveWindowProcessIds output (which returns hwnd as a decimal string).
+function hwndFromSourceId(sourceId: string): string | null {
+  if (!sourceId.startsWith('window:')) return null;
+  const parts = sourceId.split(':');
+  return parts[1] ?? null;
+}
 
 
 interface ScreenShareModalProps {
@@ -25,9 +39,12 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
   const [selectedSourceId, setSelectedSourceId] = useState<string | null>(null);
   const [loadingSources, setLoadingSources] = useState(false);
   const [sourceTab, setSourceTab] = useState<'screens' | 'windows'>('screens');
+  const [plSupported, setPlSupported] = useState(false);
+  const [plWindows, setPlWindows] = useState<ProcessLoopbackWindow[]>([]);
   const isDesktop = typeof window !== 'undefined' && window.constchat?.platform === 'desktop';
   const suppressVoice = useVoiceStore((s) => s.settings.suppressVoiceDuringShare);
   const updateSettings = useVoiceStore((s) => s.updateSettings);
+  const setSelectedProcessId = useVoiceStore((s) => s.setSelectedProcessId);
 
   const screenSources = useMemo(() => sources.filter((s) => s.id.startsWith('screen:')), [sources]);
   const windowSources = useMemo(() => sources.filter((s) => s.id.startsWith('window:')), [sources]);
@@ -54,6 +71,40 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
     }
   }, [sourceTab, screenSources, windowSources, selectedSourceId]);
 
+  // Fetch ProcessLoopback capability + window→PID list when modal opens.
+  // The list powers HWND→PID resolution so we can pass the right PID to the
+  // native capture module once the user hits Go Live.
+  useEffect(() => {
+    if (!open || !isDesktop) {
+      setPlSupported(false);
+      setPlWindows([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const supported = await isProcessLoopbackSupported();
+      if (cancelled) return;
+      setPlSupported(supported);
+      if (supported) {
+        const list = await listProcessLoopbackWindows();
+        if (cancelled) return;
+        setPlWindows(list);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [open, isDesktop]);
+
+  const isWindowCapture = isDesktop && !!selectedSourceId?.startsWith('window:');
+  const plPidForSelected = useMemo(() => {
+    if (!plSupported || !isWindowCapture || !selectedSourceId) return null;
+    const hwnd = hwndFromSourceId(selectedSourceId);
+    if (!hwnd) return null;
+    return plWindows.find((w) => w.hwnd === hwnd)?.processId ?? null;
+  }, [plSupported, isWindowCapture, selectedSourceId, plWindows]);
+  const processLoopbackActive = shareAudio && plPidForSelected !== null;
+
   const handleStart = useCallback(async () => {
     // On desktop, send selected source and audio preference to main process
     if (isDesktop && window.constchat) {
@@ -62,9 +113,12 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
         await window.constchat.setSelectedSource?.(selectedSourceId);
       }
     }
+    // Hand the resolved PID to useLiveKitRoom via the voice store. Null means
+    // "no ProcessLoopback" — either audio off, unsupported, or full-screen capture.
+    setSelectedProcessId(shareAudio ? plPidForSelected : null);
     onStart(quality, shareAudio);
     onClose();
-  }, [quality, shareAudio, selectedSourceId, isDesktop, onStart, onClose]);
+  }, [quality, shareAudio, selectedSourceId, isDesktop, onStart, onClose, plPidForSelected, setSelectedProcessId]);
 
   return (
     <Modal open={open} onClose={onClose} title="Screen Share" size="lg">
@@ -172,89 +226,94 @@ export function ScreenShareModal({ open, onClose, onStart }: ScreenShareModalPro
         </div>
 
         {/* Audio Toggle */}
-        {(() => {
-          const isWindowCapture = isDesktop && selectedSourceId?.startsWith('window:');
-          return (
-            <div className="space-y-1.5">
-              <div
-                className="flex items-center justify-between p-3 rounded-lg"
-                style={{
-                  background: 'var(--color-surface-raised)',
-                }}
-              >
-                <div className="flex items-center gap-2.5">
-                  {shareAudio ? (
-                    <Volume2 size={18} style={{ color: 'var(--color-accent-primary)' }} />
-                  ) : (
-                    <VolumeX size={18} style={{ color: 'var(--color-text-tertiary)' }} />
-                  )}
-                  <div>
-                    <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
-                      Sistem sesini de paylaş
-                    </p>
-                    <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
-                      {isDesktop
-                        ? isWindowCapture
-                          ? 'Seçili pencerenin sesi izleyenlere gider'
-                          : 'Bilgisayarınızda çalan ses (YouTube, oyun, müzik) izleyenlere gider'
-                        : 'Tarayıcı seçim ekranında "Sekme/Ekran sesini paylaş" tikini açmayı unutmayın'}
-                    </p>
-                  </div>
-                </div>
-                <button
-                  onClick={() => setShareAudio(!shareAudio)}
-                  className="relative w-10 h-5 rounded-full transition-colors"
-                  style={{
-                    background: shareAudio ? 'var(--color-accent-primary)' : 'var(--color-surface-overlay)',
-                    cursor: 'pointer',
-                  }}
-                >
-                  <span
-                    className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform"
-                    style={{ transform: shareAudio ? 'translateX(20px)' : 'translateX(0)' }}
-                  />
-                </button>
+        <div className="space-y-1.5">
+          <div
+            className="flex items-center justify-between p-3 rounded-lg"
+            style={{
+              background: 'var(--color-surface-raised)',
+            }}
+          >
+            <div className="flex items-center gap-2.5">
+              {shareAudio ? (
+                <Volume2 size={18} style={{ color: 'var(--color-accent-primary)' }} />
+              ) : (
+                <VolumeX size={18} style={{ color: 'var(--color-text-tertiary)' }} />
+              )}
+              <div>
+                <p className="text-sm font-medium" style={{ color: 'var(--color-text-primary)' }}>
+                  Sistem sesini de paylaş
+                </p>
+                <p className="text-xs" style={{ color: 'var(--color-text-tertiary)' }}>
+                  {isDesktop
+                    ? isWindowCapture
+                      ? processLoopbackActive
+                        ? 'Sadece seçili uygulamanın sesi paylaşılır — voice chat karışmaz'
+                        : 'Seçili pencerenin sesi izleyenlere gider'
+                      : 'Bilgisayarınızda çalan ses (YouTube, oyun, müzik) izleyenlere gider'
+                    : 'Tarayıcı seçim ekranında "Sekme/Ekran sesini paylaş" tikini açmayı unutmayın'}
+                </p>
               </div>
-              {isDesktop && shareAudio && !isWindowCapture && (
-                <div
-                  className="text-xs p-3 rounded-lg space-y-1.5"
-                  style={{
-                    color: 'var(--color-warning-default, #faa61a)',
-                    background: 'color-mix(in srgb, var(--color-warning-default, #faa61a) 10%, transparent)',
-                    border: '1px solid color-mix(in srgb, var(--color-warning-default, #faa61a) 30%, transparent)',
-                  }}
-                >
-                  <p className="font-semibold">⚠️ Voice chat sesi de paylaşıma karışabilir</p>
-                  <p>
-                    Tam ekran + ses modu <strong>tüm sistem sesini</strong> yakalar — voice chat dahil.
-                    İzleyenler aynı sesi iki kez duyabilir. Engellemek için:
-                  </p>
-                  <ul className="list-disc pl-4 space-y-0.5">
-                    <li>
-                      <strong>İki ses cihazın varsa:</strong> Ayarlar → Ses → Çıkış Cihazı'nı voice chat için ayrı bir cihaza al.
-                    </li>
-                    <li>
-                      <strong>Tek cihazın varsa:</strong> aşağıdaki "Paylaşırken voice chat'i yerel olarak sustur" seçeneğini aç.
-                    </li>
-                  </ul>
-                </div>
-              )}
-              {isDesktop && shareAudio && isWindowCapture && (
-                <p className="text-xs px-1" style={{ color: 'var(--color-warning-default, #faa61a)' }}>
-                  Yankıyı önlemek için kulaklık kullan. Sesli sohbet sesi seçili çıkış aygıtına yönlendirilir.
-                </p>
-              )}
-              {!isDesktop && shareAudio && (
-                <p className="text-xs px-1" style={{ color: 'var(--color-warning-default, #faa61a)' }}>
-                  Tarayıcı "Tüm Ekran" veya "Sekme" seçerken "Sistem sesini paylaş" seçeneğini de işaretleyin.
-                </p>
-              )}
             </div>
-          );
-        })()}
+            <button
+              onClick={() => setShareAudio(!shareAudio)}
+              className="relative w-10 h-5 rounded-full transition-colors"
+              style={{
+                background: shareAudio ? 'var(--color-accent-primary)' : 'var(--color-surface-overlay)',
+                cursor: 'pointer',
+              }}
+            >
+              <span
+                className="absolute top-0.5 left-0.5 w-4 h-4 rounded-full bg-white transition-transform"
+                style={{ transform: shareAudio ? 'translateX(20px)' : 'translateX(0)' }}
+              />
+            </button>
+          </div>
+          {processLoopbackActive && (
+            <div
+              className="text-xs p-3 rounded-lg"
+              style={{
+                color: 'var(--color-accent-primary)',
+                background: 'var(--color-accent-muted)',
+                border: '1px solid var(--color-accent-primary)',
+              }}
+            >
+              <p className="font-semibold">✓ Temiz uygulama sesi (ProcessLoopback)</p>
+              <p style={{ color: 'var(--color-text-secondary)' }}>
+                Yalnızca seçili uygulamanın sesi yakalanır. Voice chat, müzik veya diğer uygulamalar paylaşıma karışmaz — Teams/Meet gibi.
+              </p>
+            </div>
+          )}
+          {isDesktop && shareAudio && !isWindowCapture && (
+            <div
+              className="text-xs p-3 rounded-lg space-y-1.5"
+              style={{
+                color: 'var(--color-warning-default, #faa61a)',
+                background: 'color-mix(in srgb, var(--color-warning-default, #faa61a) 10%, transparent)',
+                border: '1px solid color-mix(in srgb, var(--color-warning-default, #faa61a) 30%, transparent)',
+              }}
+            >
+              <p className="font-semibold">⚠️ Voice chat sesi de paylaşıma karışabilir</p>
+              <p>
+                Tam ekran + ses modu <strong>tüm sistem sesini</strong> yakalar — voice chat dahil.
+                İzleyenler aynı sesi iki kez duyabilir. Temiz ses için{' '}
+                <strong>Pencereler</strong> sekmesinden tek bir uygulama seç.
+              </p>
+            </div>
+          )}
+          {isDesktop && shareAudio && isWindowCapture && !processLoopbackActive && (
+            <p className="text-xs px-1" style={{ color: 'var(--color-warning-default, #faa61a)' }}>
+              Bu pencere için per-process ses yakalama kullanılamıyor. Yankıyı önlemek için kulaklık kullan.
+            </p>
+          )}
+          {!isDesktop && shareAudio && (
+            <p className="text-xs px-1" style={{ color: 'var(--color-warning-default, #faa61a)' }}>
+              Tarayıcı "Tüm Ekran" veya "Sekme" seçerken "Sistem sesini paylaş" seçeneğini de işaretleyin.
+            </p>
+          )}
+        </div>
 
-        {/* Suppress-voice-during-share toggle — only for full-screen desktop captures with audio */}
-        {isDesktop && shareAudio && !(isDesktop && selectedSourceId?.startsWith('window:')) && (
+        {/* Suppress-voice-during-share toggle — only when ProcessLoopback can't isolate audio */}
+        {isDesktop && shareAudio && !processLoopbackActive && (
           <div
             className="flex items-center justify-between p-3 rounded-lg"
             style={{ background: 'var(--color-surface-raised)' }}

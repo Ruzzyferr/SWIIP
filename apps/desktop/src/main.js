@@ -1,6 +1,7 @@
 const { app, BrowserWindow, shell, Menu, Tray, nativeImage, ipcMain, session, dialog, desktopCapturer, globalShortcut, powerMonitor } = require('electron');
 const path = require('path');
 const { autoUpdater } = require('electron-updater');
+const processLoopback = require('./audio/process-loopback');
 
 // Move userData out of OneDrive to avoid cache permission errors on Windows
 app.setPath('userData', path.join(process.env.LOCALAPPDATA || app.getPath('appData'), 'Swiip'));
@@ -186,6 +187,8 @@ function createWindow() {
   });
 
   mainWindow.on('closed', () => {
+    // Don't let a ProcessLoopback capture outlive the renderer that owns it.
+    processLoopback.stop();
     mainWindow = null;
   });
 
@@ -571,8 +574,12 @@ app.on('ready', async () => {
         selectedSourceId = null;
         cachedSources = null;
         if (chosen) {
-          const isWindowCapture = sourceId.startsWith('window:');
-          const includeAudio = screenShareAudioEnabled;
+          // When ProcessLoopback is handling audio for this window, DON'T pass
+          // 'loopback' to Electron — that would double-capture system audio and
+          // defeat the whole point. ProcessLoopback is streamed separately via
+          // IPC and muxed as a ScreenShareAudio track in the renderer.
+          const loopbackActive = processLoopback.getActivePid() !== null;
+          const includeAudio = screenShareAudioEnabled && !loopbackActive;
           callback({ video: chosen, audio: includeAudio ? 'loopback' : undefined });
           return;
         }
@@ -648,6 +655,45 @@ ipcMain.handle('get-desktop-sources', async () => {
     appIcon: s.appIcon ? s.appIcon.toDataURL() : null,
     display_id: s.display_id,
   }));
+});
+
+// ── ProcessLoopback audio capture ───────────────────────────────────────
+// Captures PCM audio from a single process via WASAPI ProcessLoopback, then
+// streams it over IPC to the renderer where it becomes a MediaStreamTrack
+// published to LiveKit as ScreenShareAudio. Cleanly replaces system-wide
+// 'loopback' for window captures so that voice chat playback is NOT included
+// in the shared audio.
+ipcMain.handle('process-loopback-supported', () => processLoopback.isSupported());
+
+ipcMain.handle('process-loopback-list-windows', async () => {
+  return processLoopback.listWindows();
+});
+
+ipcMain.handle('process-loopback-start', (event, pid) => {
+  if (processLoopback.getActivePid() !== null) {
+    processLoopback.stop();
+  }
+  const sender = event.sender;
+  try {
+    processLoopback.start(
+      pid,
+      (chunk) => {
+        if (sender.isDestroyed()) return;
+        sender.send('process-loopback-chunk', chunk);
+      },
+      () => {
+        if (sender.isDestroyed()) return;
+        sender.send('process-loopback-end');
+      },
+    );
+  } catch (err) {
+    return { ok: false, error: String(err.message || err) };
+  }
+  return { ok: true, format: processLoopback.PCM_FORMAT };
+});
+
+ipcMain.handle('process-loopback-stop', () => {
+  return processLoopback.stop();
 });
 
 // Window control handlers

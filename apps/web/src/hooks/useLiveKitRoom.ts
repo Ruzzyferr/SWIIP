@@ -34,6 +34,10 @@ import {
   type AudioPlatform,
 } from '@/lib/audio';
 import { networkMonitor } from '@/lib/network/NetworkMonitor';
+import {
+  createProcessLoopbackTrack,
+  type ProcessLoopbackTrack,
+} from '@/lib/audio/process-loopback-track';
 
 /** Create the appropriate strategy for the current platform. */
 function createStrategy(platform: AudioPlatform) {
@@ -86,6 +90,16 @@ export function useLiveKitRoom() {
   const screenShareAudioRef = useRef<
     Map<string, { ctx: AudioContext; source: MediaStreamAudioSourceNode; gain: GainNode }>
   >(new Map());
+  /**
+   * Active ProcessLoopback capture (Windows window share with clean audio).
+   * When present, the share's audio track is published separately via LiveKit's
+   * ScreenShareAudio source instead of riding on getDisplayMedia's system
+   * loopback (which would include voice chat playback).
+   */
+  const processLoopbackRef = useRef<{
+    track: ProcessLoopbackTrack;
+    publication: LocalTrackPublication | null;
+  } | null>(null);
   const trackOwnerRef = useRef<Map<string, string>>(new Map()); // trackSid -> userId
   const trackSourceRef = useRef<Map<string, 'mic' | 'screen'>>(new Map()); // trackSid -> source type
   /** Timestamp until which screen-share unpublish events should be suppressed (reconnect grace). */
@@ -555,9 +569,18 @@ export function useLiveKitRoom() {
               } as const;
               const preset = presets[quality as keyof typeof presets] ?? presets['1080p30'];
               const wantAudio = useVoiceStore.getState().screenShareAudio;
+              const plPid = useVoiceStore.getState().selectedProcessId;
+              const useProcessLoopback = wantAudio && plPid !== null;
+              // Drop any stale ProcessLoopback publication that survived into
+              // the new connection — we'll rebuild it fresh.
+              const stalePl = processLoopbackRef.current;
+              processLoopbackRef.current = null;
+              if (stalePl) {
+                stalePl.track.dispose().catch(() => { /* noop */ });
+              }
               room.localParticipant.setScreenShareEnabled(true, {
                 contentHint: preset.fps >= 60 ? 'motion' : 'detail',
-                audio: wantAudio,
+                audio: useProcessLoopback ? false : wantAudio,
                 selfBrowserSurface: 'exclude',
                 surfaceSwitching: 'include',
                 systemAudio: 'include',
@@ -569,8 +592,21 @@ export function useLiveKitRoom() {
                 videoEncoding: { maxBitrate: preset.maxBitrate, maxFramerate: preset.fps },
                 audioPreset: AudioPresets.musicHighQualityStereo,
                 dtx: false,
-              }).then(() => {
+              }).then(async () => {
                 console.debug('[LiveKit] Screen share re-published successfully');
+                if (useProcessLoopback && plPid !== null) {
+                  try {
+                    const track = await createProcessLoopbackTrack(plPid);
+                    const publication = await room.localParticipant.publishTrack(track.track, {
+                      source: Track.Source.ScreenShareAudio,
+                      audioPreset: AudioPresets.musicHighQualityStereo,
+                      dtx: false,
+                    });
+                    processLoopbackRef.current = { track, publication };
+                  } catch (err) {
+                    console.warn('[LiveKit] ProcessLoopback re-publish failed:', err);
+                  }
+                }
               }).catch((err) => {
                 console.warn('[LiveKit] Failed to re-publish screen share:', err);
                 useVoiceStore.getState().setScreenShareEnabled(false);
@@ -621,6 +657,11 @@ export function useLiveKitRoom() {
       ]);
       for (const sid of sids) {
         detachAudio(sid);
+      }
+      const pl = processLoopbackRef.current;
+      processLoopbackRef.current = null;
+      if (pl) {
+        pl.track.dispose().catch(() => { /* noop */ });
       }
     });
 
@@ -1474,6 +1515,11 @@ export function useLiveKitRoom() {
       const preset = presets[quality as keyof typeof presets] ?? presets['1080p30'];
 
       const wantAudio = useVoiceStore.getState().screenShareAudio;
+      // ProcessLoopback path: window capture on Windows 10 2004+ publishes
+      // the selected process's audio directly, bypassing system loopback so
+      // voice chat playback is excluded from the shared stream.
+      const processLoopbackPid = useVoiceStore.getState().selectedProcessId;
+      const useProcessLoopback = wantAudio && processLoopbackPid !== null;
 
       const captureOpts = (audio: boolean) => ({
         contentHint: (preset.fps >= 60 ? 'motion' : 'detail') as 'motion' | 'detail',
@@ -1528,8 +1574,42 @@ export function useLiveKitRoom() {
         }
       };
 
-      room.localParticipant.setScreenShareEnabled(true, captureOpts(wantAudio), publishOpts)
-        .then(listenForEnd)
+      // When ProcessLoopback owns the audio path, getDisplayMedia requests
+      // video only; the audio track is built from ProcessLoopback PCM and
+      // published separately. Fall back to classic system loopback if the
+      // per-process capture fails (e.g. process exited between selection and
+      // publish, or WASAPI refused).
+      const captureAudio = useProcessLoopback ? false : wantAudio;
+
+      const publishProcessLoopback = async () => {
+        if (!useProcessLoopback || processLoopbackPid === null) return;
+        try {
+          const track = await createProcessLoopbackTrack(processLoopbackPid);
+          const publication = await room.localParticipant.publishTrack(track.track, {
+            source: Track.Source.ScreenShareAudio,
+            audioPreset: AudioPresets.musicHighQualityStereo,
+            dtx: false,
+          });
+          processLoopbackRef.current = { track, publication };
+        } catch (err) {
+          console.warn('[LiveKit] ProcessLoopback publish failed, falling back to system loopback:', err);
+          // Retry the whole share with classic loopback audio.
+          try {
+            await room.localParticipant.setScreenShareEnabled(false);
+            await room.localParticipant.setScreenShareEnabled(true, captureOpts(wantAudio), publishOpts);
+            listenForEnd();
+          } catch (retryErr) {
+            console.warn('[LiveKit] Fallback share also failed:', retryErr);
+            useVoiceStore.getState().setScreenShareEnabled(false);
+          }
+        }
+      };
+
+      room.localParticipant.setScreenShareEnabled(true, captureOpts(captureAudio), publishOpts)
+        .then(async () => {
+          listenForEnd();
+          await publishProcessLoopback();
+        })
         .catch((err) => {
           // If audio was requested and it failed, retry without audio.
           // Some systems can't capture system audio (no loopback device, permissions, etc.)
@@ -1547,7 +1627,22 @@ export function useLiveKitRoom() {
           }
         });
     } else {
-      room.localParticipant.setScreenShareEnabled(false).catch(console.error);
+      const plActive = processLoopbackRef.current;
+      processLoopbackRef.current = null;
+      (async () => {
+        if (plActive) {
+          try {
+            if (plActive.publication) {
+              await room.localParticipant.unpublishTrack(plActive.track.track);
+            }
+          } catch (err) {
+            console.warn('[LiveKit] ProcessLoopback unpublish failed:', err);
+          }
+          try { await plActive.track.dispose(); } catch { /* noop */ }
+        }
+        room.localParticipant.setScreenShareEnabled(false).catch(console.error);
+        useVoiceStore.getState().setSelectedProcessId(null);
+      })();
     }
   }, [screenShareEnabled]);
 

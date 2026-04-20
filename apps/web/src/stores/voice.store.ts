@@ -80,6 +80,13 @@ interface VoiceState {
   screenShareEnabled: boolean;
   screenShareQuality: ScreenShareQuality;
   screenShareAudio: boolean;
+  /**
+   * PID of the window selected for ProcessLoopback audio capture (Windows 10
+   * 2004+). Set by ScreenShareModal when the user picks a window with audio
+   * enabled; consumed by useLiveKitRoom to decide between per-process capture
+   * and system-wide loopback. Transient — never persisted.
+   */
+  selectedProcessId: string | null;
 
   // Pinned participant (spotlight view)
   pinnedParticipantId: string | null;
@@ -127,6 +134,7 @@ interface VoiceState {
   setScreenShareEnabled: (enabled: boolean) => void;
   setScreenShareQuality: (quality: ScreenShareQuality) => void;
   setScreenShareAudio: (enabled: boolean) => void;
+  setSelectedProcessId: (pid: string | null) => void;
   setPinnedParticipant: (userId: string | null) => void;
   setConnectionQuality: (quality: number) => void;
   setAloneTimeout: (seconds: number | null) => void;
@@ -172,7 +180,7 @@ const DEFAULT_SETTINGS: VoiceSettings = {
   pushToTalk: false,
   pttKey: 'Space',
   keyboardShortcutsEnabled: true,
-  suppressVoiceDuringShare: false,
+  suppressVoiceDuringShare: true,
 };
 
 function participantKey(channelId: string, userId: string) {
@@ -194,6 +202,7 @@ export const useVoiceStore = create<VoiceState>()(
     screenShareEnabled: false,
     screenShareQuality: '1080p30' as ScreenShareQuality,
     screenShareAudio: true,
+    selectedProcessId: null,
     pinnedParticipantId: null,
     participants: {},
     connectionQuality: 3,
@@ -267,6 +276,11 @@ export const useVoiceStore = create<VoiceState>()(
     setScreenShareAudio: (enabled) =>
       set((state) => {
         state.screenShareAudio = enabled;
+      }),
+
+    setSelectedProcessId: (pid) =>
+      set((state) => {
+        state.selectedProcessId = pid;
       }),
 
     setPinnedParticipant: (userId) =>
@@ -435,6 +449,7 @@ export const useVoiceStore = create<VoiceState>()(
   })),
   {
     name: 'voice-settings',
+    version: 2,
     partialize: (state) => ({
       settings: state.settings,
       userVolumes: state.userVolumes,
@@ -442,6 +457,25 @@ export const useVoiceStore = create<VoiceState>()(
       selfMuted: state.selfMuted,
       selfDeafened: state.selfDeafened,
     }),
+    // v1 → v2: flip suppressVoiceDuringShare default from false to true so
+    // users on non-ProcessLoopback platforms get safe-by-default behavior.
+    // Users who explicitly opted in stay on true; anyone still on the old
+    // false default migrates to true. (We can't distinguish explicit-false
+    // from default-false in v1, so this is an accepted one-time nudge.)
+    migrate: (persisted, version) => {
+      if (!persisted || typeof persisted !== 'object') return persisted;
+      const p = persisted as Record<string, any>;
+      if (version < 2) {
+        return {
+          ...p,
+          settings: {
+            ...(p.settings ?? {}),
+            suppressVoiceDuringShare: true,
+          },
+        };
+      }
+      return p;
+    },
     merge: (persisted, current) => {
       const p = persisted as Record<string, any> | undefined;
       return {
