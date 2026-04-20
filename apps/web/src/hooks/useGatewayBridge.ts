@@ -434,6 +434,12 @@ export function useGatewayBridge() {
             screenSharing: existing?.screenSharing ?? false,
           });
         } else {
+          // Preserve existing screenSharing/selfVideo when the incoming
+          // payload doesn't carry them. Routine activity broadcasts (e.g.
+          // speaking updates) can omit these fields; clobbering to false
+          // would hide an active screen-share tile between re-publishes
+          // and cause the viewer to flicker.
+          const existing = voiceStore.participants[`${data.channelId}:${data.userId}`];
           voiceStore.setParticipant({
             userId: data.userId,
             channelId: data.channelId,
@@ -442,8 +448,8 @@ export function useGatewayBridge() {
             serverMute: data.serverMute,
             serverDeaf: data.serverDeaf,
             speaking: data.speaking,
-            selfVideo: data.selfVideo ?? false,
-            screenSharing: data.screenShare ?? false,
+            selfVideo: data.selfVideo ?? existing?.selfVideo ?? false,
+            screenSharing: data.screenShare ?? existing?.screenSharing ?? false,
           });
         }
       } else {

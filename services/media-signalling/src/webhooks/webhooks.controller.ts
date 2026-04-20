@@ -183,6 +183,8 @@ export class WebhooksController {
       serverMute: false,
       serverDeaf: false,
       speaking: false,
+      selfVideo: false,
+      screenShare: false,
     });
   }
 
@@ -209,6 +211,8 @@ export class WebhooksController {
       serverMute: false,
       serverDeaf: false,
       speaking: false,
+      selfVideo: false,
+      screenShare: false,
     });
   }
 
@@ -279,6 +283,8 @@ export class WebhooksController {
           serverMute: false,
           serverDeaf: false,
           speaking: false,
+          selfVideo: false,
+          screenShare: false,
         });
       }
     }
@@ -304,6 +310,8 @@ export class WebhooksController {
       serverMute: boolean;
       serverDeaf: boolean;
       speaking: boolean;
+      selfVideo: boolean;
+      screenShare: boolean;
     },
   ): Promise<void> {
     const topic = guildId === 'dm' ? `dm:${channelIdForRouting}` : `guild:${guildId}`;
@@ -354,6 +362,8 @@ export class WebhooksController {
       serverMute: raw['serverMute'] === 'true',
       serverDeaf: raw['serverDeaf'] === 'true',
       speaking: raw['speaking'] === 'true',
+      selfVideo: raw['isVideoEnabled'] === 'true',
+      screenShare: raw['isScreenSharing'] === 'true',
     });
   }
 
