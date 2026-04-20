@@ -51,8 +51,18 @@ export function ThreadPanel() {
         style={{ borderBottom: '1px solid var(--color-border-subtle)' }}
       >
         <div className="flex items-center gap-2 min-w-0">
-          <Hash size={16} style={{ color: 'var(--color-text-secondary)' }} />
-          <span className="text-sm font-semibold truncate" style={{ color: 'var(--color-text-primary)' }}>
+          <Hash size={14} style={{ color: 'var(--color-text-tertiary)' }} />
+          <span
+            className="truncate"
+            style={{
+              color: 'var(--color-text-primary)',
+              fontFamily: 'var(--font-display)',
+              fontFeatureSettings: '"opsz" auto',
+              fontSize: '15px',
+              fontWeight: 500,
+              letterSpacing: '-0.005em',
+            }}
+          >
             {channel?.name ?? 'Thread'}
           </span>
         </div>

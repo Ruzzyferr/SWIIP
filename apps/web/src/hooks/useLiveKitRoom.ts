@@ -176,6 +176,10 @@ export function useLiveKitRoom() {
   ) => {
     setVideoTracks((prev) => {
       const entry = prev[participantId] ?? {};
+      // No-op if the MediaStreamTrack reference is unchanged — prevents
+      // parent state churn from propagating a fresh wrapper object into
+      // VideoTile and triggering a spurious srcObject teardown.
+      if (entry[type] === track) return prev;
       const updated = { ...entry, [type]: track };
       // Remove entry entirely if both tracks are gone
       if (!updated.camera && !updated.screen) {
@@ -1028,16 +1032,11 @@ export function useLiveKitRoom() {
         }
       }
 
-      if (publication.source === Track.Source.ScreenShare && publication.kind === Track.Kind.Video) {
-        console.debug('[LiveKit] Screen share unmuted (ICE reconnected):', participant.identity);
-        // Re-push the track to VideoTile so it re-attaches and retries play().
-        // This handles the case where the MediaStreamTrack unmute event alone
-        // isn't sufficient (e.g., track was replaced by LiveKit during reconnect).
-        const track = publication.track;
-        if (track) {
-          updateVideoTrack(participant.identity, 'screen', track.mediaStreamTrack);
-        }
-      }
+      // Screen share unmute: no eager re-push. VideoTile's MediaStreamTrack
+      // 'unmute' listener retries play() on the existing srcObject, and
+      // RoomEvent.TrackSubscribed already pushes a fresh track if LiveKit
+      // replaced the MediaStreamTrack during a reconnect. Re-pushing every
+      // unmute caused viewer-side flicker during transient SFU pauses.
 
       if (publication.source === Track.Source.Microphone) {
         const key = `${currentChannelId}:${participant.identity}`;

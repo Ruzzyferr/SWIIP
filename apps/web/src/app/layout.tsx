@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import localFont from 'next/font/local';
+import { Fraunces } from 'next/font/google';
 import '@/styles/globals.css';
 import 'highlight.js/styles/github-dark.css';
 import { NextIntlClientProvider } from 'next-intl';
@@ -10,6 +11,15 @@ const inter = localFont({
   variable: '--font-sans',
   display: 'swap',
   weight: '100 900',
+});
+
+const fraunces = Fraunces({
+  subsets: ['latin'],
+  variable: '--font-display',
+  display: 'swap',
+  weight: ['400', '500', '600', '700'],
+  style: ['normal', 'italic'],
+  axes: ['SOFT', 'opsz'],
 });
 
 export const metadata: Metadata = {
@@ -32,7 +42,7 @@ export const viewport: Viewport = {
   initialScale: 1,
   maximumScale: 1,
   viewportFit: 'cover',
-  themeColor: '#090B0B',
+  themeColor: '#0A0C11',
 };
 
 import { ServiceWorkerRegistration } from '@/components/providers/ServiceWorkerRegistration';
@@ -43,7 +53,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
   const messages = await getMessages();
 
   return (
-    <html lang={locale} className={inter.variable}>
+    <html lang={locale} className={`${inter.variable} ${fraunces.variable}`}>
       <body className="bg-surface-base text-text-primary antialiased overflow-x-hidden overflow-y-auto min-h-[100dvh]">
         <NextIntlClientProvider locale={locale} messages={messages}>
           {children}

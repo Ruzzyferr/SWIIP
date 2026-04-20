@@ -19,6 +19,9 @@ out
 # Turbo
 .turbo
 
+# Superpowers visual brainstorming (local mockups)
+.superpowers/
+
 # TypeScript
 *.tsbuildinfo
 tsconfig.tsbuildinfo

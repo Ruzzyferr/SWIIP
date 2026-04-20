@@ -3,100 +3,107 @@
 @tailwind utilities;
 
 /* ============================================================
-   Swiip Design System — Emerald Graphite Edition
-   Premium visual language: depth, glass, gradient, atmosphere
+   Swiip Design System — Obsidian Platinum
+   Cool blue-slate surfaces, platinum accent, Fraunces + Inter pairing,
+   Gravitas motion. Foundation per 2026-04-20-luxury-redesign spec.
    ============================================================ */
 
 :root {
-  /* Surface scale — deep blacks with blue undertone */
-  --color-surface-base: #090B0B;
-  --color-surface-elevated: #121616;
-  --color-surface-raised: #181E1D;
-  --color-surface-overlay: #202827;
-  --color-surface-floating: #2B3533;
+  /* Surface scale — cool blue-slate, 5 layers of depth */
+  --color-surface-base: #0A0C11;
+  --color-surface-elevated: #141820;
+  --color-surface-raised: #1B212C;
+  --color-surface-overlay: #242B39;
+  --color-surface-floating: #2E3646;
 
-  /* Glass surfaces */
-  --glass-bg: rgba(18, 22, 22, 0.72);
-  --glass-border: rgba(255, 255, 255, 0.06);
+  /* Glass surfaces — tinted toward platinum */
+  --glass-bg: rgba(20, 24, 32, 0.72);
+  --glass-border: rgba(196, 202, 211, 0.06);
   --glass-blur: 20px;
-  --glass-bg-hover: rgba(24, 30, 29, 0.80);
+  --glass-bg-hover: rgba(27, 33, 44, 0.80);
 
-  /* Accent — emerald green */
-  --color-accent-primary: #10B981;
-  --color-accent-hover: #059669;
-  --color-accent-active: #047857;
-  --color-accent-muted: rgba(52, 211, 153, 0.16);
-  --color-accent-subtle: rgba(52, 211, 153, 0.08);
-  --color-accent-strong: rgba(52, 211, 153, 0.25);
-  --color-accent-gradient: linear-gradient(135deg, #10B981 0%, #34D399 100%);
-  --color-accent-gradient-vibrant: linear-gradient(135deg, #10B981 0%, #6EE7B7 100%);
+  /* Accent — platinum (cool desaturated grey) */
+  --color-accent-primary: #C4CAD3;
+  --color-accent-hover: #DDE2E9;
+  --color-accent-active: #A8AFB8;
+  --color-accent-muted: rgba(196, 202, 211, 0.14);
+  --color-accent-subtle: rgba(196, 202, 211, 0.07);
+  --color-accent-strong: rgba(196, 202, 211, 0.22);
+  --color-accent-gradient: linear-gradient(180deg, #C4CAD3 0%, #A8AFB8 100%);
+  --color-accent-gradient-vibrant: linear-gradient(180deg, #DDE2E9 0%, #C4CAD3 100%);
 
-  /* Text */
-  --color-text-primary: #F5F7F6;
-  --color-text-secondary: #B7C3BF;
-  --color-text-tertiary: #788682;
-  --color-text-disabled: #3D4A46;
-  --color-text-inverse: #090B0B;
-  --color-text-accent: #34D399;
+  /* Accent secondary — cool wine, reserved for theatrical moments */
+  --color-accent-secondary-default: #5B1F2A;
+  --color-accent-secondary-hover: #6E2632;
+  --color-accent-secondary-muted: rgba(91, 31, 42, 0.32);
+  --color-accent-secondary-subtle: rgba(91, 31, 42, 0.14);
 
-  /* Borders — more subtle, glass-friendly */
-  --color-border-subtle: rgba(255, 255, 255, 0.04);
-  --color-border-default: rgba(255, 255, 255, 0.07);
-  --color-border-strong: rgba(255, 255, 255, 0.12);
-  --color-border-focus: rgba(16, 185, 129, 0.50);
-  --color-border-glow: rgba(16, 185, 129, 0.30);
+  /* Text — AAA-grade contrast on surface.base */
+  --color-text-primary: #E8ECF1;
+  --color-text-secondary: #B4BAC4;
+  --color-text-tertiary: #8A92A0;
+  --color-text-disabled: #454C58;
+  --color-text-inverse: #141820;
+  --color-text-accent: #C4CAD3;
 
-  /* Status */
-  --color-status-online: #10B981;
-  --color-status-idle: #F59E0B;
-  --color-status-dnd: #EF4444;
-  --color-status-offline: #788682;
+  /* Borders — platinum-tinted alphas */
+  --color-border-subtle: rgba(196, 202, 211, 0.05);
+  --color-border-default: rgba(196, 202, 211, 0.09);
+  --color-border-strong: rgba(196, 202, 211, 0.16);
+  --color-border-focus: rgba(196, 202, 211, 0.45);
+  --color-border-glow: rgba(196, 202, 211, 0.30);
+
+  /* Status — saturation reduced ~10% to sit in the cool palette */
+  --color-status-online: #3FA887;
+  --color-status-idle: #D69A3C;
+  --color-status-dnd: #C54846;
+  --color-status-offline: #6C7583;
 
   /* Danger */
-  --color-danger-default: #EF4444;
-  --color-danger-hover: #DC2626;
-  --color-danger-active: #B91C1C;
-  --color-danger-muted: rgba(239, 68, 68, 0.12);
-  --color-danger-subtle: rgba(239, 68, 68, 0.06);
+  --color-danger-default: #C54846;
+  --color-danger-hover: #B13B39;
+  --color-danger-active: #932F2E;
+  --color-danger-muted: rgba(197, 72, 70, 0.15);
+  --color-danger-subtle: rgba(197, 72, 70, 0.08);
 
   /* Success */
-  --color-success-default: #10B981;
-  --color-success-hover: #059669;
-  --color-success-muted: rgba(16, 185, 129, 0.12);
-  --color-success-subtle: rgba(16, 185, 129, 0.06);
+  --color-success-default: #3FA887;
+  --color-success-hover: #35907A;
+  --color-success-muted: rgba(63, 168, 135, 0.12);
+  --color-success-subtle: rgba(63, 168, 135, 0.06);
 
   /* Warning */
-  --color-warning-default: #F59E0B;
-  --color-warning-hover: #D97706;
-  --color-warning-muted: rgba(245, 158, 11, 0.12);
-  --color-warning-subtle: rgba(245, 158, 11, 0.06);
+  --color-warning-default: #D69A3C;
+  --color-warning-hover: #B88430;
+  --color-warning-muted: rgba(214, 154, 60, 0.15);
+  --color-warning-subtle: rgba(214, 154, 60, 0.08);
 
   /* Mention */
-  --color-mention-bg: rgba(16, 185, 129, 0.10);
-  --color-mention-border: rgba(16, 185, 129, 0.35);
-  --color-mention-hover: rgba(16, 185, 129, 0.16);
-  --color-mention-text: #34D399;
+  --color-mention-bg: rgba(196, 202, 211, 0.10);
+  --color-mention-border: rgba(196, 202, 211, 0.35);
+  --color-mention-hover: rgba(196, 202, 211, 0.16);
+  --color-mention-text: #DDE2E9;
 
   /* Voice */
-  --color-voice-speaking: #10B981;
-  --color-voice-muted-speaking: #F59E0B;
-  --color-voice-deafened: #EF4444;
-  --color-voice-disconnected: #788682;
+  --color-voice-speaking: #C4CAD3;
+  --color-voice-muted-speaking: #D69A3C;
+  --color-voice-deafened: #C54846;
+  --color-voice-disconnected: #6C7583;
 
-  /* Typography — refined */
+  /* Typography — Fraunces display serif + Inter body sans */
   --font-sans: 'Inter';
   --font-mono: 'JetBrains Mono', 'Fira Code', monospace;
-  --font-display: 'Inter';
+  --font-display: 'Fraunces', 'Iowan Old Style', 'Cambria', Georgia, serif;
 
   --text-xs: 11px;
   --text-sm: 13px;
-  --text-base: 14.5px;
+  --text-base: 15px;
   --text-md: 16px;
-  --text-lg: 18px;
-  --text-xl: 20px;
-  --text-2xl: 24px;
-  --text-3xl: 32px;
-  --text-4xl: 40px;
+  --text-lg: 19px;
+  --text-xl: 22px;
+  --text-2xl: 26px;
+  --text-3xl: 34px;
+  --text-4xl: 44px;
   --text-5xl: 56px;
 
   --font-weight-normal: 400;
@@ -106,51 +113,52 @@
   --font-weight-extrabold: 800;
 
   --leading-none: 1;
-  --leading-tight: 1.15;
-  --leading-snug: 1.3;
+  --leading-tight: 1.2;
+  --leading-snug: 1.375;
   --leading-normal: 1.5;
   --leading-relaxed: 1.625;
   --leading-loose: 2;
 
   --tracking-tighter: -0.04em;
-  --tracking-tight: -0.025em;
+  --tracking-tight: -0.02em;
   --tracking-normal: 0em;
   --tracking-wide: 0.04em;
   --tracking-wider: 0.08em;
   --tracking-widest: 0.16em;
 
-  /* Border radius — softer, more organic */
+  /* Border radius — architectural, restrained */
   --radius-none: 0px;
-  --radius-xs: 3px;
-  --radius-sm: 5px;
-  --radius-md: 8px;
-  --radius-lg: 12px;
-  --radius-xl: 16px;
-  --radius-2xl: 20px;
-  --radius-3xl: 28px;
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: 8px;
+  --radius-xl: 12px;
+  --radius-2xl: 16px;
+  --radius-3xl: 24px;
   --radius-full: 9999px;
 
-  /* Shadows — cinematic depth */
+  /* Shadows — carry depth in a dark UI; glow uses cool platinum */
   --shadow-none: none;
-  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.50), 0 1px 2px rgba(0, 0, 0, 0.30);
-  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.55), 0 2px 4px rgba(0, 0, 0, 0.30);
-  --shadow-lg: 0 10px 30px rgba(0, 0, 0, 0.60), 0 4px 10px rgba(0, 0, 0, 0.35);
-  --shadow-xl: 0 20px 50px rgba(0, 0, 0, 0.70), 0 8px 20px rgba(0, 0, 0, 0.40);
-  --shadow-2xl: 0 30px 70px rgba(0, 0, 0, 0.80), 0 12px 30px rgba(0, 0, 0, 0.50);
-  --shadow-glow: 0 0 20px rgba(16, 185, 129, 0.20), 0 0 60px rgba(16, 185, 129, 0.08);
-  --shadow-glow-strong: 0 0 30px rgba(16, 185, 129, 0.35), 0 0 80px rgba(16, 185, 129, 0.12);
-  --shadow-inset: inset 0 1px 3px rgba(0, 0, 0, 0.45);
-  --shadow-float: 0 8px 32px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(255, 255, 255, 0.04);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.40);
+  --shadow-md: 0 4px 8px rgba(0, 0, 0, 0.50);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.60);
+  --shadow-xl: 0 16px 48px rgba(0, 0, 0, 0.70);
+  --shadow-2xl: 0 24px 64px rgba(0, 0, 0, 0.80);
+  --shadow-glow: 0 0 20px rgba(196, 202, 211, 0.22);
+  --shadow-glow-strong: 0 0 32px rgba(196, 202, 211, 0.38);
+  --shadow-inset: inset 0 1px 3px rgba(0, 0, 0, 0.40);
+  --shadow-float: 0 8px 32px rgba(0, 0, 0, 0.65), 0 0 0 1px rgba(196, 202, 211, 0.05);
 
-  /* Motion — refined timing */
-  --duration-instant: 60ms;
-  --duration-fast: 120ms;
-  --duration-normal: 200ms;
+  /* Motion — Gravitas: enter fast, decelerate long, land deliberately */
+  --duration-instant: 80ms;
+  --duration-fast: 180ms;
+  --duration-normal: 220ms;
   --duration-slow: 320ms;
-  --duration-slower: 450ms;
-  --duration-slowest: 600ms;
+  --duration-slower: 480ms;
+  --duration-slowest: 700ms;
 
-  --easing-standard: cubic-bezier(0.25, 0.1, 0.25, 1);
+  --easing-gravitas: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --easing-standard: cubic-bezier(0.4, 0, 0.2, 1);
   --easing-decelerate: cubic-bezier(0, 0, 0.2, 1);
   --easing-accelerate: cubic-bezier(0.4, 0, 1, 1);
   --easing-spring: cubic-bezier(0.34, 1.56, 0.64, 1);
@@ -168,11 +176,11 @@
   --z-toast: 600;
   --z-tooltip: 700;
 
-  /* Layout — slightly wider for breathing room */
+  /* Layout — breathing-density dimensions */
   --layout-server-rail-width: 64px;
-  --layout-channel-sidebar-width: 240px;
-  --layout-member-sidebar-width: 260px;
-  --layout-bottom-bar-height: 54px;
+  --layout-channel-sidebar-width: 260px;
+  --layout-member-sidebar-width: 280px;
+  --layout-bottom-bar-height: 56px;
   --layout-title-bar-height: 48px;
   --layout-message-input-min-height: 48px;
   --layout-message-input-max-height: 50vh;
@@ -214,9 +222,9 @@
     box-shadow: var(--shadow-glow);
   }
 
-  /* Text selection — accent tint */
+  /* Text selection — platinum tint */
   ::selection {
-    background-color: rgba(16, 185, 129, 0.28);
+    background-color: rgba(196, 202, 211, 0.28);
     color: var(--color-text-primary);
   }
 
@@ -311,7 +319,7 @@
 
   .server-icon:hover {
     border-radius: var(--radius-lg);
-    box-shadow: 0 0 16px rgba(16, 185, 129, 0.15);
+    box-shadow: 0 0 16px rgba(196, 202, 211, 0.15);
   }
 
   .server-icon.active {
@@ -371,20 +379,51 @@
     color: var(--color-text-primary);
   }
 
-  /* ---- Message Row ---- */
-  .message-actions {
-    opacity: 0;
-    transform: translateY(3px);
-    transition:
-      opacity var(--duration-fast) var(--easing-standard),
-      transform var(--duration-fast) var(--easing-standard);
-    pointer-events: none;
+  /* ---- Message Row — flat feed ---- */
+  .message-row {
+    display: grid;
+    grid-template-columns: 2px 36px minmax(0, 1fr) 96px;
+    column-gap: 12px;
+    padding: 2px 16px;
+    position: relative;
   }
 
-  .message-row:hover .message-actions {
+  /* Author change breathing break */
+  .message-row[data-grouped='false'] {
+    padding-top: 10px;
+  }
+
+  /* Sticky right-gutter actions (D2) — hover + focus-within accessible */
+  .message-gutter-actions {
+    opacity: 0;
+    transform: translateX(-4px);
+    transition:
+      opacity var(--duration-fast) var(--easing-gravitas),
+      transform var(--duration-fast) var(--easing-gravitas);
+    pointer-events: none;
+    display: flex;
+    align-items: flex-start;
+    justify-content: flex-end;
+    padding-top: 2px;
+  }
+
+  .message-row:hover .message-gutter-actions,
+  .message-row:focus-within .message-gutter-actions {
     opacity: 1;
-    transform: translateY(0);
+    transform: translateX(0);
     pointer-events: auto;
+  }
+
+  /* Speaker rhythm line (D5) — signature detail, author continuity cue */
+  .message-rhythm-line {
+    width: 1px;
+    justify-self: center;
+    background: var(--color-border-subtle);
+    min-height: 100%;
+  }
+
+  .message-row[data-grouped='false'] .message-rhythm-line {
+    margin-top: 6px;
   }
 
   /* ---- Reaction Pill ---- */
@@ -423,11 +462,11 @@
   }
 
   .ambient-orb-primary {
-    background: radial-gradient(circle, #10B981, transparent 70%);
+    background: radial-gradient(circle, #C4CAD3, transparent 70%);
   }
 
   .ambient-orb-secondary {
-    background: radial-gradient(circle, #34D399, transparent 70%);
+    background: radial-gradient(circle, #DDE2E9, transparent 70%);
   }
 
   /* ---- Gradient Text ---- */
@@ -591,7 +630,7 @@
   background: conic-gradient(
     from var(--gradient-angle),
     transparent 40%,
-    var(--ambient-primary, #10B981) 50%,
+    var(--ambient-primary, #C4CAD3) 50%,
     transparent 60%
   );
   z-index: -1;
@@ -610,37 +649,37 @@
 
 /* ---- Glass Morphism Variants ---- */
 .glass-light {
-  background: rgba(18, 22, 22, 0.4);
+  background: rgba(20, 24, 32, 0.4);
   backdrop-filter: blur(8px);
   -webkit-backdrop-filter: blur(8px);
-  border: 1px solid rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(196, 202, 211, 0.05);
 }
 
 .glass-medium {
-  background: rgba(18, 22, 22, 0.65);
+  background: rgba(20, 24, 32, 0.65);
   backdrop-filter: blur(20px);
   -webkit-backdrop-filter: blur(20px);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(196, 202, 211, 0.07);
 }
 
 .glass-heavy {
-  background: rgba(18, 22, 22, 0.85);
+  background: rgba(20, 24, 32, 0.85);
   backdrop-filter: blur(40px);
   -webkit-backdrop-filter: blur(40px);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(196, 202, 211, 0.09);
 }
 
 /* ---- Glow Utilities ---- */
 .glow-sm {
-  box-shadow: 0 0 10px rgba(var(--ambient-rgb, 16, 185, 129), 0.15);
+  box-shadow: 0 0 10px rgba(var(--ambient-rgb, 196, 202, 211), 0.15);
 }
 
 .glow-md {
-  box-shadow: 0 0 20px rgba(var(--ambient-rgb, 16, 185, 129), 0.2), 0 0 40px rgba(var(--ambient-rgb, 16, 185, 129), 0.08);
+  box-shadow: 0 0 20px rgba(var(--ambient-rgb, 196, 202, 211), 0.2), 0 0 40px rgba(var(--ambient-rgb, 196, 202, 211), 0.08);
 }
 
 .glow-lg {
-  box-shadow: 0 0 30px rgba(var(--ambient-rgb, 16, 185, 129), 0.3), 0 0 80px rgba(var(--ambient-rgb, 16, 185, 129), 0.12);
+  box-shadow: 0 0 30px rgba(var(--ambient-rgb, 196, 202, 211), 0.3), 0 0 80px rgba(var(--ambient-rgb, 196, 202, 211), 0.12);
 }
 
 .glow-pulse {
@@ -649,10 +688,10 @@
 
 @keyframes glow-pulse-anim {
   0%, 100% {
-    box-shadow: 0 0 15px rgba(var(--ambient-rgb, 16, 185, 129), 0.15);
+    box-shadow: 0 0 15px rgba(var(--ambient-rgb, 196, 202, 211), 0.15);
   }
   50% {
-    box-shadow: 0 0 30px rgba(var(--ambient-rgb, 16, 185, 129), 0.3), 0 0 60px rgba(var(--ambient-rgb, 16, 185, 129), 0.1);
+    box-shadow: 0 0 30px rgba(var(--ambient-rgb, 196, 202, 211), 0.3), 0 0 60px rgba(var(--ambient-rgb, 196, 202, 211), 0.1);
   }
 }
 
@@ -702,8 +741,8 @@
 
 /* ---- Text Decode/Scramble ---- */
 @keyframes text-glow {
-  0%, 100% { text-shadow: 0 0 4px rgba(16, 185, 129, 0); }
-  50% { text-shadow: 0 0 12px rgba(16, 185, 129, 0.4); }
+  0%, 100% { text-shadow: 0 0 4px rgba(196, 202, 211, 0); }
+  50% { text-shadow: 0 0 12px rgba(196, 202, 211, 0.4); }
 }
 
 .text-decode-char {
@@ -713,11 +752,11 @@
 
 /* ---- Ambient Theme Variables (defaults — overridden by useAmbientTheme) ---- */
 :root {
-  --ambient-primary: #10B981;
-  --ambient-rgb: 16, 185, 129;
-  --ambient-primary-muted: rgba(16, 185, 129, 0.15);
-  --ambient-primary-subtle: rgba(16, 185, 129, 0.08);
-  --ambient-glow: 0 0 30px rgba(16, 185, 129, 0.2);
+  --ambient-primary: #C4CAD3;
+  --ambient-rgb: 196, 202, 211;
+  --ambient-primary-muted: rgba(196, 202, 211, 0.15);
+  --ambient-primary-subtle: rgba(196, 202, 211, 0.08);
+  --ambient-glow: 0 0 30px rgba(196, 202, 211, 0.2);
 }
 
 /* ---- Magnetic Button ---- */
@@ -750,7 +789,7 @@
 }
 
 .status-ring-dnd {
-  box-shadow: 0 0 8px rgba(239, 68, 68, 0.4);
+  box-shadow: 0 0 8px rgba(197, 72, 70, 0.4);
 }
 
 /* ---- 3D Tilt Perspective Container ---- */

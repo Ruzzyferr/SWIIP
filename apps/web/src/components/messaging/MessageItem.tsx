@@ -37,7 +37,6 @@ import { useAuthStore } from '@/stores/auth.store';
 import { useUIStore } from '@/stores/ui.store';
 import { useGuildsStore } from '@/stores/guilds.store';
 import { editMessage, deleteMessage, addReaction, getMessageRevisions, type MessageRevision } from '@/lib/api/messages.api';
-import { createThread } from '@/lib/api/channels.api';
 import { pinMessage, unpinMessage } from '@/lib/api/channels.api';
 import { useMessagesStore } from '@/stores/messages.store';
 import { useDMsStore } from '@/stores/dms.store';
@@ -353,16 +352,17 @@ function ReactionPill({
     <motion.button
       onClick={handleClick}
       className="reaction-pill"
-      whileHover={{ scale: 1.1 }}
-      whileTap={{ scale: 0.9 }}
-      transition={{ type: 'spring', stiffness: 500, damping: 25 }}
+      whileHover={{ y: -1 }}
+      whileTap={{ y: 0 }}
+      transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
       style={{
         background: hasReacted
           ? 'var(--color-accent-muted)'
-          : 'var(--color-surface-raised)',
+          : 'var(--color-surface-elevated)',
         borderColor: hasReacted
           ? 'var(--color-accent-strong)'
-          : 'var(--color-border-subtle)',
+          : 'var(--color-border-default)',
+        boxShadow: 'var(--shadow-sm)',
       }}
       aria-label={`${reaction.emoji.name} — ${reaction.count} reactions`}
       aria-pressed={hasReacted}
@@ -370,10 +370,10 @@ function ReactionPill({
       <span>{reaction.emoji.id ? '' : reaction.emoji.name}</span>
       <motion.span
         key={reaction.count}
-        initial={{ y: -8, opacity: 0 }}
+        initial={{ y: -6, opacity: 0 }}
         animate={{ y: 0, opacity: 1 }}
-        transition={{ type: 'spring', stiffness: 400, damping: 20 }}
-        className="text-xs font-medium"
+        transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+        className="text-xs font-medium tabular-nums"
         style={{
           color: hasReacted ? 'var(--color-text-accent)' : 'var(--color-text-secondary)',
         }}
@@ -427,16 +427,11 @@ function MessageActions({
 
   return (
     <div
-      className="message-actions flex items-center gap-0.5 rounded-xl px-1 py-1"
+      className="flex items-center gap-0.5 rounded-md px-1 py-0.5"
       style={{
-        background: 'var(--glass-bg)',
-        backdropFilter: 'blur(16px)',
-        WebkitBackdropFilter: 'blur(16px)',
+        background: 'var(--color-surface-elevated)',
         border: '1px solid var(--color-border-subtle)',
-        boxShadow: 'var(--shadow-float)',
-        position: 'absolute',
-        right: 12,
-        top: -18,
+        boxShadow: 'var(--shadow-sm)',
       }}
     >
       {/* Add Reaction button */}
@@ -531,6 +526,8 @@ interface MessageItemProps {
   isSelected?: boolean;
   isHighlighted?: boolean;
   onToggleSelect?: () => void;
+  /** Delay (ms) for the entrance animation — used for initial-load stagger. 0 = no delay. */
+  revealDelayMs?: number;
 }
 
 export function MessageItem({
@@ -543,6 +540,7 @@ export function MessageItem({
   isSelected = false,
   isHighlighted = false,
   onToggleSelect,
+  revealDelayMs = 0,
 }: MessageItemProps) {
   const t = useTranslations('messages');
   const currentUser = useAuthStore((s) => s.user);
@@ -552,7 +550,6 @@ export function MessageItem({
 
   const [editing, setEditing] = useState(false);
   const [editContent, setEditContent] = useState(message.content ?? '');
-  const [hovered, setHovered] = useState(false);
   const [showReactionPicker, setShowReactionPicker] = useState(false);
   const [lightboxIndex, setLightboxIndex] = useState<number | null>(null);
   const [showRevisions, setShowRevisions] = useState(false);
@@ -625,17 +622,13 @@ export function MessageItem({
     }
   };
 
-  const handleStartThread = async () => {
-    const name = window.prompt('Thread name:');
-    if (!name?.trim()) return;
-    try {
-      const thread = await createThread(channelId, name.trim(), message.id);
-      if (thread.channel?.id) {
-        useUIStore.getState().openThread(thread.channel.id);
-      }
-    } catch (err: unknown) {
-      toastError(err instanceof Error ? err.message : 'Failed to create thread');
-    }
+  const handleStartThread = () => {
+    const preview = (message.content ?? '').slice(0, 140);
+    useUIStore.getState().openModal('create-thread', {
+      channelId,
+      parentMessageId: message.id,
+      parentPreview: preview,
+    });
   };
 
   const handleDelete = async () => {
@@ -696,35 +689,64 @@ export function MessageItem({
 
   return (
     <>
-      {/* Unread separator */}
+      {/* Unread divider — editorial pill: dot · "N new messages since Xm ago" */}
       {showUnreadSeparator && (
-        <div className="flex items-center gap-3 px-4 py-2">
-          <div className="flex-1 h-px" style={{ background: 'var(--color-danger-default)' }} />
-          <span
-            className="text-xs font-semibold flex-shrink-0"
-            style={{ color: 'var(--color-danger-default)' }}
+        <div
+          className="flex items-center gap-3 py-2"
+          style={{ paddingLeft: '60px', paddingRight: '24px' }}
+        >
+          <div
+            className="flex items-center gap-2 px-3 py-1 rounded-md flex-shrink-0"
+            style={{
+              background: 'var(--color-surface-raised)',
+              border: '1px solid var(--color-accent-primary)',
+              boxShadow: '0 0 0 3px var(--color-accent-subtle)',
+            }}
           >
-            {t('newMessages')}
-          </span>
-          <div className="flex-1 h-px" style={{ background: 'var(--color-danger-default)' }} />
+            <span
+              className="w-1.5 h-1.5 rounded-full flex-shrink-0"
+              style={{ background: 'var(--color-accent-primary)' }}
+              aria-hidden="true"
+            />
+            <span
+              className="text-[11px] font-medium uppercase tracking-wider"
+              style={{
+                color: 'var(--color-text-primary)',
+                fontFamily: 'var(--font-sans)',
+                letterSpacing: '0.12em',
+              }}
+            >
+              {t('newMessages')}
+            </span>
+          </div>
+          <div
+            className="flex-1 h-px"
+            style={{
+              background:
+                'linear-gradient(to right, var(--color-accent-primary), transparent)',
+              opacity: 0.35,
+            }}
+          />
         </div>
       )}
 
       {/* Message row — glass bubble style */}
       <ContextMenu items={contextMenuItems}>
       <motion.div
-        initial={{ opacity: 0, y: 8, filter: 'blur(2px)' }}
-        animate={{ opacity: 1, y: 0, filter: 'blur(0px)' }}
-        transition={{ type: 'spring', stiffness: 500, damping: 35, mass: 0.5 }}
-        className="message-row relative group px-3 py-0.5"
+        initial={{ opacity: 0, y: 6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{
+          duration: 0.22,
+          ease: [0.2, 0.8, 0.2, 1],
+          delay: revealDelayMs / 1000,
+        }}
+        className="message-row group"
+        data-grouped={isGrouped ? 'true' : 'false'}
+        data-author-id={authorId}
         style={{
-          paddingTop: isGrouped ? '2px' : '8px',
-          display: 'flex',
-          flexDirection: canEdit ? 'row-reverse' : 'row',
+          background: isHighlighted ? 'rgba(214, 154, 60, 0.06)' : 'transparent',
           transition: 'background 600ms ease',
         }}
-        onMouseEnter={() => setHovered(true)}
-        onMouseLeave={() => setHovered(false)}
         onClick={(e) => {
           if (e.shiftKey && onToggleSelect) {
             e.preventDefault();
@@ -752,76 +774,37 @@ export function MessageItem({
             </button>
           </div>
         )}
-        {/* Actions toolbar */}
-        {(hovered || showReactionPicker) && !editing && (
-          <MessageActions
-            onReact={() => setShowReactionPicker(true)}
-            onReply={() => onReply(message)}
-            onEdit={canEdit ? () => {
-              setEditing(true);
-              setEditContent(message.content ?? '');
-              setTimeout(() => {
-                editRef.current?.focus();
-                editRef.current?.select();
-              }, 10);
-            } : undefined}
-            onPin={handlePin}
-            onDelete={canEdit ? handleDelete : undefined}
-            canEdit={canEdit}
-            isPinned={isPinned}
-            showReactionPicker={showReactionPicker}
-            onToggleReactionPicker={() => setShowReactionPicker((v) => !v)}
-            channelId={channelId}
-            messageId={message.id}
-          />
-        )}
 
-        <div className="flex gap-2.5" style={{ maxWidth: '85%', flexDirection: canEdit ? 'row-reverse' : 'row' }}>
-          {/* Avatar column */}
-          <div className="w-9 flex-shrink-0 flex justify-center">
-            {isGrouped ? (
-              hovered ? (
-                <span
-                  className="text-[10px] leading-5 mt-0.5 select-none"
-                  style={{ color: 'var(--color-text-disabled)' }}
-                  title={timestamp.toLocaleString()}
-                >
-                  {timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                </span>
-              ) : (
-                <div className="w-9" />
-              )
-            ) : (
-              <button onClick={() => openModal('user-profile', { userId: authorId })} className="cursor-pointer">
+        {/* Speaker rhythm line (D5) — sol gutter hairline */}
+        <div className="message-rhythm-line" aria-hidden="true" />
+
+        {/* Avatar column */}
+        <div className="flex justify-center">
+          {isGrouped ? (
+            <span
+              className="select-none text-[10px] leading-5 tabular-nums opacity-0 group-hover:opacity-100 transition-opacity"
+              style={{
+                color: 'var(--color-text-disabled)',
+                fontFamily: 'var(--font-sans)',
+              }}
+              title={timestamp.toLocaleString()}
+            >
+              {timestamp.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+          ) : (
+            <button onClick={() => openModal('user-profile', { userId: authorId })} className="cursor-pointer">
               <Avatar
                 userId={authorId}
                 src={message.author?.avatar}
                 displayName={authorName}
                 size="md"
-                className="mt-0.5"
               />
-              </button>
-            )}
-          </div>
+            </button>
+          )}
+        </div>
 
-          {/* Content column — glass bubble */}
-          <div
-            className="flex-1 min-w-0 rounded-2xl px-3.5 py-2.5"
-            style={{
-              background: canEdit
-                ? 'rgba(16, 185, 129, 0.10)'
-                : isHighlighted
-                ? 'rgba(250, 166, 26, 0.08)'
-                : 'rgba(255, 255, 255, 0.04)',
-              border: `1px solid ${canEdit ? 'rgba(16, 185, 129, 0.15)' : 'rgba(255, 255, 255, 0.06)'}`,
-              borderRadius: canEdit
-                ? (isGrouped ? '18px 6px 18px 18px' : '18px 18px 6px 18px')
-                : (isGrouped ? '6px 18px 18px 18px' : '18px 18px 18px 6px'),
-              boxShadow: canEdit
-                ? '0 1px 3px rgba(16, 185, 129, 0.06)'
-                : '0 1px 2px rgba(0, 0, 0, 0.08)',
-            }}
-          >
+        {/* Content column — flat feed (D1) */}
+        <div className="min-w-0">
             {/* Header row (non-grouped) */}
             {!isGrouped && (
               <div className="flex items-baseline gap-2 mb-0.5">
@@ -837,8 +820,12 @@ export function MessageItem({
                   placement="top"
                 >
                   <time
-                    className="text-xs cursor-default"
-                    style={{ color: 'var(--color-text-disabled)' }}
+                    className="text-xs cursor-default italic"
+                    style={{
+                      color: 'var(--color-text-tertiary)',
+                      fontFamily: 'var(--font-display)',
+                      fontFeatureSettings: '"opsz" auto',
+                    }}
                     dateTime={timestamp.toISOString()}
                   >
                     {formatDistanceToNow(timestamp, { addSuffix: true })}
@@ -851,13 +838,12 @@ export function MessageItem({
                       <Clock size={12} style={{ color: 'var(--color-text-tertiary)', opacity: 0.7 }} />
                     </Tooltip>
                   ) : (() => {
-                    // Check if recipient has read this message (DM read receipt)
                     const recipientReadId = useDMsStore.getState().recipientReadState[channelId];
                     const isRead = recipientReadId && recipientReadId >= message.id;
                     return (
                       <Tooltip content={isRead ? t('read') : t('delivered')} placement="top">
                         {isRead ? (
-                          <CheckCheck size={12} style={{ color: '#10B981' }} />
+                          <CheckCheck size={12} style={{ color: 'var(--color-success-default)' }} />
                         ) : (
                           <Check size={12} style={{ color: 'var(--color-text-tertiary)' }} />
                         )}
@@ -1130,7 +1116,32 @@ export function MessageItem({
                 <span>{t('viewThread')}</span>
               </button>
             )}
-          </div>
+        </div>
+
+        {/* Right gutter actions (D2) — inline, hover + focus-within reveal */}
+        <div className="message-gutter-actions">
+          {!editing && (
+            <MessageActions
+              onReact={() => setShowReactionPicker(true)}
+              onReply={() => onReply(message)}
+              onEdit={canEdit ? () => {
+                setEditing(true);
+                setEditContent(message.content ?? '');
+                setTimeout(() => {
+                  editRef.current?.focus();
+                  editRef.current?.select();
+                }, 10);
+              } : undefined}
+              onPin={handlePin}
+              onDelete={canEdit ? handleDelete : undefined}
+              canEdit={canEdit}
+              isPinned={isPinned}
+              showReactionPicker={showReactionPicker}
+              onToggleReactionPicker={() => setShowReactionPicker((v) => !v)}
+              channelId={channelId}
+              messageId={message.id}
+            />
+          )}
         </div>
       </motion.div>
       </ContextMenu>

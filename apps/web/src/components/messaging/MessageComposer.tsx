@@ -27,7 +27,6 @@ import {
 } from 'lucide-react';
 import { useTranslations } from 'next-intl';
 import { Tooltip } from '@/components/ui/Tooltip';
-import { Spinner } from '@/components/ui/Spinner';
 import { EmojiPicker } from '@/components/ui/EmojiPicker';
 import { MentionAutocomplete } from './MentionAutocomplete';
 import { sendMessage, requestAttachmentUpload, uploadFileToPresignedUrl } from '@/lib/api/messages.api';
@@ -44,9 +43,14 @@ import type { MessagePayload, AttachmentRef } from '@constchat/protocol';
 
 function AttachmentPreview({
   file,
+  progress,
+  uploading,
   onRemove,
 }: {
   file: File;
+  /** 0–100. When uploading, drives a conic ring overlay. */
+  progress?: number;
+  uploading?: boolean;
   onRemove: () => void;
 }) {
   const isImage = file.type.startsWith('image/');
@@ -57,6 +61,10 @@ function AttachmentPreview({
       if (previewUrl) URL.revokeObjectURL(previewUrl);
     };
   }, [previewUrl]);
+
+  const pct = typeof progress === 'number' ? Math.max(0, Math.min(100, progress)) : 0;
+  const showRing = uploading || (pct > 0 && pct < 100);
+  const completed = pct >= 100;
 
   return (
     <div
@@ -94,6 +102,64 @@ function AttachmentPreview({
           </div>
         </div>
       )}
+
+      {/* Conic-gradient upload ring — shows during upload and briefly on completion */}
+      <AnimatePresence>
+        {showRing && (
+          <motion.div
+            key="ring"
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
+            className="absolute inset-0 pointer-events-none flex items-center justify-center"
+            aria-hidden="true"
+          >
+            <div
+              className="absolute inset-0"
+              style={{
+                background: `conic-gradient(var(--color-accent-primary) ${pct * 3.6}deg, rgba(0,0,0,0.35) 0deg)`,
+                WebkitMask:
+                  'radial-gradient(circle, transparent 36%, #000 37%, #000 44%, transparent 45%)',
+                mask:
+                  'radial-gradient(circle, transparent 36%, #000 37%, #000 44%, transparent 45%)',
+              }}
+            />
+            <span
+              className="relative z-10 text-[11px] font-medium tabular-nums px-2 py-0.5 rounded-md"
+              style={{
+                background: 'var(--color-surface-floating)',
+                color: 'var(--color-text-primary)',
+                border: '1px solid var(--color-border-subtle)',
+              }}
+            >
+              {pct}%
+            </span>
+          </motion.div>
+        )}
+        {completed && !uploading && (
+          <motion.div
+            key="checkmark"
+            initial={{ opacity: 0, scale: 0.6 }}
+            animate={{ opacity: 1, scale: 1 }}
+            exit={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.24, ease: [0.2, 0.8, 0.2, 1] }}
+            className="absolute inset-0 flex items-center justify-center pointer-events-none"
+            aria-hidden="true"
+          >
+            <span
+              className="flex items-center justify-center w-8 h-8 rounded-full"
+              style={{
+                background: 'var(--color-accent-primary)',
+                color: '#0A0C11',
+                boxShadow: '0 0 0 6px var(--color-accent-subtle)',
+              }}
+            >
+              <Check size={14} strokeWidth={3} />
+            </span>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Remove button */}
       <button
@@ -204,11 +270,12 @@ export function MessageComposer({
     }, 1000);
     return () => clearInterval(timer);
   }, [slowmodeCooldown]);
-  const [uploadProgress, setUploadProgress] = useState(0); // 0-100
+  const [fileProgress, setFileProgress] = useState<number[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [mentionQuery, setMentionQuery] = useState<string | null>(null);
   const [mentionStartPos, setMentionStartPos] = useState<number>(0);
+  const [pasteToast, setPasteToast] = useState(false);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const emojiButtonRef = useRef<HTMLButtonElement>(null);
   const addMessage = useMessagesStore((s) => s.addMessage);
@@ -348,7 +415,7 @@ export function MessageComposer({
 
       // Upload files via presigned URLs
       if (files.length > 0) {
-        setUploadProgress(0);
+        setFileProgress(new Array(files.length).fill(0));
         const presignResponse = await requestAttachmentUpload(
           channelId,
           files.map((f) => ({
@@ -358,20 +425,21 @@ export function MessageComposer({
           })),
         );
 
-        // Upload each file directly to S3 with progress tracking
-        const perFileProgress = new Array(files.length).fill(0);
+        // Upload each file directly to S3 with per-file progress tracking
         await Promise.all(
           presignResponse.map((presigned, i) =>
             uploadFileToPresignedUrl(presigned.uploadUrl, files[i]!, (pct) => {
-              perFileProgress[i] = pct;
-              const avg = perFileProgress.reduce((a, b) => a + b, 0) / files.length;
-              setUploadProgress(Math.round(avg));
+              setFileProgress((prev) => {
+                const next = [...prev];
+                next[i] = Math.round(pct);
+                return next;
+              });
             }),
           ),
         );
 
         attachmentIds = presignResponse.map((p) => p.uploadId);
-        setUploadProgress(100);
+        setFileProgress((prev) => prev.map(() => 100));
       }
 
       const msg = await sendMessage(channelId, {
@@ -388,6 +456,7 @@ export function MessageComposer({
 
       setContent('');
       setFiles([]);
+      setFileProgress([]);
       onClearReply();
       localStorage.removeItem(DRAFT_KEY(channelId));
       if (slowmodeSeconds > 0) setSlowmodeCooldown(slowmodeSeconds);
@@ -530,8 +599,16 @@ export function MessageComposer({
     if (pastedFiles.length > 0) {
       e.preventDefault();
       setFiles((prev) => [...prev, ...pastedFiles].slice(0, 10));
+      setPasteToast(true);
     }
   }, []);
+
+  // Auto-dismiss paste toast
+  useEffect(() => {
+    if (!pasteToast) return;
+    const t = setTimeout(() => setPasteToast(false), 2000);
+    return () => clearTimeout(t);
+  }, [pasteToast]);
 
   // Dropzone
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
@@ -577,32 +654,32 @@ export function MessageComposer({
 
   return (
     <div
-      className="px-2 sm:px-4 pt-2 flex-shrink-0 min-w-0"
+      className="px-2 sm:px-4 pt-2 flex-shrink-0 min-w-0 relative"
       style={{ paddingBottom: 'calc(env(safe-area-inset-bottom, 0px) + 12px)' }}
       {...getRootProps()}
     >
       <input {...getInputProps()} />
 
       <motion.div
-        className="rounded-2xl overflow-hidden"
+        className="rounded-2xl overflow-hidden relative"
         animate={{
           boxShadow: isDragActive
             ? 'var(--shadow-glow)'
             : isFocused
-            ? '0 0 0 2px var(--ambient-primary-muted, rgba(16,185,129,0.15)), 0 4px 20px rgba(0,0,0,0.3)'
+            ? '0 0 0 1px var(--color-border-focus), 0 10px 28px -12px rgba(0,0,0,0.55)'
             : '0 2px 10px rgba(0,0,0,0.2)',
         }}
-        transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+        transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
         style={{
-          background: 'rgba(18, 22, 22, 0.75)',
+          background: 'var(--color-surface-elevated)',
           backdropFilter: 'blur(20px)',
           WebkitBackdropFilter: 'blur(20px)',
           border: isDragActive || isDragOver
-            ? '2px solid var(--color-accent-primary)'
+            ? '1px solid var(--color-accent-primary)'
             : isFocused
-            ? '1px solid var(--ambient-primary, var(--color-accent-primary))'
+            ? '1px solid var(--color-border-focus)'
             : '1px solid var(--color-border-subtle)',
-          transition: 'border-color 300ms ease',
+          transition: 'border-color 220ms cubic-bezier(0.2, 0.8, 0.2, 1)',
         }}
       >
         {/* Reply / Edit header */}
@@ -654,6 +731,8 @@ export function MessageComposer({
                 <AttachmentPreview
                   key={`${file.name}-${i}`}
                   file={file}
+                  progress={fileProgress[i] ?? 0}
+                  uploading={sending && (fileProgress[i] ?? 0) < 100}
                   onRemove={() => removeFile(i)}
                 />
               ))}
@@ -796,91 +875,88 @@ export function MessageComposer({
               />
             )}
 
-            {/* Send button — morphing animation */}
+            {/* Send button — Gravitas morph + platinum glow ring on success */}
             <Tooltip content={editingMessage ? t('saveEdit') : t('sendMessage')} placement="top">
-              <motion.button
-                onClick={() => {
-                  if (!canSend) return;
-                  setSendState('sending');
-                  handleSend().finally(() => {
-                    setSendState('sent');
-                    setTimeout(() => setSendState('idle'), 1200);
-                  });
-                }}
-                disabled={!canSend}
-                whileHover={canSend ? { scale: 1.08 } : undefined}
-                whileTap={canSend ? { scale: 0.92 } : undefined}
-                transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-                className="w-9 h-9 rounded-lg flex items-center justify-center"
-                style={{
-                  background: sendState === 'sent'
-                    ? 'var(--color-success-default)'
-                    : canSend
-                    ? 'var(--color-accent-primary)'
-                    : 'transparent',
-                  color: canSend || sendState === 'sent' ? '#ffffff' : 'var(--color-text-disabled)',
-                  transition: 'background 300ms ease, color 300ms ease',
-                }}
-                aria-label={editingMessage ? t('saveEdit') : t('sendMessage')}
-              >
-                <AnimatePresence mode="wait">
-                  {sendState === 'sending' ? (
-                    <motion.div
-                      key="spinner"
-                      initial={{ scale: 0, rotate: -90 }}
-                      animate={{ scale: 1, rotate: 0 }}
-                      exit={{ scale: 0, rotate: 90 }}
-                      transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-                    >
-                      <Loader2 size={15} className="animate-spin" />
-                    </motion.div>
-                  ) : sendState === 'sent' ? (
-                    <motion.div
-                      key="check"
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      exit={{ scale: 0 }}
-                      transition={{ type: 'spring', stiffness: 500, damping: 20 }}
-                    >
-                      <Check size={15} />
-                    </motion.div>
-                  ) : (
-                    <motion.div
-                      key="send"
-                      initial={{ scale: 0 }}
-                      animate={{ scale: 1 }}
-                      exit={{ scale: 0 }}
-                      transition={{ type: 'spring', stiffness: 500, damping: 25 }}
-                    >
-                      <Send size={15} />
-                    </motion.div>
+              <div className="relative">
+                <AnimatePresence>
+                  {sendState === 'sent' && (
+                    <motion.span
+                      key="glow-ring"
+                      initial={{ opacity: 0.9, scale: 0.9 }}
+                      animate={{ opacity: 0, scale: 2.4 }}
+                      exit={{ opacity: 0 }}
+                      transition={{ duration: 0.6, ease: [0.2, 0.8, 0.2, 1] }}
+                      className="absolute inset-0 rounded-full pointer-events-none"
+                      style={{
+                        boxShadow: '0 0 0 2px var(--color-accent-primary), 0 0 20px 4px var(--color-accent-subtle)',
+                      }}
+                      aria-hidden="true"
+                    />
                   )}
                 </AnimatePresence>
-              </motion.button>
+                <motion.button
+                  onClick={() => {
+                    if (!canSend) return;
+                    setSendState('sending');
+                    handleSend().finally(() => {
+                      setSendState('sent');
+                      setTimeout(() => setSendState('idle'), 1200);
+                    });
+                  }}
+                  disabled={!canSend}
+                  whileHover={canSend ? { y: -1 } : undefined}
+                  whileTap={canSend ? { y: 0, scale: 0.97 } : undefined}
+                  transition={{ duration: 0.18, ease: [0.2, 0.8, 0.2, 1] }}
+                  className="w-9 h-9 rounded-lg flex items-center justify-center relative"
+                  style={{
+                    background: sendState === 'sent'
+                      ? 'var(--color-success-default)'
+                      : canSend
+                      ? 'var(--color-accent-primary)'
+                      : 'transparent',
+                    color: canSend || sendState === 'sent' ? '#0A0C11' : 'var(--color-text-disabled)',
+                    transition: 'background 220ms cubic-bezier(0.2,0.8,0.2,1), color 220ms cubic-bezier(0.2,0.8,0.2,1)',
+                  }}
+                  aria-label={editingMessage ? t('saveEdit') : t('sendMessage')}
+                >
+                  <AnimatePresence mode="wait">
+                    {sendState === 'sending' ? (
+                      <motion.div
+                        key="spinner"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.14, ease: [0.2, 0.8, 0.2, 1] }}
+                      >
+                        <Loader2 size={15} className="animate-spin" />
+                      </motion.div>
+                    ) : sendState === 'sent' ? (
+                      <motion.div
+                        key="check"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
+                      >
+                        <Check size={15} strokeWidth={3} />
+                      </motion.div>
+                    ) : (
+                      <motion.div
+                        key="send"
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        transition={{ duration: 0.16, ease: [0.2, 0.8, 0.2, 1] }}
+                      >
+                        <Send size={15} />
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </motion.button>
+              </div>
             </Tooltip>
           </div>
         </div>
-
-        {/* Upload progress bar */}
-        {sending && uploadProgress > 0 && uploadProgress < 100 && (
-          <div className="px-3 pb-1">
-            <div
-              className="h-1 rounded-full overflow-hidden"
-              style={{ background: 'var(--color-surface-overlay)' }}
-            >
-              <div
-                className="h-full rounded-full transition-all duration-200"
-                style={{
-                  width: `${uploadProgress}%`,
-                  background: 'var(--color-accent-primary)',
-                }}
-              />
-            </div>
-            <p className="text-xs mt-0.5" style={{ color: 'var(--color-text-tertiary)' }}>
-              {t('upload.uploadingProgress', { progress: uploadProgress })}
-            </p>
-          </div>
-        )}
 
         {/* Slowmode indicator */}
         {slowmodeCooldown > 0 && (
@@ -903,73 +979,129 @@ export function MessageComposer({
           </div>
         )}
 
-        {/* Formatting hints */}
+        {/* Formatting toolbar — always visible, 16px icons, inline toolbar row */}
         <div
-          className="flex flex-col gap-1.5 sm:flex-row sm:items-center sm:gap-3 px-2 sm:px-3 pb-1.5"
-          style={{ color: 'var(--color-text-disabled)' }}
+          className="flex items-center gap-1 px-2 sm:px-3 pb-1.5 border-t"
+          style={{
+            borderColor: 'var(--color-border-subtle)',
+            paddingTop: '6px',
+          }}
         >
-          <span className="text-[10px] sm:text-xs hidden sm:inline">
-            <kbd className="font-mono">Enter</kbd> {t('hints.send')} ·{' '}
-            <kbd className="font-mono">Shift+Enter</kbd> {t('hints.newLine')}
-          </span>
-          <div className="flex items-center gap-1 sm:ml-auto">
+          <div className="flex items-center gap-0.5">
             <Tooltip content={t('formatting.bold')} placement="top">
               <button
                 onClick={() => wrapSelection('**')}
-                className="p-1 rounded transition-colors duration-fast text-xs font-bold"
-                style={{ color: 'var(--color-text-disabled)' }}
+                className="w-7 h-7 rounded-md flex items-center justify-center transition-colors duration-fast"
+                style={{ color: 'var(--color-text-tertiary)' }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.color = 'var(--color-text-secondary)';
+                  e.currentTarget.style.color = 'var(--color-text-primary)';
                   e.currentTarget.style.background = 'var(--color-surface-overlay)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.color = 'var(--color-text-disabled)';
+                  e.currentTarget.style.color = 'var(--color-text-tertiary)';
                   e.currentTarget.style.background = 'transparent';
                 }}
                 aria-label={t('formatting.bold')}
               >
-                <Bold size={12} />
+                <Bold size={14} strokeWidth={2.25} />
               </button>
             </Tooltip>
             <Tooltip content={t('formatting.italic')} placement="top">
               <button
                 onClick={() => wrapSelection('*')}
-                className="p-1 rounded transition-colors duration-fast"
-                style={{ color: 'var(--color-text-disabled)' }}
+                className="w-7 h-7 rounded-md flex items-center justify-center transition-colors duration-fast"
+                style={{ color: 'var(--color-text-tertiary)' }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.color = 'var(--color-text-secondary)';
+                  e.currentTarget.style.color = 'var(--color-text-primary)';
                   e.currentTarget.style.background = 'var(--color-surface-overlay)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.color = 'var(--color-text-disabled)';
+                  e.currentTarget.style.color = 'var(--color-text-tertiary)';
                   e.currentTarget.style.background = 'transparent';
                 }}
                 aria-label={t('formatting.italic')}
               >
-                <Italic size={12} />
+                <Italic size={14} strokeWidth={2.25} />
               </button>
             </Tooltip>
             <Tooltip content={t('formatting.code')} placement="top">
               <button
                 onClick={() => wrapSelection('`')}
-                className="p-1 rounded transition-colors duration-fast"
-                style={{ color: 'var(--color-text-disabled)' }}
+                className="w-7 h-7 rounded-md flex items-center justify-center transition-colors duration-fast"
+                style={{ color: 'var(--color-text-tertiary)' }}
                 onMouseEnter={(e) => {
-                  e.currentTarget.style.color = 'var(--color-text-secondary)';
+                  e.currentTarget.style.color = 'var(--color-text-primary)';
                   e.currentTarget.style.background = 'var(--color-surface-overlay)';
                 }}
                 onMouseLeave={(e) => {
-                  e.currentTarget.style.color = 'var(--color-text-disabled)';
+                  e.currentTarget.style.color = 'var(--color-text-tertiary)';
                   e.currentTarget.style.background = 'transparent';
                 }}
                 aria-label={t('formatting.code')}
               >
-                <Code size={12} />
+                <Code size={14} strokeWidth={2.25} />
               </button>
             </Tooltip>
           </div>
+          <span
+            className="ml-auto text-[11px] hidden sm:inline tabular-nums"
+            style={{ color: 'var(--color-text-disabled)' }}
+          >
+            <kbd
+              className="inline-block px-1.5 py-0.5 rounded border text-[10px] font-sans"
+              style={{
+                background: 'var(--color-surface-raised)',
+                borderColor: 'var(--color-border-subtle)',
+                color: 'var(--color-text-tertiary)',
+              }}
+            >
+              Enter
+            </kbd>{' '}
+            {t('hints.send')}
+            <span className="mx-1.5" style={{ opacity: 0.5 }}>·</span>
+            <kbd
+              className="inline-block px-1.5 py-0.5 rounded border text-[10px] font-sans"
+              style={{
+                background: 'var(--color-surface-raised)',
+                borderColor: 'var(--color-border-subtle)',
+                color: 'var(--color-text-tertiary)',
+              }}
+            >
+              Shift+Enter
+            </kbd>{' '}
+            {t('hints.newLine')}
+          </span>
         </div>
       </motion.div>
+
+      {/* Paste toast — appears briefly after pasting from clipboard */}
+      <AnimatePresence>
+        {pasteToast && (
+          <motion.div
+            key="paste-toast"
+            initial={{ opacity: 0, y: 6 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: 6 }}
+            transition={{ duration: 0.22, ease: [0.2, 0.8, 0.2, 1] }}
+            className="absolute left-4 bottom-full mb-2 pointer-events-none italic"
+            style={{
+              background: 'var(--color-surface-floating)',
+              border: '1px solid var(--color-border-subtle)',
+              color: 'var(--color-text-secondary)',
+              fontFamily: 'var(--font-display)',
+              fontFeatureSettings: '"opsz" auto',
+              fontSize: '13px',
+              letterSpacing: '-0.005em',
+              padding: '6px 12px',
+              borderRadius: 'var(--radius-md)',
+              boxShadow: 'var(--shadow-md)',
+            }}
+            aria-live="polite"
+          >
+            Pasted from clipboard.
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }

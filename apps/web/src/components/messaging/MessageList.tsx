@@ -19,13 +19,17 @@ import type { MessagePayload } from '@constchat/protocol';
 
 function DateSeparator({ date }: { date: Date }) {
   return (
-    <div className="flex items-center gap-3 px-4 py-2">
-      <div className="flex-1 h-px" style={{ background: 'var(--color-border-subtle)' }} />
+    <div className="flex items-center gap-3 py-3" style={{ paddingLeft: '60px', paddingRight: '24px' }}>
       <span
-        className="text-xs font-semibold flex-shrink-0 px-2"
-        style={{ color: 'var(--color-text-disabled)' }}
+        className="italic text-sm flex-shrink-0"
+        style={{
+          color: 'var(--color-text-tertiary)',
+          fontFamily: 'var(--font-display)',
+          fontFeatureSettings: '"opsz" auto',
+          letterSpacing: '-0.01em',
+        }}
       >
-        {formatDateSeparator(date)}
+        {formatDateSeparator(date)}.
       </span>
       <div className="flex-1 h-px" style={{ background: 'var(--color-border-subtle)' }} />
     </div>
@@ -164,6 +168,10 @@ export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessa
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkDeleting, setBulkDeleting] = useState(false);
   const selectionMode = selectedIds.size > 0;
+  // Initial-reveal window: items mounted while this is true get a stagger delay.
+  // Flipped off shortly after the list first renders so later messages (scroll,
+  // live arrivals) animate without any extra delay.
+  const [isInitialReveal, setIsInitialReveal] = useState(true);
 
   const toggleSelect = useCallback((messageId: string) => {
     setSelectedIds((prev) => {
@@ -235,6 +243,9 @@ export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessa
   useEffect(() => {
     setUnreadCount(0);
     prevMessageCountRef.current = 0;
+    setIsInitialReveal(true);
+    const t = setTimeout(() => setIsInitialReveal(false), 600);
+    return () => clearTimeout(t);
   }, [channelId]);
 
   // Initial load — show cached messages first, then fetch fresh from API
@@ -416,6 +427,14 @@ export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessa
               prevMessageItem.kind === 'message' &&
               prevMessageItem.message.id === lastReadMessageId;
 
+            // Stagger the first reveal: capped 30ms steps from the bottom up,
+            // so the last (newest) message lands first and earlier ones follow.
+            let revealDelayMs = 0;
+            if (isInitialReveal) {
+              const distanceFromBottom = listItems.length - 1 - index;
+              revealDelayMs = Math.min(distanceFromBottom, 9) * 30;
+            }
+
             return (
               <MessageItem
                 key={item.message.id}
@@ -428,6 +447,7 @@ export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessa
                 selectionMode={selectionMode}
                 isSelected={selectedIds.has(item.message.id)}
                 onToggleSelect={() => toggleSelect(item.message.id)}
+                revealDelayMs={revealDelayMs}
               />
             );
           }}
@@ -447,24 +467,31 @@ export function MessageList({ channelId, lastReadMessageId, onReply, jumpToMessa
               ) : hasMore ? (
                 <div className="h-4" />
               ) : (
-                <div className="flex flex-col items-center py-8 px-4">
-                  <div
-                    className="w-16 h-16 rounded-full flex items-center justify-center mb-3"
-                    style={{ background: 'var(--color-surface-raised)' }}
-                  >
-                    <span style={{ fontSize: 28 }}>💬</span>
-                  </div>
+                <div className="flex flex-col items-center justify-center py-16 px-6 text-center">
                   <p
-                    className="font-semibold text-lg"
-                    style={{ color: 'var(--color-text-primary)' }}
+                    className="italic"
+                    style={{
+                      color: 'var(--color-text-secondary)',
+                      fontFamily: 'var(--font-display)',
+                      fontFeatureSettings: '"opsz" auto',
+                      fontSize: '20px',
+                      fontWeight: 400,
+                      letterSpacing: '-0.01em',
+                      lineHeight: 1.45,
+                      maxWidth: '32ch',
+                    }}
                   >
-                    Beginning of channel
+                    This is where the conversation begins.
                   </p>
                   <p
-                    className="text-sm mt-1"
-                    style={{ color: 'var(--color-text-tertiary)' }}
+                    className="text-[13px] mt-2"
+                    style={{
+                      color: 'var(--color-text-tertiary)',
+                      fontFamily: 'var(--font-sans)',
+                      letterSpacing: '0.01em',
+                    }}
                   >
-                    This is the start of the conversation.
+                    Type a message to start.
                   </p>
                 </div>
               ),

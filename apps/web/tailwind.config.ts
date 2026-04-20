@@ -19,6 +19,12 @@ const config: Config = {
           muted: 'var(--color-accent-muted)',
           subtle: 'var(--color-accent-subtle)',
           strong: 'var(--color-accent-strong)',
+          secondary: {
+            DEFAULT: 'var(--color-accent-secondary-default)',
+            hover: 'var(--color-accent-secondary-hover)',
+            muted: 'var(--color-accent-secondary-muted)',
+            subtle: 'var(--color-accent-secondary-subtle)',
+          },
         },
         text: {
           primary: 'var(--color-text-primary)',
@@ -67,6 +73,7 @@ const config: Config = {
       fontFamily: {
         sans: ['var(--font-sans)', 'system-ui', 'sans-serif'],
         mono: ['var(--font-mono)', 'monospace'],
+        display: ['var(--font-display)', 'Georgia', 'serif'],
       },
       fontSize: {
         xs: 'var(--text-xs)',
@@ -100,17 +107,19 @@ const config: Config = {
         'glow-strong': 'var(--shadow-glow-strong)',
       },
       transitionDuration: {
-        instant: '80ms',
-        fast: '140ms',
-        normal: '200ms',
-        slow: '300ms',
-        slower: '400ms',
+        instant: 'var(--duration-instant)',
+        fast: 'var(--duration-fast)',
+        normal: 'var(--duration-normal)',
+        slow: 'var(--duration-slow)',
+        slower: 'var(--duration-slower)',
+        slowest: 'var(--duration-slowest)',
       },
       transitionTimingFunction: {
-        standard: 'cubic-bezier(0.4, 0, 0.2, 1)',
-        decelerate: 'cubic-bezier(0, 0, 0.2, 1)',
-        accelerate: 'cubic-bezier(0.4, 0, 1, 1)',
-        spring: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
+        gravitas: 'var(--easing-gravitas)',
+        standard: 'var(--easing-standard)',
+        decelerate: 'var(--easing-decelerate)',
+        accelerate: 'var(--easing-accelerate)',
+        spring: 'var(--easing-spring)',
       },
       zIndex: {
         dropdown: '100',

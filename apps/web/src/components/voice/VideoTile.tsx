@@ -192,10 +192,13 @@ export const VideoTile = memo(function VideoTile({
       setIsPlaying(false);
     };
 
-    // Track temporarily muted (ICE reconnection, network blip).
-    // Keep srcObject alive so playback can resume on unmute.
+    // Track temporarily muted (ICE reconnection, network blip, SFU pause).
+    // For screen shares: keep srcObject alive AND keep the video element
+    // visible — the browser pauses on the last frame, which is far better
+    // UX than a blinking avatar every time packet flow briefly stutters.
+    // Camera keeps the existing fallback (avatar on mute).
     const handleMute = () => {
-      setIsPlaying(false);
+      if (!isScreen) setIsPlaying(false);
     };
 
     // Track unmuted — data is flowing again, retry playback.
@@ -219,7 +222,13 @@ export const VideoTile = memo(function VideoTile({
       el.srcObject = null;
       setIsPlaying(false);
     };
-  }, [track, isVisible, isScreen]);
+    // For screen shares: key the effect on track.id so the same underlying
+    // MediaStreamTrack wrapped in a fresh reference doesn't tear down
+    // srcObject. Also drop isVisible — screen shares bypass the visibility
+    // gate in the body anyway (see guard above). Camera tiles keep the
+    // original reference-based behavior so lazy-mount semantics stay intact.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [track?.id, isScreen ? null : track, isScreen ? true : isVisible, isScreen]);
 
   const toggleFullscreen = useCallback(() => {
     if (!containerRef.current) return;

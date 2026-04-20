@@ -147,8 +147,17 @@ export function DMChatView({ conversationId }: DMChatViewProps) {
               status={status as any}
             />
           )}
-          <span className="font-semibold text-sm truncate"
-            style={{ color: 'var(--color-text-primary)' }}>
+          <span
+            className="truncate"
+            style={{
+              color: 'var(--color-text-primary)',
+              fontFamily: 'var(--font-display)',
+              fontFeatureSettings: '"opsz" auto',
+              fontSize: '15px',
+              fontWeight: 500,
+              letterSpacing: '-0.005em',
+            }}
+          >
             {displayName}
           </span>
         </div>

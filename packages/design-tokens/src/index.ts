@@ -33,3 +33,23 @@ export {
 
 // CSS variable generation utilities
 export { generateCSSVariables, cssVariables } from './css-variables';
+
+// Component grammar recipes (Obsidian Platinum foundation)
+export {
+  recipes,
+  density,
+  gestures,
+  focusRing,
+  button,
+  card,
+  input,
+  overlay,
+  type Recipes,
+  type Density,
+  type Gestures,
+  type FocusRing,
+  type Button,
+  type Card,
+  type Input,
+  type Overlay,
+} from './recipes';

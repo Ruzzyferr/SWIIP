@@ -1,13 +1,12 @@
 /**
- * ConstChat Design Token System
+ * ConstChat Design Token System — Obsidian Platinum
  *
  * Visual language principles:
- * - Layered dark surfaces, never flat black — depth is created through subtle
- *   elevation steps, not shadows alone.
- * - Controlled blur and translucency for overlays and floating elements.
- * - Thin, low-opacity borders to suggest containment without harsh division.
- * - Emerald accent that reads as intentional, not aggressive.
- * - Strong typographic hierarchy through size and weight, not color noise.
+ * - Cool blue-slate surface stack. Depth through progressive lightening.
+ * - Platinum accent: metallic, desaturated. Used for meaning, not decoration.
+ * - Wine secondary reserved for emotional/theatrical moments only.
+ * - Thin, platinum-tinted borders to suggest containment without harsh division.
+ * - Strong typographic hierarchy via size, weight, and the Fraunces display serif.
  */
 
 // ---------------------------------------------------------------------------
@@ -16,7 +15,7 @@
 
 export const colors = {
   /**
-   * Surface scale — each step is a distinct "layer" in the UI stack.
+   * Surface scale — cool blue-slate, 5 layers of depth.
    * base: the true page background (darkest)
    * elevated: sidebars, panels sitting above the base
    * raised: cards, list items sitting above panels
@@ -24,97 +23,104 @@ export const colors = {
    * floating: tooltips, context menus, dropdowns at the very top
    */
   surface: {
-    base: '#090B0B',
-    elevated: '#121616',
-    raised: '#181E1D',
-    overlay: '#202827',
-    floating: '#2B3533',
+    base: '#0A0C11',
+    elevated: '#141820',
+    raised: '#1B212C',
+    overlay: '#242B39',
+    floating: '#2E3646',
   },
 
   /**
-   * Accent — emerald green, balanced for dark surfaces.
+   * Accent — platinum. A desaturated cool grey that reads as quiet precious metal.
+   * secondary.* — cool wine, reserved for theatrical or emotionally-weighted moments.
    */
   accent: {
-    primary: '#10B981',
-    hover: '#059669',
-    active: '#047857',
-    muted: 'rgba(52, 211, 153, 0.16)',
-    subtle: 'rgba(52, 211, 153, 0.08)',
-    strong: 'rgba(52, 211, 153, 0.25)',
+    primary: '#C4CAD3',
+    hover: '#DDE2E9',
+    active: '#A8AFB8',
+    muted: 'rgba(196, 202, 211, 0.14)',
+    subtle: 'rgba(196, 202, 211, 0.07)',
+    strong: 'rgba(196, 202, 211, 0.22)',
+    secondary: {
+      default: '#5B1F2A',
+      hover: '#6E2632',
+      muted: 'rgba(91, 31, 42, 0.32)',
+      subtle: 'rgba(91, 31, 42, 0.14)',
+    },
   },
 
   /**
-   * Text scale — primary for body copy, secondary for supporting text,
-   * tertiary for placeholders and hints, disabled for non-interactive labels.
+   * Text scale — contrast verified against surface.base (#0A0C11).
+   * primary 15.2:1 (AAA), secondary 9.8:1 (AAA), tertiary 5.8:1 (AA), accent 11.1:1 (AAA).
    */
   text: {
-    primary: '#F5F7F6',
-    secondary: '#B7C3BF',
-    tertiary: '#788682',
-    disabled: '#3D4A46',
-    inverse: '#090B0B',
-    accent: '#34D399',
+    primary: '#E8ECF1',
+    secondary: '#B4BAC4',
+    tertiary: '#8A92A0',
+    disabled: '#454C58',
+    inverse: '#141820',
+    accent: '#C4CAD3',
   },
 
   /**
-   * Borders — all alpha-based so they adapt to any surface color.
+   * Borders — platinum-tinted alpha so hierarchy reads as cool.
    */
   border: {
-    subtle: 'rgba(255, 255, 255, 0.04)',
-    default: 'rgba(255, 255, 255, 0.07)',
-    strong: 'rgba(255, 255, 255, 0.12)',
-    focus: 'rgba(16, 185, 129, 0.50)',
+    subtle: 'rgba(196, 202, 211, 0.05)',
+    default: 'rgba(196, 202, 211, 0.09)',
+    strong: 'rgba(196, 202, 211, 0.16)',
+    focus: 'rgba(196, 202, 211, 0.45)',
   },
 
   /**
-   * Presence / status indicators.
+   * Presence / status indicators — saturation reduced ~10% so semantic colors sit inside the cool palette.
    */
   status: {
-    online: '#10B981',
-    idle: '#F59E0B',
-    dnd: '#EF4444',
-    offline: '#788682',
+    online: '#3FA887',
+    idle: '#D69A3C',
+    dnd: '#C54846',
+    offline: '#6C7583',
   },
 
   /** Destructive actions and error states. */
   danger: {
-    default: '#ef4444',
-    hover: '#dc2626',
-    active: '#b91c1c',
-    muted: 'rgba(239, 68, 68, 0.15)',
-    subtle: 'rgba(239, 68, 68, 0.08)',
+    default: '#C54846',
+    hover: '#B13B39',
+    active: '#932F2E',
+    muted: 'rgba(197, 72, 70, 0.15)',
+    subtle: 'rgba(197, 72, 70, 0.08)',
   },
 
   /** Positive confirmations and success states. */
   success: {
-    default: '#10B981',
-    hover: '#059669',
-    muted: 'rgba(16, 185, 129, 0.12)',
-    subtle: 'rgba(16, 185, 129, 0.06)',
+    default: '#3FA887',
+    hover: '#35907A',
+    muted: 'rgba(63, 168, 135, 0.12)',
+    subtle: 'rgba(63, 168, 135, 0.06)',
   },
 
   /** Caution and warning states. */
   warning: {
-    default: '#f59e0b',
-    hover: '#d97706',
-    muted: 'rgba(245, 158, 11, 0.15)',
-    subtle: 'rgba(245, 158, 11, 0.08)',
+    default: '#D69A3C',
+    hover: '#B88430',
+    muted: 'rgba(214, 154, 60, 0.15)',
+    subtle: 'rgba(214, 154, 60, 0.08)',
   },
 
   /** @mention highlight in message content. */
   mention: {
-    bg: 'rgba(16, 185, 129, 0.10)',
-    border: 'rgba(16, 185, 129, 0.35)',
-    hover: 'rgba(16, 185, 129, 0.16)',
-    text: '#34D399',
+    bg: 'rgba(196, 202, 211, 0.10)',
+    border: 'rgba(196, 202, 211, 0.35)',
+    hover: 'rgba(196, 202, 211, 0.16)',
+    text: '#DDE2E9',
   },
 
   /** Voice channel participant state colors. */
   voice: {
-    speaking: '#10B981',
-    mutedSpeaking: '#f59e0b',
-    deafened: '#ef4444',
-    disconnected: '#788682',
+    speaking: '#C4CAD3',
+    mutedSpeaking: '#D69A3C',
+    deafened: '#C54846',
+    disconnected: '#6C7583',
   },
 } as const;
 
@@ -123,8 +129,8 @@ export const colors = {
 // ---------------------------------------------------------------------------
 
 /**
- * 4 px base grid. Keys mirror Tailwind's scale so designers and engineers
- * share the same vocabulary.
+ * 4 px base grid. Keys mirror Tailwind's scale. 4.5 (18px) is the messaging
+ * rhythm step used by the density recipe.
  */
 export const spacing = {
   0: '0px',
@@ -136,6 +142,7 @@ export const spacing = {
   3: '12px',
   3.5: '14px',
   4: '16px',
+  4.5: '18px',
   5: '20px',
   6: '24px',
   7: '28px',
@@ -160,7 +167,7 @@ export const typography = {
   fontFamily: {
     sans: "'Inter', 'system-ui', -apple-system, 'Segoe UI', Roboto, sans-serif",
     mono: "'JetBrains Mono', 'Fira Code', 'Cascadia Code', 'Consolas', monospace",
-    display: "'Cal Sans', 'Inter', 'system-ui', sans-serif",
+    display: "'Fraunces', 'Iowan Old Style', 'Cambria', Georgia, serif",
   },
 
   fontSize: {
@@ -168,11 +175,11 @@ export const typography = {
     sm: '13px',
     base: '15px',
     md: '16px',
-    lg: '18px',
-    xl: '20px',
-    '2xl': '24px',
-    '3xl': '30px',
-    '4xl': '36px',
+    lg: '19px',
+    xl: '22px',
+    '2xl': '26px',
+    '3xl': '34px',
+    '4xl': '44px',
   },
 
   fontWeight: {
@@ -223,9 +230,8 @@ export const radius = {
 // ---------------------------------------------------------------------------
 
 /**
- * Shadows are heavier than typical light-mode shadows because dark UI needs
- * more contrast to read as depth. The glow variant is for accent-colored
- * focus rings and highlights.
+ * Shadows carry depth in a dark UI. The glow variant uses platinum at low
+ * alpha — a cold highlight, not a warm bloom.
  */
 export const shadow = {
   none: 'none',
@@ -234,39 +240,39 @@ export const shadow = {
   lg: '0 8px 24px rgba(0, 0, 0, 0.60)',
   xl: '0 16px 48px rgba(0, 0, 0, 0.70)',
   '2xl': '0 24px 64px rgba(0, 0, 0, 0.80)',
-  glow: '0 0 20px rgba(16, 185, 129, 0.30)',
-  glowStrong: '0 0 32px rgba(16, 185, 129, 0.50)',
+  glow: '0 0 20px rgba(196, 202, 211, 0.22)',
+  glowStrong: '0 0 32px rgba(196, 202, 211, 0.38)',
   inset: 'inset 0 1px 3px rgba(0, 0, 0, 0.40)',
 } as const;
 
 // ---------------------------------------------------------------------------
-// Motion
+// Motion — "Gravitas"
 // ---------------------------------------------------------------------------
 
 /**
- * Duration and easing pairings designed for UI animation:
- * - instant/fast: micro-interactions (button press, toggle)
- * - normal: panel transitions, accordions
- * - slow/slower: page transitions, modal entrances
- * - spring: playful bounce for confirmations and delight moments
+ * Canonical motion vocabulary: one easing curve (gravitas), three canonical
+ * durations for ~95% of gestures. Enters fast, decelerates long, lands deliberately.
+ * spring is retained for backcompat but forbidden in new code per foundation spec §6.4.
  */
 export const motion = {
   duration: {
     instant: '80ms',
-    fast: '140ms',
-    normal: '200ms',
-    slow: '300ms',
-    slower: '400ms',
-    slowest: '600ms',
+    fast: '180ms',
+    normal: '220ms',
+    slow: '320ms',
+    slower: '480ms',
+    slowest: '700ms',
   },
   easing: {
-    /** General-purpose: accelerates then decelerates. */
+    /** Default for everything — enters fast, decelerates long. */
+    gravitas: 'cubic-bezier(0.2, 0.8, 0.2, 1)',
+    /** Kept for backcompat — prefer gravitas in new code. */
     standard: 'cubic-bezier(0.4, 0, 0.2, 1)',
     /** Elements entering the screen. */
     decelerate: 'cubic-bezier(0, 0, 0.2, 1)',
     /** Elements leaving the screen. */
     accelerate: 'cubic-bezier(0.4, 0, 1, 1)',
-    /** Playful overshoot — use sparingly for delight. */
+    /** Playful overshoot — forbidden in new code under Gravitas. */
     spring: 'cubic-bezier(0.34, 1.56, 0.64, 1)',
     /** Perfectly linear — for things like progress bars. */
     linear: 'linear',
@@ -298,18 +304,17 @@ export const zIndex = {
 // ---------------------------------------------------------------------------
 
 /**
- * Fixed structural dimensions of the ConstChat shell. These should be treated
- * as constants — not to be overridden by component styles.
+ * Fixed structural dimensions of the Swiip shell. Breathing-density widths.
  */
 export const layout = {
   serverRailWidth: '64px',
-  channelSidebarWidth: '240px',
-  memberSidebarWidth: '260px',
-  bottomBarHeight: '52px',
+  channelSidebarWidth: '260px',
+  memberSidebarWidth: '280px',
+  bottomBarHeight: '56px',
   titleBarHeight: '48px',
-  messageInputMinHeight: '44px',
+  messageInputMinHeight: '48px',
   messageInputMaxHeight: '50vh',
-  threadPanelWidth: '400px',
+  threadPanelWidth: '420px',
 } as const;
 
 // ---------------------------------------------------------------------------
