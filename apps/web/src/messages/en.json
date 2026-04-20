@@ -103,6 +103,7 @@
 
   "servers": {
     "directMessages": "Direct Messages",
+    "addServer": "Add a Server",
     "createServer": "Create a Server",
     "joinServer": "Join a Server",
     "discoverServers": "Discover Servers",

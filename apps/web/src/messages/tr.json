@@ -103,6 +103,7 @@
 
   "servers": {
     "directMessages": "Direkt Mesajlar",
+    "addServer": "Sunucu Ekle",
     "createServer": "Sunucu Oluştur",
     "joinServer": "Sunucuya Katıl",
     "discoverServers": "Sunucuları Keşfet",

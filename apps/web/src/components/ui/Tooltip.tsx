@@ -147,6 +147,8 @@ export function Tooltip({
         onMouseLeave={hide}
         onFocus={show}
         onBlur={hide}
+        onPointerDown={hide}
+        onClick={hide}
         style={{ display: 'inline-flex' }}
       >
         {children}

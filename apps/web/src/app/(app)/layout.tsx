@@ -4,6 +4,7 @@ import { type ReactNode, useEffect, useState } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { AppProvider } from '@/components/providers/AppProvider';
 import { SwiipTopBar } from '@/components/layout/SwiipTopBar';
+import { ServerDock } from '@/components/layout/ServerDock';
 import { ModalRoot } from '@/components/modals/ModalRoot';
 import dynamic from 'next/dynamic';
 const SettingsOverlay = dynamic(() => import('@/components/layout/SettingsOverlay').then(m => ({ default: m.SettingsOverlay })), { ssr: false });
@@ -112,6 +113,10 @@ export default function AppLayout({ children }: { children: ReactNode }) {
 
           <ErrorBoundary fallbackTitle="Something went wrong">
             <div className="flex-1 flex min-w-0 overflow-hidden h-full" style={{ position: 'relative' }}>
+              {/* Vertical server dock — desktop/tablet */}
+              <div className="hidden md:flex">
+                <ServerDock />
+              </div>
               {/* DM conversation list — desktop column; mobile slide-over (toggled from Friends / DM header) */}
               {isDMMode && (
                 <>
@@ -144,14 +149,17 @@ export default function AppLayout({ children }: { children: ReactNode }) {
                           animate={{ x: 0 }}
                           exit={{ x: '-105%' }}
                           transition={{ type: 'spring', stiffness: 420, damping: 38 }}
-                          className="fixed inset-y-0 left-0 z-[60] flex w-[min(280px,88vw)] flex-col overflow-y-auto p-2 md:hidden scroll-thin"
+                          className="fixed inset-y-0 left-0 z-[60] flex w-[min(344px,92vw)] md:hidden"
                           style={{
                             background: 'rgba(10, 14, 16, 0.98)',
                             borderRight: '1px solid rgba(255,255,255,0.06)',
                             boxShadow: '8px 0 40px rgba(0,0,0,0.45)',
                           }}
                         >
-                          <DMConversationList />
+                          <ServerDock />
+                          <div className="flex-1 flex flex-col overflow-y-auto p-2 scroll-thin">
+                            <DMConversationList />
+                          </div>
                         </motion.aside>
                       </>
                     )}

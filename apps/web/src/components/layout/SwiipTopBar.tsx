@@ -2,7 +2,6 @@
 
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import Image from 'next/image';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   ChevronDown,
@@ -15,8 +14,6 @@ import {
   Users,
   Search,
   Compass,
-  Home,
-  Link2,
 } from 'lucide-react';
 import dynamic from 'next/dynamic';
 import { Tooltip } from '@/components/ui/Tooltip';
@@ -25,230 +22,9 @@ import { useGuildsStore } from '@/stores/guilds.store';
 import { useUIStore } from '@/stores/ui.store';
 import { useVoiceStore } from '@/stores/voice.store';
 import { useTranslations } from 'next-intl';
-import { ChannelType, type ChannelPayload, type GuildPayload } from '@constchat/protocol';
+import { ChannelType, type ChannelPayload } from '@constchat/protocol';
 
 const spring = { type: 'spring' as const, stiffness: 500, damping: 30 };
-
-// ---------------------------------------------------------------------------
-// Server Strip — horizontal rail of every guild icon (Row A)
-// ---------------------------------------------------------------------------
-
-function ServerIcon({
-  guild,
-  isActive,
-  onClick,
-}: {
-  guild: GuildPayload;
-  isActive: boolean;
-  onClick: () => void;
-}) {
-  return (
-    <Tooltip content={guild.name} placement="bottom">
-      <motion.button
-        onClick={onClick}
-        whileHover={{ scale: 1.06 }}
-        whileTap={{ scale: 0.94 }}
-        transition={spring}
-        animate={{ borderRadius: isActive ? 12 : 18 }}
-        className="relative w-9 h-9 flex items-center justify-center overflow-hidden shrink-0"
-        style={{
-          background: guild.icon ? 'transparent' : 'rgba(255,255,255,0.06)',
-          boxShadow: isActive
-            ? '0 0 0 2px var(--ambient-primary, #10B981), 0 8px 24px -10px var(--ambient-primary, #10B981)'
-            : 'none',
-        }}
-      >
-        {guild.icon ? (
-          <Image
-            src={guild.icon}
-            alt={guild.name}
-            width={36}
-            height={36}
-            className="object-cover w-full h-full"
-          />
-        ) : (
-          <span
-            className="text-xs font-bold"
-            style={{
-              color: isActive
-                ? 'var(--color-accent-primary)'
-                : 'var(--color-text-secondary)',
-            }}
-          >
-            {guild.name.slice(0, 2).toUpperCase()}
-          </span>
-        )}
-        {isActive && (
-          <motion.span
-            layoutId="server-strip-active-bar"
-            aria-hidden
-            className="absolute -bottom-[3px] h-[3px] rounded-full"
-            style={{
-              width: 20,
-              background: 'var(--ambient-primary, var(--color-accent-primary))',
-            }}
-          />
-        )}
-      </motion.button>
-    </Tooltip>
-  );
-}
-
-function ServerStrip() {
-  const router = useRouter();
-  const t = useTranslations('servers');
-  const guilds = useGuildsStore((s) => s.guilds);
-  const guildOrder = useGuildsStore((s) => s.guildOrder);
-  const activeGuildId = useUIStore((s) => s.activeGuildId);
-  const setActiveGuild = useUIStore((s) => s.setActiveGuild);
-  const openModal = useUIStore((s) => s.openModal);
-  const [addMenuOpen, setAddMenuOpen] = useState(false);
-  const addMenuRef = useRef<HTMLDivElement>(null);
-
-  const isDMActive = !activeGuildId || activeGuildId === '@me' || activeGuildId === 'me';
-
-  useEffect(() => {
-    if (!addMenuOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (!addMenuRef.current?.contains(e.target as Node)) setAddMenuOpen(false);
-    };
-    window.addEventListener('mousedown', handler);
-    return () => window.removeEventListener('mousedown', handler);
-  }, [addMenuOpen]);
-
-  const goToDM = () => {
-    setActiveGuild(null);
-    router.push('/channels/@me');
-  };
-
-  const goToGuild = (gid: string) => {
-    setActiveGuild(gid);
-    router.push(`/channels/${gid}`);
-  };
-
-  return (
-    <div className="flex items-center gap-1.5 min-w-0 flex-1">
-      {/* DM / Home */}
-      <Tooltip content="Direct Messages" placement="bottom">
-        <motion.button
-          onClick={goToDM}
-          whileHover={{ scale: 1.06 }}
-          whileTap={{ scale: 0.94 }}
-          transition={spring}
-          animate={{ borderRadius: isDMActive ? 12 : 18 }}
-          className="relative w-9 h-9 flex items-center justify-center overflow-hidden shrink-0"
-          style={{
-            background: isDMActive
-              ? 'var(--color-accent-muted, rgba(16,185,129,0.12))'
-              : 'rgba(255,255,255,0.06)',
-            color: isDMActive
-              ? 'var(--color-accent-primary)'
-              : 'var(--color-text-secondary)',
-          }}
-        >
-          <Home size={16} />
-          {isDMActive && (
-            <motion.span
-              layoutId="server-strip-active-bar"
-              aria-hidden
-              className="absolute -bottom-[3px] h-[3px] rounded-full"
-              style={{
-                width: 20,
-                background: 'var(--color-accent-primary)',
-              }}
-            />
-          )}
-        </motion.button>
-      </Tooltip>
-
-      {/* Divider */}
-      <div className="w-px h-6 shrink-0" style={{ background: 'rgba(255,255,255,0.08)' }} />
-
-      {/* Scrollable guild rail */}
-      <div
-        className="flex items-center gap-1.5 overflow-x-auto scroll-hidden min-w-0"
-        style={{ paddingBottom: 2 }}
-      >
-        {guildOrder.map((gid) => {
-          const guild = guilds[gid];
-          if (!guild) return null;
-          return (
-            <ServerIcon
-              key={gid}
-              guild={guild}
-              isActive={activeGuildId === gid}
-              onClick={() => goToGuild(gid)}
-            />
-          );
-        })}
-      </div>
-
-      {/* Add server */}
-      <div className="relative shrink-0" ref={addMenuRef}>
-        <Tooltip content={t('createServer')} placement="bottom">
-          <motion.button
-            onClick={() => setAddMenuOpen((v) => !v)}
-            whileHover={{ scale: 1.06 }}
-            whileTap={{ scale: 0.94 }}
-            transition={spring}
-            className="w-9 h-9 rounded-full flex items-center justify-center"
-            style={{
-              background: addMenuOpen
-                ? 'var(--color-accent-muted, rgba(16,185,129,0.12))'
-                : 'rgba(255,255,255,0.04)',
-              color: 'var(--color-accent-primary)',
-              border: '1px dashed var(--color-accent-primary)',
-            }}
-          >
-            <Plus size={16} />
-          </motion.button>
-        </Tooltip>
-
-        <AnimatePresence>
-          {addMenuOpen && (
-            <>
-              <div className="fixed inset-0 z-40" onClick={() => setAddMenuOpen(false)} />
-              <motion.div
-                initial={{ opacity: 0, y: -8, scale: 0.95, filter: 'blur(4px)' }}
-                animate={{ opacity: 1, y: 0, scale: 1, filter: 'blur(0px)' }}
-                exit={{ opacity: 0, y: -8, scale: 0.95, filter: 'blur(4px)' }}
-                transition={spring}
-                className="absolute right-0 top-[calc(100%+8px)] z-50 w-56 rounded-2xl py-2 overflow-hidden"
-                style={{
-                  background: 'rgba(14, 18, 20, 0.95)',
-                  backdropFilter: 'blur(30px)',
-                  border: '1px solid rgba(255,255,255,0.06)',
-                  boxShadow: '0 20px 60px rgba(0,0,0,0.6), 0 0 0 1px rgba(255,255,255,0.03)',
-                }}
-              >
-                <button
-                  onClick={() => { openModal('create-guild'); setAddMenuOpen(false); }}
-                  className="flex items-center gap-3 w-full px-3 py-2 text-sm transition-colors"
-                  style={{ color: 'var(--color-accent-primary)' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <Plus size={16} />
-                  <span>{t('createServer')}</span>
-                </button>
-                <button
-                  onClick={() => { openModal('join-guild'); setAddMenuOpen(false); }}
-                  className="flex items-center gap-3 w-full px-3 py-2 text-sm transition-colors"
-                  style={{ color: 'var(--color-text-secondary)' }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <Link2 size={16} />
-                  <span>{t('joinServer')}</span>
-                </button>
-              </motion.div>
-            </>
-          )}
-        </AnimatePresence>
-      </div>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 // Channel Tabs — horizontal scrollable channel list
@@ -568,14 +344,9 @@ export function SwiipTopBar() {
         WebkitBackdropFilter: 'blur(24px)',
       }}
     >
-      {/* Row A — Server strip */}
-      <div
-        className="flex items-center gap-2 px-2 sm:px-3 h-12 min-w-0"
-        style={{ borderBottom: '1px solid rgba(255,255,255,0.04)' }}
-      >
-        <ServerStrip />
-
-        {/* Global search on far right of Row A */}
+      {/* Single row — channel tabs + search + context actions */}
+      <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 h-12 min-w-0 relative">
+        {/* Global search */}
         <Tooltip content={t('search')} placement="bottom">
           <motion.button
             onClick={() => setShowSearch(true)}
@@ -587,14 +358,12 @@ export function SwiipTopBar() {
               background: 'rgba(255,255,255,0.04)',
               color: 'var(--color-text-tertiary)',
             }}
+            aria-label={t('search')}
           >
             <Search size={15} />
           </motion.button>
         </Tooltip>
-      </div>
 
-      {/* Row B — Channel tabs + context actions */}
-      <div className="flex items-center gap-1.5 sm:gap-2 px-2 sm:px-3 h-12 min-w-0 relative">
         {/* Ambient glow line */}
         <div
           className="absolute bottom-0 left-0 right-0 h-px pointer-events-none"
