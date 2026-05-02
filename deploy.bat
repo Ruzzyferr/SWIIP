@@ -335,7 +335,52 @@ if !PREFLIGHT_FAILED!==1 (
 )
 echo.
 echo [OK] All infra files validated
+
+:: ============================================================
+:: Ensure server .env.production has required keys (idempotent).
+:: Only appends keys that are missing — never overwrites user values.
+:: Required by the auth/cookie + email-reset flow and CORS middleware.
+:: ============================================================
+echo.
+echo ============================================================
+echo   STEP: Ensure server .env.production keys
+echo ============================================================
+echo.
+call :ensure_server_env
+if errorlevel 1 (
+    echo [!] Could not ensure server env keys. Check SSH connectivity.
+    pause
+    exit /b 1
+)
 goto git_step
+
+:ensure_server_env
+echo [*] Verifying required keys on %SERVER%:%REPO_DIR%/%ENV_FILE%...
+call :ensure_key APP_URL "https://swiip.app"
+if errorlevel 1 exit /b 1
+call :ensure_key CORS_ORIGIN "https://swiip.app"
+if errorlevel 1 exit /b 1
+call :ensure_key AUTH_COOKIE_SAMESITE "lax"
+if errorlevel 1 exit /b 1
+call :ensure_key AUTH_COOKIE_SECURE "true"
+if errorlevel 1 exit /b 1
+call :ensure_key AUTH_COOKIE_MAX_AGE_SECONDS "7776000"
+if errorlevel 1 exit /b 1
+call :ensure_key JWT_REFRESH_EXPIRY "90d"
+if errorlevel 1 exit /b 1
+call :ensure_key JWT_ACCESS_EXPIRY "15m"
+if errorlevel 1 exit /b 1
+call :ensure_key AUTH_REFRESH_COOKIE_NAME "swiip_rt"
+if errorlevel 1 exit /b 1
+call :ensure_key AUTH_COOKIE_PATH "/"
+if errorlevel 1 exit /b 1
+echo [OK] env keys verified
+exit /b 0
+
+:ensure_key
+:: %~1 = key name, %~2 = default value (only added if key missing)
+ssh %SERVER% "cd %REPO_DIR% && touch %ENV_FILE% && grep -q '^%~1=' %ENV_FILE% || echo '%~1=%~2' >> %ENV_FILE%" >nul 2>&1
+exit /b %errorlevel%
 
 :: ============================================================
 :: Git Push
@@ -670,6 +715,13 @@ if errorlevel 1 (
     exit /b 1
 )
 echo [OK] Server connection established
+
+call :ensure_server_env
+if errorlevel 1 (
+    echo [!] Could not ensure server env keys.
+    pause
+    exit /b 1
+)
 
 echo [*] Logging into GHCR on server...
 ssh %SERVER% "echo $GITHUB_TOKEN | docker login ghcr.io -u Ruzzyferr --password-stdin 2>/dev/null || echo 'GHCR login failed — set GITHUB_TOKEN on server'"

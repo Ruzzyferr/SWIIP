@@ -102,11 +102,22 @@ export function AppProvider({ children }: { children: ReactNode }) {
       try {
         const userData = await getCurrentUser();
         setUser(userData);
-      } catch {
-        logoutAction();
-        setAccessToken(null);
-        router.replace('/login');
-        return;
+      } catch (err: unknown) {
+        // Only force logout on a real auth failure (401). Transient network /
+        // server errors (status 0, 5xx) should NOT kick the user out — the
+        // axios refresh interceptor already handled token expiry; anything
+        // reaching here with a non-401 is environmental.
+        const status =
+          typeof err === 'object' && err !== null && 'statusCode' in err
+            ? (err as { statusCode: number }).statusCode
+            : 0;
+        if (status === 401) {
+          logoutAction();
+          setAccessToken(null);
+          router.replace('/login');
+          return;
+        }
+        console.error('[AppProvider] getCurrentUser failed (non-auth):', err);
       } finally {
         setLoading(false);
       }

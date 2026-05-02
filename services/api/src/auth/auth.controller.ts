@@ -53,7 +53,7 @@ export class AuthController {
   }
 
   private get refreshCookieMaxAgeSec(): number {
-    return this.configService.get<number>('AUTH_COOKIE_MAX_AGE_SECONDS', 60 * 60 * 24 * 30);
+    return this.configService.get<number>('AUTH_COOKIE_MAX_AGE_SECONDS', 60 * 60 * 24 * 90);
   }
 
   private get cookieSecure(): boolean {

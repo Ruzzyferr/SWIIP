@@ -84,7 +84,7 @@ export interface AuthUser {
 export class AuthService {
   private readonly logger = new Logger(AuthService.name);
   private readonly BCRYPT_ROUNDS = 12;
-  private readonly SESSION_TTL_SECONDS = 60 * 60 * 24 * 30; // 30 days
+  private readonly SESSION_TTL_SECONDS = 60 * 60 * 24 * 90; // 90 days
   private readonly EMAIL_VERIFY_TTL = 60 * 10; // 10 minutes
   private readonly EMAIL_VERIFY_MAX_ATTEMPTS = 5;
   private readonly EMAIL_RESEND_COOLDOWN = 60; // 60 seconds
@@ -314,11 +314,25 @@ export class AuthService {
     }
 
     const session = await this.prisma.session.findFirst({
-      where: { id: payload.sessionId, refreshToken, isValid: true },
+      where: { id: payload.sessionId, isValid: true },
     });
 
     if (!session) {
       throw new UnauthorizedException('Session not found or revoked');
+    }
+
+    // Match incoming token against the current refreshToken OR a recently-rotated
+    // one held in Redis grace (10s). Without this, two browser tabs that send a
+    // refresh request near-simultaneously with the same old cookie can race:
+    // the second to arrive sees a rotated DB row and gets logged out.
+    const isCurrent = session.refreshToken === refreshToken;
+    let isGrace = false;
+    if (!isCurrent) {
+      const graceToken = await this.redis.get(`refresh:grace:${session.id}`);
+      isGrace = graceToken === refreshToken;
+    }
+    if (!isCurrent && !isGrace) {
+      throw new UnauthorizedException('Refresh token does not match');
     }
 
     if (session.expiresAt < new Date()) {
@@ -332,11 +346,20 @@ export class AuthService {
     const newTokens = await this.generateTokenPair(session.userId, session.id);
 
     const newRefreshToken = newTokens.refreshToken;
+    const newExpiresAt = new Date(Date.now() + this.SESSION_TTL_SECONDS * 1000);
+
+    // Park the soon-to-be-old token in grace before rotation so a concurrent
+    // request still in flight can succeed.
+    if (isCurrent) {
+      await this.redis.setex(`refresh:grace:${session.id}`, 10, session.refreshToken);
+    }
+
     await this.prisma.session.update({
       where: { id: session.id },
       data: {
         refreshToken: newRefreshToken,
         lastUsedAt: new Date(),
+        expiresAt: newExpiresAt,
       },
     });
 
